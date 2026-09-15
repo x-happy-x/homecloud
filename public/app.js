@@ -63,7 +63,7 @@ const ui = {
   treeOpen: new Set(),
   treeBusy: false,
   selectedFeatures: {faces: true, visual: true, ocr: false, caption: false,
-    adult: false, speech: false, diarize: false},
+    adult: false, speech: false, diarize: false, authenticity: false},
   routePhoto: '',
   routeGroup: '',
   applyingRoute: false,
@@ -2290,7 +2290,7 @@ const jobLabels = {
   idle: 'Готово к запуску', inventory: 'Поиск фотографий', faces: 'Распознавание лиц',
   visual: 'Визуальный индекс', ocr: 'Распознавание текста', caption: 'Описание изображений',
   adult: 'Анализ 18+ и областей', speech: 'Расшифровка речи',
-  diarize: 'Разделение голосов',
+  diarize: 'Разделение голосов', authenticity: 'Поиск рисованных лиц',
   running: 'Обработка', completed: 'Завершено', stopped: 'Остановлено',
   interrupted: 'Прервано', error: 'Ошибка',
 };
