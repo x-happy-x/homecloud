@@ -426,6 +426,19 @@ main { padding: 4px var(--gap) 120px; flex: 1; }
 }
 .person-card.selected .tick-mark, .face-card.selected .tick-mark { opacity: 1; transform: none; }
 
+.hidden-badge {
+  position: absolute;
+  right: 4%; top: 4%;
+  z-index: 2;
+  width: 24px; height: 24px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--surface);
+  background: rgb(20 29 27 / 66%);
+  font-size: .74rem;
+  backdrop-filter: blur(4px);
+}
+
 .person-label {
   display: block;
   width: 100%;
@@ -1779,6 +1792,17 @@ p, code, pre, h1, h2, h3, summary,
 
 .album-row.secret { margin-bottom: 8px; border: 1px dashed var(--line); }
 .album-row.secret .album-cover { font-size: 1.15rem; background: var(--patina-soft); }
+
+/* ---------- альбомы людей ---------- */
+
+.people-album-tree { margin-bottom: 14px; }
+.people-album-tree.hidden { display: none; }
+.people-album-crumbs { flex-wrap: wrap; margin-bottom: 4px; }
+.people-album-crumbs .album-pick { flex: 0 0 auto; padding: 4px 10px; }
+.people-album-crumbs .album-pick.active b { color: var(--muted); font-weight: 500; }
+.people-album-crumbs .album-pick:last-child b { color: var(--ink); font-weight: 700; }
+.people-album-hidden { opacity: .55; }
+.people-album-hidden .album-body b { font-style: italic; }
 
 /* ---------- дубликаты ---------- */
 

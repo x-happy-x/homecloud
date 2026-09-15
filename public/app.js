@@ -3,6 +3,8 @@ const token = document.querySelector('meta[name="local-token"]').content;
 const ui = {
   session: null,
   canEdit: false,
+  isAdmin: false,
+  peopleAlbum: 0,
   bigfamUrl: '#',
   state: null,
   kin: null,            // люди из картотеки bigfam
@@ -413,6 +415,7 @@ function groupCard(group, selectable = true) {
         ${source ? `<img src="${escapeHtml(source)}" alt="" loading="lazy" decoding="async"
           data-fallback="${escapeHtml(fallback)}">` : `<span class="person-letter">${letter}</span>`}
       </button>
+      ${group.hidden ? '<span class="hidden-badge" title="В скрытом альбоме — видно только админу">🔒</span>' : ''}
       <span class="count-badge" title="${escapeHtml(counts)}">
         ${formatNumber(group.count)}<i>/</i>${formatNumber(group.photos)}</span>
       <span class="tick-mark" aria-hidden="true">✓</span>
@@ -454,13 +457,173 @@ function setCount(id, value) {
 function renderPeople() {
   const query = ($('#peopleSearch').value || $('#searchInput').value)
     .trim().toLocaleLowerCase('ru');
+  const album = ui.peopleAlbum ? peopleAlbumById(ui.peopleAlbum) : null;
+  const inAlbum = album ? new Set(album.member_keys || []) : null;
   const groups = ui.state.groups
     .filter(group => !['noise', 'excluded'].includes(group.kind))
+    .filter(group => !inAlbum || inAlbum.has(group.key))
     .filter(group => !query || `${group.title} ${group.name}`.toLocaleLowerCase('ru').includes(query));
   $('#peopleGrid').innerHTML = groups.map(group => groupCard(group)).join('');
   $('#peopleEmpty').classList.toggle('hidden', groups.length > 0);
   bindGroupCards($('#peopleGrid'));
   updateActionBar();
+  renderPeopleAlbums();
+}
+
+/* ---------- альбомы людей ---------- */
+
+const peopleAlbumById = id => (ui.state.people_albums || []).find(item => item.id === id);
+
+function renderPeopleAlbums() {
+  const host = $('#peopleAlbumTree');
+  if (!host) return;
+  const items = ui.state.people_albums || [];
+  // Внутри альбома — только его прямые дети, не всё дерево сразу: так же,
+  // как папки снимков, а не плоский список на восемь уровней вложенности.
+  const parentId = ui.peopleAlbum || 0;
+  const level = items.filter(item => item.parent_id === parentId);
+  $('#createPeopleAlbum').hidden = !ui.canEdit;
+  if (!level.length && !parentId) {
+    host.innerHTML = '';
+    host.classList.add('hidden');
+    return;
+  }
+  host.classList.remove('hidden');
+  const crumbs = [];
+  for (let current = peopleAlbumById(parentId); current; current = peopleAlbumById(current.parent_id)) {
+    crumbs.unshift(current);
+  }
+  host.innerHTML =
+    `<div class="album-row people-album-crumbs">
+      <button class="album-pick ${!parentId ? 'active' : ''}" type="button" data-pick="0">
+        <span class="album-body"><b>Все люди</b></span></button>
+      ${crumbs.map(item => `<button class="album-pick active" type="button" data-pick="${item.id}">
+        <span class="album-body"><b>${escapeHtml(item.title)}</b></span></button>`).join('')}
+    </div>` +
+    level.map(peopleAlbumRow).join('');
+  host.querySelectorAll('[data-pick]').forEach(button =>
+    button.addEventListener('click', () => pickPeopleAlbum(Number(button.dataset.pick))));
+  host.querySelectorAll('[data-action]').forEach(button =>
+    button.addEventListener('click', () =>
+      peopleAlbumAction(button.dataset.action, Number(button.dataset.id))));
+}
+
+function peopleAlbumRow(album) {
+  const nested = album.total - album.groups;
+  return `<div class="album-row ${album.hidden ? 'people-album-hidden' : ''}"
+      data-id="${album.id}" style="--depth:0">
+    <button class="album-pick" type="button" data-pick="${album.id}">
+      <span class="album-body">
+        <b>${escapeHtml(album.title)}${album.hidden ? ' 🔒' : ''}</b>
+        <small>${formatNumber(album.groups)} ${plural(album.groups, 'группа', 'группы', 'групп')}${
+          nested > 0 ? ` · во вложенных ${formatNumber(nested)}` : ''}</small>
+      </span>
+    </button>
+    <span class="album-tools">
+      ${ui.isAdmin ? `<button class="icon-button tiny" type="button" data-action="hidden" data-id="${album.id}"
+        title="${album.hidden ? 'Показать всем' : 'Скрыть от всех, кроме админа'}">${
+          album.hidden ? '🙈' : '👁'}</button>` : ''}
+      ${ui.canEdit ? `<button class="icon-button tiny" type="button" data-action="rename" data-id="${album.id}"
+        title="Переименовать">✎</button>
+      <button class="icon-button tiny" type="button" data-action="move" data-id="${album.id}"
+        title="Переместить">⇄</button>
+      <button class="icon-button tiny danger" type="button" data-action="delete" data-id="${album.id}"
+        title="Удалить альбом">🗑</button>` : ''}
+    </span>
+  </div>`;
+}
+
+function pickPeopleAlbum(id) {
+  ui.peopleAlbum = id;
+  renderPeople();
+}
+
+async function peopleAlbumCall(path, payload, message) {
+  const data = await api(path, {method: 'POST', body: JSON.stringify(payload)});
+  ui.state = data.state || ui.state;
+  renderStats();
+  renderPeople();
+  renderReview();
+  renderPersonFilters();
+  if (message) toast(message);
+  return data;
+}
+
+async function peopleAlbumAction(action, id) {
+  const album = peopleAlbumById(id);
+  if (!album) return;
+  try {
+    if (action === 'hidden') {
+      await peopleAlbumCall('/api/people-albums/hidden', {id, hidden: !album.hidden},
+        album.hidden ? 'Альбом снова виден всем' : 'Альбом скрыт ото всех, кроме админа');
+    }
+    if (action === 'rename') {
+      const title = prompt('Название альбома', album.title);
+      if (title === null) return;
+      await peopleAlbumCall('/api/people-albums/rename', {id, title}, 'Альбом переименован');
+    }
+    if (action === 'delete') {
+      const nested = (ui.state.people_albums || [])
+        .filter(item => item.trail.startsWith(`${album.trail} / `)).length;
+      if (!confirm(`Удалить альбом «${album.title}»${nested ? ` и ${nested} вложенных` : ''}?`
+        + '\nСами люди и группы останутся на месте.')) return;
+      if (ui.peopleAlbum === id) ui.peopleAlbum = 0;
+      await peopleAlbumCall('/api/people-albums/delete', {id}, 'Альбом удалён');
+    }
+    if (action === 'move') showPeopleAlbumMove(id);
+  } catch (error) { toast(error.message); }
+}
+
+/** Перенос альбома: список возможных родителей прямо в строке. */
+function showPeopleAlbumMove(id) {
+  const row = $(`#peopleAlbumTree .album-row[data-id="${id}"]`);
+  if (!row || row.querySelector('.album-move')) return;
+  const album = peopleAlbumById(id);
+  const forbidden = new Set([id, ...(ui.state.people_albums || [])
+    .filter(item => item.trail.startsWith(`${album.trail} / `)).map(item => item.id)]);
+  const select = document.createElement('select');
+  select.className = 'album-move';
+  select.innerHTML = '<option value="0">— верхний уровень —</option>' + (ui.state.people_albums || [])
+    .filter(item => !forbidden.has(item.id))
+    .map(item => `<option value="${item.id}">${escapeHtml(item.trail)}</option>`).join('');
+  select.value = String(album.parent_id || 0);
+  select.addEventListener('change', async () => {
+    try {
+      await peopleAlbumCall('/api/people-albums/move', {id, parent_id: Number(select.value)},
+        'Альбом перемещён');
+    } catch (error) { toast(error.message); renderPeopleAlbums(); }
+  });
+  select.addEventListener('blur', () => select.remove());
+  row.append(select);
+  select.focus();
+}
+
+function openPeopleAlbumPick() {
+  const keys = [...ui.selectedGroups];
+  if (!keys.length) return;
+  ui.peopleAlbumPickKeys = keys;
+  $('#peopleAlbumPickCount').textContent =
+    `${formatNumber(keys.length)} ${plural(keys.length, 'группа', 'группы', 'групп')}`;
+  $('#peopleAlbumPickTitle').value = '';
+  const items = ui.state.people_albums || [];
+  $('#peopleAlbumPickParent').innerHTML = '<option value="0">— верхний уровень —</option>' +
+    items.map(item => `<option value="${item.id}">${escapeHtml(item.trail)}</option>`).join('');
+  $('#peopleAlbumPickList').innerHTML = items.length
+    ? items.map(album => `<button class="album-pick-item" type="button" data-id="${album.id}">
+        ${escapeHtml(album.title)}<small>${formatNumber(album.groups)}</small></button>`).join('')
+    : '<span class="person-meta">Альбомов пока нет — создайте ниже.</span>';
+  $('#peopleAlbumPickList').querySelectorAll('[data-id]').forEach(button =>
+    button.addEventListener('click', async () => {
+      try {
+        await peopleAlbumCall('/api/people-albums/members',
+          {id: Number(button.dataset.id), add: ui.peopleAlbumPickKeys}, 'Добавлено в альбом');
+        $('#peopleAlbumPickDialog').close();
+        ui.selectedGroups.clear();
+        selectionPicker.clear();
+        renderPeople();
+      } catch (error) { toast(error.message); }
+    }));
+  $('#peopleAlbumPickDialog').showModal();
 }
 
 function renderReview() {
@@ -3014,6 +3177,32 @@ $('#assignGroupsButton').addEventListener('click', () => {
     {group_keys: [...ui.selectedGroups], name, bigfam_id: selectionPicker.bigfamId},
     'Группы объединены и названы');
 });
+$('#addGroupsToAlbumButton').addEventListener('click', () => openPeopleAlbumPick());
+$('#createPeopleAlbum').addEventListener('click', async () => {
+  const title = prompt('Название альбома, например «Родственники»');
+  if (!title) return;
+  try {
+    await peopleAlbumCall('/api/people-albums/create', {title}, 'Альбом создан');
+  } catch (error) { toast(error.message); }
+});
+$('#cancelPeopleAlbumPick').addEventListener('click', () => $('#peopleAlbumPickDialog').close());
+$('#peopleAlbumPickDialog').querySelector('.dialog-close')
+  .addEventListener('click', () => $('#peopleAlbumPickDialog').close());
+$('#peopleAlbumPickForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const title = $('#peopleAlbumPickTitle').value.trim();
+  if (!title) return toast('Введите название альбома');
+  try {
+    await peopleAlbumCall('/api/people-albums/create',
+      {title, parent_id: Number($('#peopleAlbumPickParent').value || 0),
+       group_keys: ui.peopleAlbumPickKeys},
+      'Альбом создан');
+    $('#peopleAlbumPickDialog').close();
+    ui.selectedGroups.clear();
+    selectionPicker.clear();
+    renderPeople();
+  } catch (error) { toast(error.message); }
+});
 $('#assignWholeGroup').addEventListener('click', () => mutate('/api/assign-groups',
   {group_keys: [ui.currentGroup.key], name: dialogPicker.name, bigfam_id: dialogPicker.bigfamId},
   'Имя сохранено'));
@@ -3442,6 +3631,7 @@ async function boot() {
   const session = await (await fetch('/api/session')).json();
   ui.session = session.user;
   ui.canEdit = Boolean(session.canEdit);
+  ui.isAdmin = session.user?.role === 'admin';
   ui.bigfamUrl = session.bigfamUrl || '#';
   ui.kin = null;
   renderAccount();

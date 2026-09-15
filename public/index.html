@@ -102,6 +102,10 @@
             <input id="peopleSearch" type="search" placeholder="Поиск по людям" autocomplete="off" aria-label="Поиск по людям">
           </label>
           <p class="grid-hint" id="peopleHint">Нажатие открывает человека, долгое нажатие выбирает карточки для объединения.</p>
+          <div class="panel-actions people-album-actions">
+            <button class="button small" id="createPeopleAlbum" type="button">Новый альбом</button>
+          </div>
+          <div class="album-tree people-album-tree" id="peopleAlbumTree"></div>
           <div class="people-grid" id="peopleGrid"></div>
           <div class="empty hidden" id="peopleEmpty">
             <span class="mark" aria-hidden="true">◌</span>
@@ -525,8 +529,29 @@
     <span class="count" id="selectionText"></span>
     <div class="picker" id="selectionPicker"></div>
     <button class="button primary" id="assignGroupsButton">Назначить</button>
+    <button class="button ghost small" id="addGroupsToAlbumButton">В альбом</button>
     <button class="button ghost small" id="clearSelectionButton">Сбросить</button>
   </div>
+
+  <dialog id="peopleAlbumPickDialog">
+    <form class="sheet album-sheet" id="peopleAlbumPickForm" method="dialog">
+      <header class="sheet-head">
+        <div><p class="eyebrow">Альбомы людей</p><h2>Добавить в альбом</h2><p id="peopleAlbumPickCount"></p></div>
+        <button class="icon-button dialog-close" type="button" aria-label="Закрыть">×</button>
+      </header>
+      <div class="album-pick-body">
+        <div class="album-pick-list" id="peopleAlbumPickList"></div>
+        <label class="album-new">Новый альбом<input id="peopleAlbumPickTitle" placeholder="Например, Родственники"></label>
+        <label class="album-new">Внутри
+          <select id="peopleAlbumPickParent"><option value="0">— верхний уровень —</option></select>
+        </label>
+        <div class="form-actions">
+          <button class="button" type="button" id="cancelPeopleAlbumPick">Отмена</button>
+          <button class="button primary" type="submit">Создать и добавить</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="groupDialog">
     <div class="sheet">
