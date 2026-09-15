@@ -1,0 +1,188 @@
+import {Fragment} from 'react';
+import {fileSize, timecode} from '../../../lib/format';
+import {useStore} from '../../../store';
+import type {PhotoCard, RouterLabel} from '../../../types/api';
+import {folderCrumbs} from '../gallery';
+import {FacesOverlay} from './FacesOverlay';
+import {SpeechPanel} from './SpeechPanel';
+
+/** Метку роутера показываем, если её подтвердили или модель в ней уверена. */
+const ROUTER_MIN_SCORE = .55;
+/** Области 18+ слабее этого — шум; лица сами по себе к делу не относятся. */
+const ADULT_MIN_SCORE = .25;
+const CAPTION_TAGS_SHOWN = 30;
+
+export interface InfoPanelProps {
+  photo: PhotoCard;
+  onClose(): void;
+  onSeek(seconds: number | null | undefined): void;
+}
+
+/** Шторка подробностей снимка. */
+export function InfoPanel({photo, onClose, onSeek}: InfoPanelProps) {
+  return (
+    <div className="viewer-sheet-body">
+      <PlacesPanel photo={photo} onClose={onClose} />
+      <FacesOverlay key={photo.path} photo={photo} onClose={onClose} onSeek={onSeek} />
+      <Description photo={photo} />
+      <RouterLabels photo={photo} />
+      <AdultAnalysis photo={photo} />
+      {photo.kind === 'video' && photo.speech_text && (
+        <SpeechPanel key={photo.path} photo={photo} onSeek={onSeek} />
+      )}
+      {photo.ocr_text && (
+        <details className="lightbox-ocr">
+          <summary>Распознанный текст</summary>
+          <div>{photo.ocr_text}</div>
+        </details>
+      )}
+      <h3>Файл</h3>
+      <FileInfo photo={photo} />
+    </div>
+  );
+}
+
+/** Папка и альбомы снимка — кликабельные: ведут в ту же подборку. */
+function PlacesPanel({photo, onClose}: {photo: PhotoCard; onClose(): void}) {
+  const canEdit = useStore(state => state.session.canEdit);
+  const album = useStore(state => state.filters.album);
+  const setFilters = useStore(state => state.setFilters);
+  const openAlbumPick = useStore(state => state.openAlbumPick);
+  const crumbs = folderCrumbs(photo.folder);
+
+  return (
+    <>
+      <h3>Папка</h3>
+      <div className="sheet-trail">
+        {crumbs.length
+          ? crumbs.map((crumb, index) => (
+              <Fragment key={crumb.path}>
+                {index > 0 && <i aria-hidden="true">/</i>}
+                <button
+                  className="crumb"
+                  type="button"
+                  onClick={() => { onClose(); setFilters({folder: crumb.path, album: 0}); }}
+                >
+                  {crumb.name}
+                </button>
+              </Fragment>
+            ))
+          : <span className="photo-unknown">Путь неизвестен</span>}
+      </div>
+
+      <h3>
+        Альбомы
+        {canEdit && (
+          <button className="link-button" type="button"
+            onClick={() => openAlbumPick({kind: 'photos', paths: [photo.path]})}>
+            добавить
+          </button>
+        )}
+      </h3>
+      <div className="chips album-chips">
+        {photo.albums.length
+          ? photo.albums.map(item => (
+              <button
+                key={item.id}
+                className="chip"
+                type="button"
+                onClick={() => {
+                  onClose();
+                  setFilters({album: album === item.id ? 0 : item.id, folder: '', hidden: false});
+                }}
+              >
+                {item.trail}
+              </button>
+            ))
+          : <span className="photo-unknown">Снимок пока не в альбомах</span>}
+      </div>
+    </>
+  );
+}
+
+function Description({photo}: {photo: PhotoCard}) {
+  const tags = Array.isArray(photo.caption_tags) ? [] : photo.caption_tags.ru ?? [];
+  return (
+    <>
+      <h3>Описание</h3>
+      {photo.caption_short && <strong className="lightbox-caption">{photo.caption_short}</strong>}
+      <div className={`lightbox-description${photo.caption ? '' : ' is-empty'}`}>
+        {photo.caption || 'Описание ещё не создано'}
+      </div>
+      {tags.length > 0 && (
+        <div className="chips caption-tags">
+          {tags.slice(0, CAPTION_TAGS_SHOWN).map(tag => <span key={tag}>{tag}</span>)}
+        </div>
+      )}
+    </>
+  );
+}
+
+function RouterLabels({photo}: {photo: PhotoCard}) {
+  const labels = photo.router_labels.filter(item => item.verified || item.score >= ROUTER_MIN_SCORE);
+  if (!labels.length) return null;
+  const groups = new Map<string, RouterLabel[]>();
+  for (const item of labels) {
+    const group = item.group || 'Другое';
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group)!.push(item);
+  }
+  return (
+    <section className="lightbox-router">
+      <h3>Категории визуального роутера</h3>
+      <div className="router-detail-groups">
+        {[...groups].map(([group, items]) => (
+          <div key={group} className="router-detail-group">
+            <b>{group}</b>
+            <div className="chips">
+              {items.map(item => (
+                <span key={item.id} className={`chip${item.verified ? ' verified' : ''}`}>
+                  {item.verified ? '✓ ' : ''}{item.title}
+                  {item.verified ? '' : ` ${Math.round(item.score * 100)}%`}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <small>✓ — подтверждено вручную; остальные проценты рассчитаны локальной моделью.</small>
+    </section>
+  );
+}
+
+function AdultAnalysis({photo}: {photo: PhotoCard}) {
+  if (!photo.adult_description) return null;
+  const regions = photo.adult_regions
+    .filter(item => item.score >= ADULT_MIN_SCORE && !item.class.startsWith('FACE_'));
+  return (
+    <section className="lightbox-adult">
+      <h3>Локальный анализ 18+</h3>
+      <p className="adult-description">{photo.adult_description}</p>
+      <div className="adult-regions">
+        {regions.map((item, index) => (
+          <span key={`${item.class}-${index}`}>
+            {item.class.replaceAll('_', ' ').toLowerCase()} · {Math.round(item.score * 100)}%
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Техническая сводка: размер, разрешение, длина. */
+function FileInfo({photo}: {photo: PhotoCard}) {
+  const movie = photo.kind === 'video';
+  const rows: Array<[string, string]> = [
+    ['Размер файла', photo.size ? fileSize(photo.size) : ''],
+    ['Разрешение', photo.width && photo.height ? `${photo.width}×${photo.height}` : ''],
+    ...(movie ? [['Длительность', photo.duration ? timecode(photo.duration) : '']] as Array<[string, string]> : []),
+    ['Тип', movie ? 'Видео' : 'Фотография'],
+  ];
+  return (
+    <dl className="file-info">
+      {rows.filter(([, value]) => value).map(([label, value]) => (
+        <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+      ))}
+    </dl>
+  );
+}

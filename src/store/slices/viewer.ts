@@ -1,28 +1,28 @@
 import type {StateCreator} from 'zustand';
-import type {GroupFace as Face, PhotoCard as PhotoSummary} from '../../types/api';
+import type {GroupDetail} from '../../types/api';
 import type {Store} from '../index';
 
+/**
+ * Просмотрщик. Снимок галереи записан в адресе (routePhoto), поэтому своего
+ * «открыт» здесь нет. Просмотр лиц группы в адрес не попадает: это лента
+ * кадров одного человека поверх открытой карточки группы.
+ */
 export interface ViewerSlice {
   viewer: {
-    open: boolean;
-    index: number;
-    /** Просмотр кадров одного человека: лента подменена его снимками. */
-    isFaces: boolean;
-    faces: Face[] | null;
-    /** Лента галереи, отложенная на время просмотра лиц. */
-    savedGallery: PhotoSummary[] | null;
+    /** Группа, чьи кадры листаются; null — обычная галерея. */
+    faceGroup: GroupDetail | null;
+    /** Номер кадра в просмотре лиц. В галерее номер выводится из адреса. */
+    faceIndex: number;
     /** Выдвинутая шторка подробностей. */
     info: boolean;
     /** Панели поверх кадра; скрываются по клику для «голого» просмотра. */
     chrome: boolean;
   };
-  openViewer(index: number): void;
-  closeViewer(): void;
-  setViewerIndex(index: number): void;
+  openFaces(group: GroupDetail, index: number): void;
+  setFaceIndex(index: number): void;
+  closeFaces(): void;
   toggleViewerInfo(next?: boolean): void;
   toggleViewerChrome(next?: boolean): void;
-  enterFaceViewer(faces: Face[], gallery: PhotoSummary[]): void;
-  leaveFaceViewer(): PhotoSummary[] | null;
 }
 
 export const createViewerSlice: StateCreator<Store, [], [], ViewerSlice> = (set, get) => {
@@ -30,24 +30,16 @@ export const createViewerSlice: StateCreator<Store, [], [], ViewerSlice> = (set,
     set(state => ({viewer: {...state.viewer, ...part}}));
 
   return {
-    viewer: {
-      open: false, index: 0, isFaces: false, faces: null,
-      savedGallery: null, info: false, chrome: true,
-    },
+    viewer: {faceGroup: null, faceIndex: 0, info: false, chrome: true},
 
-    openViewer: index => patch({open: true, index, chrome: true}),
-    closeViewer: () => patch({open: false, chrome: true}),
-    setViewerIndex: index => patch({index}),
+    openFaces: (faceGroup, faceIndex) => patch({faceGroup, faceIndex}),
+    setFaceIndex: faceIndex => patch({faceIndex}),
+    closeFaces: () => patch({faceGroup: null, faceIndex: 0}),
     toggleViewerInfo: next => patch({info: next ?? !get().viewer.info}),
-    toggleViewerChrome: next => patch({chrome: next ?? !get().viewer.chrome}),
-
-    enterFaceViewer: (faces, gallery) =>
-      patch({isFaces: true, faces, savedGallery: gallery}),
-
-    leaveFaceViewer: () => {
-      const saved = get().viewer.savedGallery;
-      patch({isFaces: false, faces: null, savedGallery: null});
-      return saved;
+    // Без обвязки нет и шторки сведений.
+    toggleViewerChrome: next => {
+      const chrome = next ?? !get().viewer.chrome;
+      patch(chrome ? {chrome} : {chrome, info: false});
     },
   };
 };

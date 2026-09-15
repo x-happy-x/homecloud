@@ -164,7 +164,10 @@ export const createNotificationsSlice: StateCreator<Store, [], [], Notifications
         return {notifications: {...state.notifications, expanded}};
       }),
 
-      openNotifPanel: () => patch({panelOpen: true, unseen: 0}),
+      openNotifPanel: () => set(state => ({
+        sidepageOpen: false,
+        notifications: {...state.notifications, panelOpen: true, unseen: 0},
+      })),
       closeNotifPanel: () => patch({panelOpen: false}),
 
       clearHistory: () => {

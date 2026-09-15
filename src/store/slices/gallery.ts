@@ -12,6 +12,10 @@ export interface GallerySlice {
   /** Снимок и группа, открытые по ссылке. */
   routePhoto: string;
   routeGroup: string;
+  /** Панель «Подборки и фильтры». */
+  sidepageOpen: boolean;
+  /** Снимки, для которых открыто окно обработки; null — окно закрыто. */
+  processPaths: string[] | null;
 
   setView(view: ViewName): void;
   setFilters(part: Partial<GalleryFilters>): void;
@@ -22,6 +26,10 @@ export interface GallerySlice {
   showPersonPhotos(name: string): void;
   setRoutePhoto(path: string): void;
   setRouteGroup(key: string): void;
+  openSidepage(): void;
+  closeSidepage(): void;
+  openProcess(paths: string[]): void;
+  closeProcess(): void;
   /** Применить разобранную ссылку целиком — вызывается из hashSync. */
   applyRoute(route: RouteState): void;
 }
@@ -36,6 +44,8 @@ export const createGallerySlice: StateCreator<Store, [], [], GallerySlice> = set
   filters: filtersOf(emptyRoute()),
   routePhoto: '',
   routeGroup: '',
+  sidepageOpen: false,
+  processPaths: null,
 
   // Просмотрщик живёт только на фотографиях, карточка группы — на людях и проверке.
   setView: view => set(state => ({
@@ -66,6 +76,19 @@ export const createGallerySlice: StateCreator<Store, [], [], GallerySlice> = set
 
   setRoutePhoto: routePhoto => set({routePhoto}),
   setRouteGroup: routeGroup => set({routeGroup}),
+
+  // Панель подборок и уведомления выезжают с одного края — открыта одна.
+  openSidepage: () => set(state => ({
+    sidepageOpen: true,
+    notifications: {...state.notifications, panelOpen: false},
+  })),
+  closeSidepage: () => set({sidepageOpen: false}),
+
+  openProcess: paths => {
+    const unique = [...new Set(paths)].filter(Boolean);
+    if (unique.length) set({processPaths: unique});
+  },
+  closeProcess: () => set({processPaths: null}),
 
   applyRoute: route => set({
     view: route.view,

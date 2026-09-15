@@ -1,0 +1,64 @@
+import {memo} from 'react';
+import {useLongPress} from '../../hooks/useLongPress';
+import {adultFlag} from '../../lib/adult';
+import {timecode} from '../../lib/format';
+import {photoMediaUrl} from '../../services/media';
+import {useStore} from '../../store';
+import type {PhotoCard} from '../../types/api';
+import type {AdultMode} from '../../types/domain';
+import {Icon} from '../../ui/Icon/Icon';
+
+export interface PhotoTileProps {
+  photo: PhotoCard;
+  index: number;
+  /** Размер копии считается один раз на сетку: devicePixelRatio на тысячи плиток заметен. */
+  size: number;
+  /**
+   * Режим 18+ — вход отрисовки, а не чтение из стора внутри: от него зависит
+   * адрес копии, а с ним и кэш браузера. Иначе смена режима оставила бы
+   * старые, незамыленные картинки.
+   */
+  adultMode: AdultMode;
+  onOpen(index: number): void;
+}
+
+/**
+ * Плитка — только кадр: подписи, описания и теги живут в просмотрщике.
+ * Подписка на свой бит выделения: щелчок по одной плитке не перерисовывает
+ * двести остальных.
+ */
+export const PhotoTile = memo(function PhotoTile({photo, index, size, adultMode, onOpen}: PhotoTileProps) {
+  const selected = useStore(state => state.selection.photos.has(photo.path));
+  const selecting = useStore(state => state.selection.photos.size > 0);
+  const canEdit = useStore(state => state.session.canEdit);
+  const toggle = useStore(state => state.toggle);
+  const hold = useLongPress(() => { if (canEdit) toggle('photos', photo.path); });
+
+  return (
+    <article
+      className={`tile${selected ? ' selected' : ''}`}
+      title={photo.filename}
+      {...hold}
+      onClick={event => {
+        // Пока что-то выбрано, обычный щелчок продолжает выбор.
+        if (canEdit && (event.ctrlKey || event.metaKey || selecting)) toggle('photos', photo.path);
+        else onOpen(index);
+      }}
+    >
+      <img
+        src={photoMediaUrl(photo, adultMode, size)}
+        alt={photo.caption_short || photo.caption || photo.filename}
+        loading="lazy"
+        decoding="async"
+      />
+      {adultFlag(photo) && <span className="tile-flag">18+</span>}
+      {photo.kind === 'video' && (
+        <span className="tile-video">
+          <Icon name="play" />
+          {photo.duration ? timecode(photo.duration) : ''}
+        </span>
+      )}
+      <span className="tile-check" aria-hidden="true" />
+    </article>
+  );
+});

@@ -28,3 +28,16 @@
 .face-card a { font-size: .73rem; color: var(--patina); text-decoration: none; }
 .face-card a:hover { text-decoration: underline; }
 .face-confidence { position: absolute; top: 7px; right: 7px; padding: 2px 6px; border-radius: 999px; background: rgb(20 29 27 / 55%); color: #fff; font-size: .64rem; }
+
+/* Метка кадра из видео на карточке лица. */
+.face-moment {
+  position: absolute;
+  left: 7px;
+  bottom: 7px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgb(20 29 27 / 62%);
+  color: #fff;
+  font-size: .64rem;
+  font-variant-numeric: tabular-nums;
+}

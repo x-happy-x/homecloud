@@ -11,6 +11,11 @@ export const qk = {
   group: (key: string, hideAdult: boolean) => ['group', key, {hideAdult}] as const,
   photos: (params: Record<string, unknown>) => ['photos', params] as const,
   photo: (path: string) => ['photo', path] as const,
+  /**
+   * Снимок кадра лица. Отдельный ключ: пропавший с диска снимок здесь
+   * подменяется заглушкой из кадра, и в общую карточку снимка ей не место.
+   */
+  facePhoto: (path: string) => ['face-photo', path] as const,
   speech: (path: string) => ['speech', path] as const,
 
   folders: (path: string) => ['folders', path] as const,
