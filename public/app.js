@@ -1576,12 +1576,18 @@ function speakerTag(item, multi) {
 }
 
 // Клик по времени реплики перематывает ролик на это место.
+// Перемотка ролика на секунду — используется и репликами, и лицами в кадре.
+function seekLightboxVideo(seconds) {
+  const player = $('#lightboxVideo');
+  if (!player.src || seconds == null) return false;
+  player.currentTime = Number(seconds) || 0;
+  player.play().catch(() => {});
+  return true;
+}
+
 $('#lightboxSpeechLines').addEventListener('click', event => {
   const button = event.target.closest('button[data-at]');
-  const player = $('#lightboxVideo');
-  if (!button || !player.src) return;
-  player.currentTime = Number(button.dataset.at) || 0;
-  player.play().catch(() => {});
+  if (button) seekLightboxVideo(button.dataset.at);
 });
 
 /** Папка, альбомы и люди снимка — кликабельные: ведут в ту же подборку. */
@@ -1601,26 +1607,56 @@ function renderLightboxPlaces(photo) {
   ui.lightboxSelectedFaces = ui.lightboxSelectedFaces || new Set();
   ui.lightboxSelectedFaces.clear();
   hideLightboxAssign();
-  const faces = photo.faces && photo.faces.length ? photo.faces
+  const movie = photo.kind === 'video';
+  $('#lightboxPeopleTitle').textContent = movie ? 'Кто в видео' : 'Кто на фото';
+  let faces = photo.faces && photo.faces.length ? photo.faces
     // Старые карточки без поля faces (например, кэш поиска) — показываем как раньше.
     : (photo.people || []).map(person => ({name: person.name, bigfam_id: person.bigfam_id}));
+  if (movie) {
+    // В видео один человек обычно появляется несколько раз — заходил и
+    // выходил из кадра, у каждого раза свой трек. Как только у треков
+    // общее имя, это одна и та же личность, и незачем показывать её
+    // отдельным пузырём на каждое появление — только раздувает список.
+    const named = new Map();
+    const rest = [];
+    for (const face of faces) {
+      if (!face.name) { rest.push(face); continue; }
+      const key = face.name;
+      const seen = named.get(key);
+      if (!seen || (face.frame_time ?? Infinity) < (seen.frame_time ?? Infinity)) {
+        named.set(key, {...face, appearances: (seen?.appearances || 0) + 1});
+      } else {
+        seen.appearances = (seen.appearances || 1) + 1;
+      }
+    }
+    faces = [...named.values(), ...rest];
+  }
   $('#lightboxPeople').innerHTML = faces.map(face => {
     if (face.name) {
       const known = (ui.state?.people || []).find(item => item.name === face.name) || face;
       const portrait = face.bigfam_id ? `/media/bigfam/${face.bigfam_id}` : (known.avatar || '');
       const letter = escapeHtml((face.name || '?').trim().charAt(0).toLocaleUpperCase('ru'));
-      return `<button class="bubble" type="button" data-person="${escapeHtml(face.name)}">
+      // На видео клик перематывает к моменту, где человек виден, а не уводит
+      // из просмотрщика — ролик открыт, незачем его закрывать ради имени.
+      const seekable = movie && face.frame_time != null;
+      return `<button class="bubble" type="button" data-person="${escapeHtml(face.name)}"
+          ${seekable ? `data-at="${face.frame_time}"` : ''}
+          ${seekable ? 'title="Открыть видео с этого момента"' : ''}>
         <span class="bubble-photo" data-letter="${letter}">${portrait
           ? `<img src="${escapeHtml(portrait)}" alt="" loading="lazy" data-fallback="${escapeHtml(known.avatar || '')}">`
-          : `<span class="person-letter">${letter}</span>`}</span>
+          : `<span class="person-letter">${letter}</span>`}
+          ${seekable ? `<i class="bubble-time">${clock(face.frame_time)}</i>` : ''}</span>
         <span class="bubble-name">${escapeHtml(shortName(face.name,
-          (ui.kin || []).find(kin => kin.id === face.bigfam_id)))}</span></button>`;
+          (ui.kin || []).find(kin => kin.id === face.bigfam_id)))}${
+          face.appearances > 1 ? ` ×${face.appearances}` : ''}</span></button>`;
     }
     if (!face.id) return '';
     // Лицо без имени: клик выбирает его для назначения прямо здесь же —
     // не нужно искать группу, особенно на видео, где лиц из кадров много.
+    // На видео он же перематывает к этому моменту — видно, кого называешь.
     return `<button class="bubble face-unnamed ${ui.canEdit ? '' : 'readonly'}" type="button"
-        data-face="${face.id}" title="Назначить имя">
+        data-face="${face.id}" ${movie && face.frame_time != null ? `data-at="${face.frame_time}"` : ''}
+        title="${movie ? 'Открыть с этого момента и назначить имя' : 'Назначить имя'}">
       <span class="bubble-photo" data-letter="?">
         <img src="${escapeHtml(face.thumbnail)}" alt="" loading="lazy" data-fallback="">
         ${face.frame_time != null ? `<i class="bubble-time">${clock(face.frame_time)}</i>` : ''}
@@ -1645,6 +1681,7 @@ function renderLightboxAssign() {
 $('#lightboxPeople').addEventListener('click', event => {
   const unnamed = event.target.closest('.face-unnamed');
   if (unnamed && ui.canEdit) {
+    if (unnamed.dataset.at != null) seekLightboxVideo(unnamed.dataset.at);
     const id = Number(unnamed.dataset.face);
     ui.lightboxSelectedFaces.has(id) ? ui.lightboxSelectedFaces.delete(id) : ui.lightboxSelectedFaces.add(id);
     unnamed.classList.toggle('selected', ui.lightboxSelectedFaces.has(id));
@@ -1652,7 +1689,13 @@ $('#lightboxPeople').addEventListener('click', event => {
     return;
   }
   const person = event.target.closest('[data-person]');
-  if (person) { closeLightbox(); showPersonPhotos(person.dataset.person); }
+  if (person) {
+    // На видео человек уже перед глазами — просто мотаем к моменту, где он
+    // виден, вместо того чтобы закрывать ролик и уводить в его галерею.
+    if (person.dataset.at != null) { seekLightboxVideo(person.dataset.at); return; }
+    closeLightbox();
+    showPersonPhotos(person.dataset.person);
+  }
 });
 
 $('#lightboxAssignCancel').addEventListener('click', hideLightboxAssign);
