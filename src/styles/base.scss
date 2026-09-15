@@ -34,10 +34,10 @@ img { -webkit-user-drag: none; user-drag: none; }
 
 input, textarea, select, [contenteditable],
 p, code, pre, h1, h2, h3, summary,
-.viewer-title, .viewer-label, .lightbox-description, .lightbox-ocr,
-.adult-description, .sheet-path, .sheet-trail, .viewer-path,
+.viewer-title, .lightbox-description, .lightbox-ocr,
+.adult-description, .sheet-trail,
 .person-name, .person-years, .face-name, .album-body, .folder-name,
-.caption, .hint, .hint-line, .grid-hint, .photo-meta, .person-meta {
+.caption, .hint, .hint-line, .grid-hint, .person-meta {
   -webkit-user-select: text;
   user-select: text;
 }

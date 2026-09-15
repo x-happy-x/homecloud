@@ -110,7 +110,6 @@
 .viewer-sheet-body { padding: 20px 20px 28px; }
 .viewer-sheet-body h3 { margin: 20px 0 8px; font: 600 .76rem var(--sans); color: var(--muted); letter-spacing: .07em; text-transform: uppercase; }
 .viewer-sheet-body h3:first-of-type { margin-top: 14px; }
-.sheet-path { font-size: .74rem; color: var(--muted); overflow-wrap: anywhere; }
 .lightbox-people { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .lightbox-description { max-width: 760px; margin-top: 8px; font-size: .88rem; }
 .lightbox-router { margin-top: 20px; }
@@ -132,7 +131,6 @@
 .lightbox-ocr { max-width: 760px; margin-top: 8px; color: var(--muted); font-size: .8rem; }
 .lightbox-ocr summary { cursor: pointer; color: var(--patina); }
 .lightbox-ocr div { max-height: 150px; margin-top: 6px; padding: 8px; overflow: auto; border-radius: var(--r-s); background: var(--surface); color: var(--ink-2); white-space: pre-wrap; }
-.viewer-person { border: 0; cursor: pointer; }
 
 .lightbox-speech { max-width: 760px; margin-top: 10px; }
 .lightbox-speech h3 small { margin-left: 8px; color: var(--muted); font-weight: 400; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
@@ -196,13 +194,6 @@
   color: #fff;
   font-size: .64rem;
   font-variant-numeric: tabular-nums;
-}
-
-@include bp-md {
-    .viewer-top { flex-wrap: wrap; padding: 8px 10px; }
-    .viewer-label { max-width: calc(100% - 46px); }
-    .viewer-actions { width: 100%; overflow-x: auto; padding-bottom: 2px; }
-    .viewer-actions .button { padding-inline: 9px; }
 }
 
 @include bp-md {
