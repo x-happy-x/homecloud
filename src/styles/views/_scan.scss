@@ -70,31 +70,6 @@
 .processing-foot { margin-top: 8px; }
 .processing-foot code { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: .72rem var(--mono); }
 
-.card {
-  padding: clamp(16px, 2.4vw, 24px);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-l);
-  background: var(--surface-2);
-  box-shadow: var(--shadow);
-  margin-bottom: var(--gap);
-}
-.card-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.card-label { font-size: .73rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: block; }
-.card-path { font-family: var(--mono); font-size: .95rem; word-break: break-all; }
-.card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-
-.progress-copy { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin: 11px 0 16px; }
-.progress-copy strong { font-size: 1.5rem; font-family: var(--serif); font-variant-numeric: tabular-nums; }
-.progress-copy span { color: var(--muted); font-size: .87rem; }
-
-.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 10px; }
-.metrics > div { padding: 11px 13px; border-radius: var(--r-m); background: var(--surface); }
-.metrics span { display: block; font-size: .73rem; color: var(--muted); }
-.metrics strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
-
-.current-file { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: .8rem; color: var(--muted); }
-.current-file code { font-family: var(--mono); font-size: .78rem; color: var(--ink-2); word-break: break-all; }
-
 .device-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: var(--gap); }
 .device-card { display: flex; flex-direction: column; gap: 15px; min-width: 0; padding: clamp(16px, 2.4vw, 22px); border: 1px solid var(--line-soft); border-radius: var(--r-l); background: var(--surface-2); box-shadow: var(--shadow); }
 .device-card.offline { background: var(--surface); }
