@@ -5,6 +5,8 @@ export interface PopoverProps {
   /** Элемент, у которого всплывашка появляется. */
   anchor: RefObject<HTMLElement | null>;
   onClose(): void;
+  /** Меню учётной записи живёт внизу боковой панели и раскрывается вверх. */
+  placement?: 'below' | 'above';
   className?: string;
   children: ReactNode;
 }
@@ -15,7 +17,7 @@ const MARGIN = 12;
  * Всплывашка рядом с элементом. Раньше одну и ту же арифметику прижимания к
  * краю экрана писали дважды: для меню учётной записи и для окошка лица.
  */
-export function Popover({open, anchor, onClose, className, children}: PopoverProps) {
+export function Popover({open, anchor, onClose, placement = 'below', className, children}: PopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({left: 0, top: 0});
 
@@ -28,9 +30,11 @@ export function Popover({open, anchor, onClose, className, children}: PopoverPro
     const size = element.getBoundingClientRect();
     setPosition({
       left: Math.min(Math.max(MARGIN, box.left), window.innerWidth - size.width - MARGIN),
-      top: Math.min(box.bottom + 8, window.innerHeight - size.height - MARGIN),
+      top: placement === 'above'
+        ? Math.max(MARGIN, box.top - size.height - 8)
+        : Math.min(box.bottom + 8, window.innerHeight - size.height - MARGIN),
     });
-  }, [open, anchor]);
+  }, [open, anchor, placement]);
 
   useLayoutEffect(() => {
     if (!open) return;

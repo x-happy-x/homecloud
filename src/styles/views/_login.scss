@@ -1,4 +1,4 @@
-#loginDialog .sheet { width: min(400px, calc(100vw - 28px)); }
+.login-dialog .sheet { width: min(400px, calc(100vw - 28px)); }
 .login-body { padding: 22px; display: grid; gap: 13px; }
 .login-body label { display: grid; gap: 5px; font-size: .82rem; color: var(--muted); }
 .login-body input {

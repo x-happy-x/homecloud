@@ -14,8 +14,8 @@
   text-align: center;
 }
 .notif-badge.pulse { background: var(--patina); animation: notif-pulse 1.4s ease-in-out infinite; }
-#notificationsButton { position: relative; }
-#notificationsButton.flash { animation: notif-flash .7s ease; }
+.notif-bell { position: relative; }
+.notif-bell.flash { animation: notif-flash .7s ease; }
 
 .notif-body { display: flex; flex-direction: column; gap: 14px; }
 .notif-section-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em;
