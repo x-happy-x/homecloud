@@ -1,4 +1,4 @@
-@use '../mixins' as *;
+@use '../../styles/mixins' as *;
 
 main { padding: 4px var(--gap) 120px; flex: 1; }
 .view { display: none; animation: rise .22s ease; }

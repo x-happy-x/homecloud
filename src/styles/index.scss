@@ -1,31 +1,36 @@
-// Сборка стилей. Пока разметка живёт одной строкой в LegacyShell, все части
-// подключаются отсюда; по мере появления настоящих компонентов каждая строка
-// переезжает в import самого компонента и исчезает из этого списка.
+// Сборка стилей.
+//
+// Стили примитивов уже лежат рядом со своими компонентами, но подключаются
+// пока отсюда: классы вроде .button и .chip всё ещё рисует старый
+// legacyApp.js, а сам компонент ещё не отрисован ни разу. Как только
+// компонент начинает использоваться, его строка уходит отсюда и заменяется
+// на import './X.scss' внутри самого компонента — иначе правила попали бы
+// в сборку дважды.
 
 @use 'tokens';
 @use 'themes';
 @use 'keyframes';
 @use 'base';
 
-@use 'ui/button';
-@use 'ui/icon-button';
-@use 'ui/chip';
-@use 'ui/check-row';
-@use 'ui/form';
-@use 'ui/empty';
-@use 'ui/skeleton';
-@use 'ui/progress';
-@use 'ui/pill';
-@use 'ui/hint';
-@use 'ui/dialog';
-@use 'ui/action-bar';
-@use 'ui/picker';
-@use 'ui/inline-search';
-@use 'ui/crumbs';
-@use 'ui/side-panel';
-@use 'ui/view-header';
-@use 'ui/nav-item';
-@use 'ui/popover';
+@use '../ui/Button/Button';
+@use '../ui/IconButton/IconButton';
+@use '../ui/Chip/Chip';
+@use '../ui/CheckRow/CheckRow';
+@use '../ui/Field/Field';
+@use '../ui/EmptyState/EmptyState';
+@use '../ui/Skeleton/Skeleton';
+@use '../ui/Progress/Progress';
+@use '../ui/Pill/Pill';
+@use '../ui/Hint/Hint';
+@use '../ui/Dialog/Dialog';
+@use '../ui/ActionBar/ActionBar';
+@use '../ui/PersonPicker/PersonPicker';
+@use '../ui/InlineSearch/InlineSearch';
+@use '../ui/Crumbs/Crumbs';
+@use '../ui/SidePanel/SidePanel';
+@use '../ui/ViewHeader/ViewHeader';
+@use '../ui/NavItem/NavItem';
+@use '../ui/Popover/Popover';
 
 @use 'layout/shell';
 @use 'layout/menu';
