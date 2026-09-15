@@ -730,43 +730,22 @@ $('#dialogPhotos').addEventListener('click', () => {
 // адреса, который можно передать поисковику. Поэтому бэкенд на время заливает
 // копию на анонимный временный хостинг (Litterbox) и отдаёт прямую ссылку —
 // по ней и открывается поиск по URL, без ручного перетаскивания файла.
-const SEARCH_ENGINES = {
-  yandex: {name: 'Яндекс.Картинки',
-    url: link => `https://yandex.ru/images/search?rpt=imageview&url=${encodeURIComponent(link)}`},
-  google: {name: 'Google Images',
-    url: link => `https://www.google.com/searchbyimage?image_url=${encodeURIComponent(link)}`},
-  bing: {name: 'Bing Visual Search', url: link =>
-    `https://www.bing.com/images/search?view=detailv2&iss=sbi&form=SBIIRP&sbisrc=UrlPaste&q=imgurl:${encodeURIComponent(link)}`},
-};
+const yandexImageSearchUrl = link =>
+  `https://yandex.ru/images/search?rpt=imageview&url=${encodeURIComponent(link)}`;
 
-async function searchImageOnline(engine) {
-  const info = SEARCH_ENGINES[engine];
+async function searchImageOnline() {
   const photo = ui.photos[ui.lightboxIndex];
-  $('#lightboxSearchMenu').hidden = true;
-  if (!info || !photo) return;
+  if (!photo) return;
   toast('Готовлю снимок для поиска…');
   try {
     const data = await api('/api/photos/search-upload',
       {method: 'POST', body: JSON.stringify({path: photo.path})});
-    window.open(info.url(data.url), '_blank', 'noopener');
-    toast(`Открыл поиск в «${info.name}» — временная ссылка на снимок исчезнет примерно через час`);
+    window.open(yandexImageSearchUrl(data.url), '_blank', 'noopener');
+    toast('Открыл поиск в Яндекс.Картинках — временная ссылка на снимок исчезнет примерно через час');
   } catch (error) { toast(error.message); }
 }
 
-$('#lightboxSearchToggle').addEventListener('click', event => {
-  event.stopPropagation();
-  $('#lightboxSearchMenu').hidden = !$('#lightboxSearchMenu').hidden;
-});
-$('#lightboxSearchMenu').addEventListener('click', event => {
-  const button = event.target.closest('[data-engine]');
-  if (button) searchImageOnline(button.dataset.engine);
-});
-document.addEventListener('click', event => {
-  if (!$('#lightboxSearchMenu').hidden
-      && !event.target.closest('.viewer-search')) {
-    $('#lightboxSearchMenu').hidden = true;
-  }
-});
+$('#lightboxSearchImage').addEventListener('click', () => searchImageOnline());
 
 function updateFaceCount() {
   $('#faceSelectionCount').textContent = `${ui.selectedFaces.size} выбрано`;
@@ -1327,6 +1306,29 @@ function renderTiles(from = 0) {
 }
 
 /** Секунды в «м:сс» — длительность ролика и метка кадра. */
+// Байты → «84 КБ» / «5.1 МБ» / «1.2 ГБ» — в отличие от megabytes() ниже
+// (та всегда в мегабайтах, годится для сумм по хранилищу), тут единица
+// подбирается по размеру: обычное фото не должно показываться как «0.1 МБ».
+function fileSize(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} Б`;
+  if (value < 1048576) return `${Math.round(value / 1024)} КБ`;
+  if (value < 1073741824) return `${(value / 1048576).toFixed(1)} МБ`;
+  return `${(value / 1073741824).toFixed(1)} ГБ`;
+}
+
+/** Техническая сводка в подвале инфо-панели: размер, разрешение, длина. */
+function renderFileInfo(photo) {
+  const rows = [
+    ['Размер файла', photo.size ? fileSize(photo.size) : ''],
+    ['Разрешение', photo.width && photo.height ? `${photo.width}×${photo.height}` : ''],
+    ...(photo.kind === 'video' ? [['Длительность', photo.duration ? clock(photo.duration) : '']] : []),
+    ['Тип', photo.kind === 'video' ? 'Видео' : 'Фотография'],
+  ].filter(([, value]) => value);
+  $('#lightboxFileInfo').innerHTML = rows.map(([label, value]) =>
+    `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('');
+}
+
 function clock(seconds) {
   const total = Math.max(0, Math.round(Number(seconds) || 0));
   const minutes = Math.floor(total / 60);
@@ -1468,6 +1470,7 @@ function openLightbox(index, {updateUrl = true, replace = false} = {}) {
     photo.filename, movie && photo.duration ? `видео ${clock(photo.duration)}` : '',
     `${ui.lightboxIndex + 1} из ${formatNumber(ui.photos.length)}`].filter(Boolean).join(' · ');
   renderLightboxPlaces(photo);
+  renderFileInfo(photo);
   $('#lightboxCaptionShort').textContent = photo.caption_short || '';
   $('#lightboxCaptionShort').classList.toggle('hidden', !photo.caption_short);
   $('#lightboxDescription').textContent = photo.caption || 'Описание ещё не создано';
@@ -1499,7 +1502,6 @@ function openLightbox(index, {updateUrl = true, replace = false} = {}) {
   $('#processLightboxPhoto').classList.toggle('hidden', !ui.canEdit);
   $('#deleteLightboxPhoto').classList.toggle('hidden', !ui.canEdit);
   renderViewerAvatarControls();
-  $('#lightboxSearchMenu').hidden = true;
   const many = ui.photos.length > 1;
   $('#lightboxPrev').classList.toggle('hidden', !many);
   $('#lightboxNext').classList.toggle('hidden', !many);
@@ -1509,6 +1511,9 @@ function openLightbox(index, {updateUrl = true, replace = false} = {}) {
     setViewerChrome(true);
     setViewerInfo(false);
     $('#lightbox').showModal();
+    // showModal() не везде надёжно запирает прокрутку страницы за собой —
+    // колесо мыши над видео иногда всё равно листало галерею сзади.
+    document.body.classList.add('lightbox-open');
   }
   ui.routePhoto = photo.path;
   document.title = `${photo.filename} · HomeCloud`;
@@ -1605,71 +1610,72 @@ function renderLightboxPlaces(photo) {
     .join('') || '<span class="photo-unknown">Снимок пока не в альбомах</span>';
   $('#lightboxAddAlbum').hidden = !ui.canEdit;
   ui.lightboxSelectedFaces = ui.lightboxSelectedFaces || new Set();
-  ui.lightboxSelectedFaces.clear();
+  ui.lightboxSelectedGroups = ui.lightboxSelectedGroups || new Set();
   hideLightboxAssign();
+  hideFacePopover();
   const movie = photo.kind === 'video';
   $('#lightboxPeopleTitle').textContent = movie ? 'Кто в видео' : 'Кто на фото';
-  let faces = photo.faces && photo.faces.length ? photo.faces
+  const faces = photo.faces && photo.faces.length ? photo.faces
     // Старые карточки без поля faces (например, кэш поиска) — показываем как раньше.
-    : (photo.people || []).map(person => ({name: person.name, bigfam_id: person.bigfam_id}));
-  if (movie) {
-    // В видео один человек обычно появляется несколько раз — заходил и
-    // выходил из кадра, у каждого раза свой трек. Как только у треков
-    // общее имя, это одна и та же личность, и незачем показывать её
-    // отдельным пузырём на каждое появление — только раздувает список.
-    const named = new Map();
-    const rest = [];
-    for (const face of faces) {
-      if (!face.name) { rest.push(face); continue; }
-      const key = face.name;
-      const seen = named.get(key);
-      if (!seen || (face.frame_time ?? Infinity) < (seen.frame_time ?? Infinity)) {
-        named.set(key, {...face, appearances: (seen?.appearances || 0) + 1});
-      } else {
-        seen.appearances = (seen.appearances || 1) + 1;
-      }
-    }
-    faces = [...named.values(), ...rest];
+    : (photo.people || []).map(person =>
+      ({name: person.name, bigfam_id: person.bigfam_id, group: `named:${person.name}`}));
+  // Группа — та же самая сущность, что и в разделе «Люди»: по имени, если
+  // оно есть, иначе по автокластеру. В видео один человек обычно заходит и
+  // выходит из кадра не раз — у каждого раза свой трек, но это один пузырь,
+  // а не карточка на каждое появление.
+  const groups = new Map();
+  for (const face of faces) {
+    const key = face.group || (face.id ? `face:${face.id}` : `named:${face.name}`);
+    if (!groups.has(key)) groups.set(key, {key, name: face.name, bigfam_id: face.bigfam_id, members: []});
+    groups.get(key).members.push(face);
   }
-  $('#lightboxPeople').innerHTML = faces.map(face => {
-    if (face.name) {
-      const known = (ui.state?.people || []).find(item => item.name === face.name) || face;
-      const portrait = face.bigfam_id ? `/media/bigfam/${face.bigfam_id}` : (known.avatar || '');
-      const letter = escapeHtml((face.name || '?').trim().charAt(0).toLocaleUpperCase('ru'));
-      // На видео клик перематывает к моменту, где человек виден, а не уводит
-      // из просмотрщика — ролик открыт, незачем его закрывать ради имени.
-      const seekable = movie && face.frame_time != null;
-      return `<button class="bubble" type="button" data-person="${escapeHtml(face.name)}"
-          ${seekable ? `data-at="${face.frame_time}"` : ''}
-          ${seekable ? 'title="Открыть видео с этого момента"' : ''}>
-        <span class="bubble-photo" data-letter="${letter}">${portrait
-          ? `<img src="${escapeHtml(portrait)}" alt="" loading="lazy" data-fallback="${escapeHtml(known.avatar || '')}">`
-          : `<span class="person-letter">${letter}</span>`}
-          ${seekable ? `<i class="bubble-time">${clock(face.frame_time)}</i>` : ''}</span>
-        <span class="bubble-name">${escapeHtml(shortName(face.name,
-          (ui.kin || []).find(kin => kin.id === face.bigfam_id)))}${
-          face.appearances > 1 ? ` ×${face.appearances}` : ''}</span></button>`;
-    }
-    if (!face.id) return '';
-    // Лицо без имени: клик выбирает его для назначения прямо здесь же —
-    // не нужно искать группу, особенно на видео, где лиц из кадров много.
-    // На видео он же перематывает к этому моменту — видно, кого называешь.
-    return `<button class="bubble face-unnamed ${ui.canEdit ? '' : 'readonly'}" type="button"
-        data-face="${face.id}" ${movie && face.frame_time != null ? `data-at="${face.frame_time}"` : ''}
-        title="${movie ? 'Открыть с этого момента и назначить имя' : 'Назначить имя'}">
-      <span class="bubble-photo" data-letter="?">
-        <img src="${escapeHtml(face.thumbnail)}" alt="" loading="lazy" data-fallback="">
-        ${face.frame_time != null ? `<i class="bubble-time">${clock(face.frame_time)}</i>` : ''}
-      </span>
-      <span class="bubble-name">Без имени</span></button>`;
-  }).join('') ||
+  ui.lightboxGroups = groups;
+  $('#lightboxPeople').innerHTML = [...groups.values()].map(group => renderPersonBubble(group, movie))
+    .join('') ||
     `<span class="photo-unknown">${photo.face_count ? `${formatNumber(photo.face_count)} лиц без имени` : 'Лица не найдены'}</span>`;
   bindAvatarFallback($('#lightboxPeople'));
 }
 
+// «auto:5» → «Группа 6» — та же нумерация, что и в разделе «Люди».
+function groupTitle(key) {
+  const match = /^auto:(-?\d+)/.exec(key);
+  return match ? `Группа ${Number(match[1]) + 1}` : 'Без имени';
+}
+
+function renderPersonBubble(group, movie) {
+  const members = group.members.slice().sort((a, b) => (a.frame_time ?? 0) - (b.frame_time ?? 0));
+  const lead = members[0];
+  const named = Boolean(group.name);
+  const known = named ? ((ui.state?.people || []).find(item => item.name === group.name) || group) : null;
+  const portrait = named ? (group.bigfam_id ? `/media/bigfam/${group.bigfam_id}` : (known.avatar || '')) : '';
+  const letter = escapeHtml((group.name || '?').trim().charAt(0).toLocaleUpperCase('ru'));
+  const title = named
+    ? shortName(group.name, (ui.kin || []).find(kin => kin.id === group.bigfam_id))
+    : groupTitle(group.key);
+  // На видео клик мотает к моменту первого появления — видно, о ком речь,
+  // ещё до того, как решать, что делать с именем.
+  const seekAt = movie && lead.frame_time != null ? lead.frame_time : null;
+  const picture = named
+    ? (portrait
+      ? `<img src="${escapeHtml(portrait)}" alt="" loading="lazy" data-fallback="${escapeHtml(known.avatar || '')}">`
+      : `<span class="person-letter">${letter}</span>`)
+    : `<img src="${escapeHtml(lead.thumbnail || '')}" alt="" loading="lazy" data-fallback="">`;
+  const hint = named ? 'Клик — выбрать, ещё раз — открыть галерею' : 'Клик — выбрать для назначения имени';
+  return `<button class="bubble ${named ? '' : 'face-unnamed'} ${ui.canEdit ? '' : 'readonly'}" type="button"
+      data-group="${escapeHtml(group.key)}"
+      ${seekAt != null ? `data-at="${seekAt}"` : ''}
+      title="${escapeHtml(movie ? hint + ' · удержать — все появления' : hint)}">
+    <span class="bubble-photo" data-letter="${named ? letter : '?'}">${picture}
+      ${members.length > 1 ? `<i class="bubble-count">×${members.length}</i>` : ''}
+      ${seekAt != null ? `<i class="bubble-time">${clock(seekAt)}</i>` : ''}</span>
+    <span class="bubble-name">${escapeHtml(title)}</span></button>`;
+}
+
 function hideLightboxAssign() {
   $('#lightboxAssign').classList.add('hidden');
-  $$('#lightboxPeople .face-unnamed').forEach(button => button.classList.remove('selected'));
+  $$('#lightboxPeople .bubble.selected').forEach(button => button.classList.remove('selected'));
+  ui.lightboxSelectedGroups?.clear();
+  ui.lightboxSelectedFaces?.clear();
 }
 
 function renderLightboxAssign() {
@@ -1678,23 +1684,77 @@ function renderLightboxAssign() {
   $('#lightboxAssignButton').textContent = count > 1 ? `Назначить (${count})` : 'Назначить';
 }
 
+// Клик по группе: первый — выбирает (можно назначить/переназначить имя),
+// повторный по уже выбранной — открывает личную галерею у названных, а у
+// безымянных просто снимает выбор (открывать пока нечего). Удержание —
+// отдельный жест ниже, он показывает все появления и клик не считает.
 $('#lightboxPeople').addEventListener('click', event => {
-  const unnamed = event.target.closest('.face-unnamed');
-  if (unnamed && ui.canEdit) {
-    if (unnamed.dataset.at != null) seekLightboxVideo(unnamed.dataset.at);
-    const id = Number(unnamed.dataset.face);
-    ui.lightboxSelectedFaces.has(id) ? ui.lightboxSelectedFaces.delete(id) : ui.lightboxSelectedFaces.add(id);
-    unnamed.classList.toggle('selected', ui.lightboxSelectedFaces.has(id));
+  const button = event.target.closest('.bubble[data-group]');
+  if (!button) return;
+  if (button.dataset.heldJustNow) { delete button.dataset.heldJustNow; return; }
+  const group = ui.lightboxGroups?.get(button.dataset.group);
+  if (!group) return;
+  if (button.dataset.at != null) seekLightboxVideo(button.dataset.at);
+  if (!ui.canEdit) {
+    // Смотрящему без прав редактировать нечего выбирать — сразу к галерее,
+    // как раньше был устроен единственный клик.
+    if (group.name) { closeLightbox(); showPersonPhotos(group.name); }
+    return;
+  }
+  if (ui.lightboxSelectedGroups.has(group.key)) {
+    ui.lightboxSelectedGroups.delete(group.key);
+    for (const face of group.members) if (face.id) ui.lightboxSelectedFaces.delete(face.id);
+    if (group.name) { closeLightbox(); showPersonPhotos(group.name); return; }
+    button.classList.remove('selected');
     renderLightboxAssign();
     return;
   }
-  const person = event.target.closest('[data-person]');
-  if (person) {
-    // На видео человек уже перед глазами — просто мотаем к моменту, где он
-    // виден, вместо того чтобы закрывать ролик и уводить в его галерею.
-    if (person.dataset.at != null) { seekLightboxVideo(person.dataset.at); return; }
-    closeLightbox();
-    showPersonPhotos(person.dataset.person);
+  ui.lightboxSelectedGroups.add(group.key);
+  for (const face of group.members) if (face.id) ui.lightboxSelectedFaces.add(face.id);
+  button.classList.add('selected');
+  renderLightboxAssign();
+});
+
+// Удержание пузыря — все его появления в ролике, с перемоткой по клику.
+let holdTimer = null;
+$('#lightboxPeople').addEventListener('pointerdown', event => {
+  const button = event.target.closest('.bubble[data-group]');
+  const group = button && ui.lightboxGroups?.get(button.dataset.group);
+  if (!group || group.members.length < 2) return;
+  clearTimeout(holdTimer);
+  holdTimer = setTimeout(() => {
+    button.dataset.heldJustNow = '1';
+    showFacePopover(button, group);
+  }, 450);
+});
+const cancelFaceHold = () => clearTimeout(holdTimer);
+$('#lightboxPeople').addEventListener('pointerup', cancelFaceHold);
+$('#lightboxPeople').addEventListener('pointerleave', cancelFaceHold);
+document.addEventListener('pointercancel', cancelFaceHold);
+
+function showFacePopover(anchor, group) {
+  const pop = $('#lightboxFacePopover');
+  const members = group.members.slice().sort((a, b) => (a.frame_time ?? 0) - (b.frame_time ?? 0));
+  pop.innerHTML = members.map(face => `<button type="button" data-at="${face.frame_time ?? 0}">
+      <img src="${escapeHtml(face.thumbnail || '')}" alt="" loading="lazy">
+      ${face.frame_time != null ? `<i class="bubble-time">${clock(face.frame_time)}</i>` : ''}
+    </button>`).join('');
+  const rect = anchor.getBoundingClientRect();
+  pop.classList.remove('hidden');
+  pop.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - pop.offsetWidth - 8))}px`;
+  pop.style.top = `${Math.min(rect.bottom + 6, window.innerHeight - pop.offsetHeight - 8)}px`;
+}
+
+function hideFacePopover() { $('#lightboxFacePopover').classList.add('hidden'); }
+
+$('#lightboxFacePopover').addEventListener('click', event => {
+  const button = event.target.closest('button[data-at]');
+  if (button) { seekLightboxVideo(button.dataset.at); hideFacePopover(); }
+});
+document.addEventListener('click', event => {
+  if (!$('#lightboxFacePopover').classList.contains('hidden')
+      && !event.target.closest('#lightboxFacePopover') && !event.target.closest('.bubble[data-group]')) {
+    hideFacePopover();
   }
 });
 
@@ -1748,6 +1808,7 @@ function closeLightbox({fromHistory = false} = {}) {
   player.removeAttribute('src');
   player.dataset.path = '';
   if ($('#lightbox').open) $('#lightbox').close();
+  document.body.classList.remove('lightbox-open');
   ui.routePhoto = '';
   if (ui.viewerIsFaces) {
     // Просмотр лиц временно подменял список галереи — возвращаем как было.
@@ -1824,6 +1885,16 @@ $('#viewerStage').addEventListener('click', event => {
   if (event.target.id === 'lightboxImage') return setViewerChrome(!ui.viewerChrome);
   closeLightbox();
 });
+
+// Прокрутка вверх над кадром — это жест «покажи подробности», как потянуть
+// шторку снизу вверх; вниз ничего не делает, чтобы не мешать обычному
+// скроллу, если он вдруг где-то нужен над самим кадром.
+$('#viewerStage').addEventListener('wheel', event => {
+  if (event.deltaY < 0 && !ui.viewerInfo) {
+    event.preventDefault();
+    setViewerInfo(true);
+  }
+}, {passive: false});
 
 // Листание пальцем.
 let swipeStart = null;

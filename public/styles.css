@@ -84,6 +84,9 @@ body {
   font: 16px/1.5 var(--sans);
   -webkit-text-size-adjust: 100%;
 }
+/* showModal() не всегда надёжно запирает страницу за собой — колесо мыши
+   над видео иногда всё равно листало галерею сзади просмотрщика. */
+body.lightbox-open { overflow: hidden; }
 
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
@@ -1014,41 +1017,6 @@ dialog::backdrop { background: rgb(10 16 15 / 62%); backdrop-filter: blur(3px); 
 .viewer-icon[aria-pressed="true"] { background: #fff; color: #10201c; }
 .viewer-icon.danger:hover { background: var(--rose); color: #fff; }
 
-.viewer-search { position: relative; }
-.viewer-search-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 4;
-  display: grid;
-  gap: 2px;
-  width: 240px;
-  padding: 10px;
-  border-radius: var(--r-m);
-  background: #1b2624;
-  color: #f2f7f5;
-  box-shadow: var(--shadow-lift);
-}
-.viewer-search-menu p {
-  margin: 0 0 6px;
-  padding: 0 2px;
-  font-size: .74rem;
-  line-height: 1.4;
-  color: #b9c8c3;
-}
-.viewer-search-menu button {
-  min-height: 36px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 9px;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-size: .85rem;
-  text-align: left;
-}
-.viewer-search-menu button:hover { background: rgb(255 255 255 / 12%); }
-
 .viewer-nav {
   position: absolute;
   top: 50%;
@@ -1510,6 +1478,41 @@ dialog::backdrop { background: rgb(10 16 15 / 62%); backdrop-filter: blur(3px); 
   font-style: normal;
   font-variant-numeric: tabular-nums;
 }
+
+/* Размер, разрешение, длительность — подвал инфо-панели просмотрщика. */
+.file-info { margin: 0; display: grid; gap: 4px; }
+.file-info > div { display: flex; justify-content: space-between; gap: 12px; font-size: .82rem; }
+.file-info dt { margin: 0; color: var(--muted); }
+.file-info dd { margin: 0; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+/* Всплывашка по удержанию пузыря — все появления человека в ролике. */
+.face-popover {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: min(300px, calc(100vw - 24px));
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-lift);
+}
+.face-popover button {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-s);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--ground);
+}
+.face-popover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .lightbox-assign {
   display: flex;
   flex-wrap: wrap;
