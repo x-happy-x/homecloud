@@ -47,6 +47,7 @@ const ui = {
   viewerIsFaces: false,
   viewerFaces: null,
   savedGallery: null,
+  speechCache: new Map(),
   faceViewerCache: null,
   zoom: localStorage.getItem('homecloud-zoom') || 'medium',
   viewerInfo: false,
@@ -61,7 +62,8 @@ const ui = {
   treeNodes: new Map(),
   treeOpen: new Set(),
   treeBusy: false,
-  selectedFeatures: {faces: true, visual: true, ocr: false, caption: false, adult: false},
+  selectedFeatures: {faces: true, visual: true, ocr: false, caption: false,
+    adult: false, speech: false},
   routePhoto: '',
   routeGroup: '',
   applyingRoute: false,
@@ -1485,6 +1487,7 @@ function openLightbox(index, {updateUrl = true, replace = false} = {}) {
       `<span class="chip ${item.verified ? 'verified' : ''}">${item.verified ? '✓ ' : ''}${escapeHtml(item.title)}${item.verified ? '' : ` ${Math.round(item.score * 100)}%`}</span>`).join('')}</div></div>`).join('');
   $('#lightboxOcr').classList.toggle('hidden', !photo.ocr_text);
   $('#lightboxOcr div').textContent = photo.ocr_text || '';
+  renderSpeech(photo);
   const adult = $('#lightboxAdult');
   adult.classList.toggle('hidden', !photo.adult_description);
   adult.querySelector('.adult-description').textContent = photo.adult_description || '';
@@ -1511,6 +1514,47 @@ function openLightbox(index, {updateUrl = true, replace = false} = {}) {
   document.title = `${photo.filename} · HomeCloud`;
   if (updateUrl) syncUrl(replace ? 'replace' : 'push', {photoViewer: true});
 }
+
+/** Расшифровка речи ролика: реплики грузятся отдельно, в списке они лишние. */
+async function renderSpeech(photo) {
+  const box = $('#lightboxSpeech');
+  const lines = $('#lightboxSpeechLines');
+  if (photo.kind !== 'video' || !photo.speech_text) {
+    box.classList.add('hidden');
+    lines.innerHTML = '';
+    return;
+  }
+  box.classList.remove('hidden');
+  const wanted = photo.path;
+  let data = ui.speechCache.get(wanted);
+  if (!data) {
+    lines.innerHTML = '<li class="speech-empty">Загружаю…</li>';
+    $('#lightboxSpeechNote').textContent = '';
+    try {
+      data = await api(`/api/speech?path=${encodeURIComponent(wanted)}`);
+    } catch (error) {
+      data = {segments: [], error: error.message};
+    }
+    ui.speechCache.set(wanted, data);
+  }
+  // Пока грузили, зритель мог пролистнуть дальше — тогда реплики уже не его.
+  if (ui.photos[ui.lightboxIndex]?.path !== wanted) return;
+  $('#lightboxSpeechNote').textContent = data.language || '';
+  lines.innerHTML = data.segments?.length
+    ? data.segments.map(item =>
+      `<li><button type="button" data-at="${item.start}">${clock(item.start)}</button>`
+      + `<span>${escapeHtml(item.text)}</span></li>`).join('')
+    : `<li class="speech-empty">${escapeHtml(data.error || 'Речь не распознана')}</li>`;
+}
+
+// Клик по времени реплики перематывает ролик на это место.
+$('#lightboxSpeechLines').addEventListener('click', event => {
+  const button = event.target.closest('button[data-at]');
+  const player = $('#lightboxVideo');
+  if (!button || !player.src) return;
+  player.currentTime = Number(button.dataset.at) || 0;
+  player.play().catch(() => {});
+});
 
 /** Папка, альбомы и люди снимка — кликабельные: ведут в ту же подборку. */
 function renderLightboxPlaces(photo) {
@@ -2060,7 +2104,7 @@ $('#routerAutoEvery').addEventListener('change', saveRouterAutomation);
 const jobLabels = {
   idle: 'Готово к запуску', inventory: 'Поиск фотографий', faces: 'Распознавание лиц',
   visual: 'Визуальный индекс', ocr: 'Распознавание текста', caption: 'Описание изображений',
-  adult: 'Анализ 18+ и областей',
+  adult: 'Анализ 18+ и областей', speech: 'Расшифровка речи',
   running: 'Обработка', completed: 'Завершено', stopped: 'Остановлено',
   interrupted: 'Прервано', error: 'Ошибка',
 };

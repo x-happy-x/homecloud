@@ -317,6 +317,24 @@
                 <small>Используется только при источнике «LM Studio».</small></label>
             </section>
             <section class="settings-card">
+              <h2>Речь в видео</h2>
+              <p>Сказанное в ролике расшифровывается на своей видеокарте: получаются
+                субтитры и поиск по словам. Звук берётся прямо из файла.</p>
+              <label class="field">Модель
+                <select data-setting="speech_model">
+                  <option value="large-v3">Whisper large-v3 (точнее всего)</option>
+                  <option value="medium">Whisper medium (быстрее, грубее)</option>
+                  <option value="small">Whisper small (для слабой видеокарты)</option>
+                </select></label>
+              <label class="field">Язык записи
+                <input type="text" data-setting="speech_language" placeholder="auto">
+                <small>auto — определять по самой речи; либо код языка, например ru.</small></label>
+              <label class="field">Язык архива
+                <input type="text" data-setting="speech_fallback_language" placeholder="ru">
+                <small>Берётся, когда определению нельзя верить: на паре секунд
+                  бормотания модель уверенно называет случайный язык.</small></label>
+            </section>
+            <section class="settings-card">
               <h2>Содержимое 18+</h2>
               <p>Как показывать снимки, которые локальный анализ пометил как
                 откровенные. Настройка личная: она хранится в этом браузере.</p>
@@ -606,6 +624,10 @@
           <p class="adult-description"></p>
           <div class="adult-regions"></div>
         </section>
+        <section class="lightbox-speech hidden" id="lightboxSpeech">
+          <h3>Что говорят<small id="lightboxSpeechNote"></small></h3>
+          <ol class="speech-lines" id="lightboxSpeechLines"></ol>
+        </section>
         <details class="lightbox-ocr hidden" id="lightboxOcr"><summary>Распознанный текст</summary><div></div></details>
       </div>
     </aside>
@@ -654,6 +676,7 @@
           <label class="feature-option"><input type="checkbox" data-feature="ocr"><span><b>OCR</b><small>Распознать текст на изображениях</small></span></label>
           <label class="feature-option"><input type="checkbox" data-feature="caption"><span><b>Описание</b><small>WD-теги → подробное JSON-описание через Qwen3-VL</small></span></label>
           <label class="feature-option"><input type="checkbox" data-feature="adult"><span><b>Контент 18+</b><small>Подробные теги и области для выборочного блюра</small></span></label>
+          <label class="feature-option"><input type="checkbox" data-feature="speech"><span><b>Речь в видео</b><small>Расшифровать сказанное: субтитры и поиск по словам</small></span></label>
         </div>
         <label class="check-row"><input type="checkbox" id="photoProcessForce"> Переделать заново, даже если уже посчитано</label>
         <p class="hint-line">Обычно повторно считается только то, что изменилось: этапы пропускают файлы, уже обработанные в этой же версии.</p>
