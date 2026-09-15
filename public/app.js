@@ -357,6 +357,7 @@ function createPicker(container, placeholder) {
 const selectionPicker = createPicker($('#selectionPicker'), 'Имя человека');
 const dialogPicker = createPicker($('#dialogPicker'), 'Имя человека');
 const lightboxPicker = createPicker($('#lightboxPicker'), 'Имя человека');
+const lightboxSpeechPicker = createPicker($('#lightboxSpeechPicker'), 'Имя человека');
 
 /* ---------- люди ---------- */
 
@@ -1524,6 +1525,11 @@ function openLightbox(index, {updateUrl = true, replace = false} = {}) {
 async function renderSpeech(photo) {
   const box = $('#lightboxSpeech');
   const lines = $('#lightboxSpeechLines');
+  // Открытая форма назначения — про прошлый ролик, новому она не к месту.
+  if (ui.assignSpeaker) {
+    ui.assignSpeaker = null;
+    $('#lightboxSpeechAssign').classList.add('hidden');
+  }
   if (photo.kind !== 'video' || !photo.speech_text) {
     box.classList.add('hidden');
     lines.innerHTML = '';
@@ -1562,23 +1568,60 @@ async function renderSpeech(photo) {
 const speakerIndex = speaker => (Number(String(speaker).match(/\d+/)?.[0]) || 0) % 6;
 const speakerLabel = speaker => `Голос ${speakerIndex(speaker) + 1}`;
 
-// Имя, если узнали (по лицу в кадре — уверенно, по одному голосу —
-// с оговоркой «похоже»); иначе просто «Голос N», и то не в одиночку.
+// Имя, если узнали (по лицу в кадре или назначено руками — уверенно, по
+// одному голосу — с оговоркой «похоже»); иначе просто «Голос N», и то не в
+// одиночку. Сама метка — кнопка: клик назначает или переправляет имя.
 function speakerTag(item, multi) {
+  if (!item.speaker) return '';
   const person = item.person;
-  if (person) {
-    const guess = person.source === 'voice';
-    const title = guess ? `Похоже, по голосу (${Math.round(person.confidence * 100)}%)` : '';
-    return `<b class="speech-voice${guess ? ' is-guess' : ''}" `
-      + `data-voice="${speakerIndex(item.speaker)}" title="${escapeHtml(title)}">`
-      + `${escapeHtml(person.name)}${guess ? ' ?' : ''}</b>`;
-  }
-  if (multi && item.speaker) {
-    return `<b class="speech-voice" data-voice="${speakerIndex(item.speaker)}">`
-      + `${speakerLabel(item.speaker)}</b>`;
-  }
-  return '';
+  const guess = person?.source === 'voice';
+  const title = guess ? `Похоже, по голосу (${Math.round(person.confidence * 100)}%) — клик, чтобы поправить`
+    : person ? 'Клик — назначить другое имя' : 'Клик — назначить, кто это';
+  // Безымянная метка при одном голосе в ролике — шум для читателя, но не
+  // для того, кто может её назначить: тогда это единственный способ до
+  // формы добраться, и прятать её нельзя.
+  const showUnnamed = multi || ui.canEdit;
+  const label = person ? escapeHtml(person.name) + (guess ? ' ?' : '')
+    : (showUnnamed ? escapeHtml(speakerLabel(item.speaker)) : '');
+  if (!label) return '';
+  return `<button type="button" class="speech-voice${guess ? ' is-guess' : ''}${person ? '' : ' unassigned'}"
+      data-voice="${speakerIndex(item.speaker)}" data-speaker="${escapeHtml(item.speaker)}"
+      title="${escapeHtml(title)}">${label}</button>`;
 }
+
+// Клик по метке говорящего — назначить или переправить, кто это.
+$('#lightboxSpeechLines').addEventListener('click', event => {
+  const button = event.target.closest('.speech-voice');
+  if (!button || !ui.canEdit) return;
+  ui.assignSpeaker = button.dataset.speaker;
+  $('#lightboxSpeechAssign').classList.remove('hidden');
+  lightboxSpeechPicker.clear();
+  $('#lightboxSpeechPicker input')?.focus();
+});
+$('#lightboxSpeechAssignCancel').addEventListener('click', () => {
+  ui.assignSpeaker = null;
+  $('#lightboxSpeechAssign').classList.add('hidden');
+});
+$('#lightboxSpeechAssignButton').addEventListener('click', async () => {
+  const name = lightboxSpeechPicker.name;
+  const speaker = ui.assignSpeaker;
+  const photo = ui.photos[ui.lightboxIndex];
+  if (!name) return toast('Введите имя человека');
+  if (!speaker || !photo) return;
+  try {
+    await api('/api/photos/assign-speaker', {method: 'POST', body: JSON.stringify(
+      {path: photo.path, speaker, name, bigfam_id: lightboxSpeechPicker.bigfamId})});
+    lightboxSpeechPicker.clear();
+    $('#lightboxSpeechAssign').classList.add('hidden');
+    ui.assignSpeaker = null;
+    toast(`Голос назначен: ${name}`);
+    // Реплики закэшированы по пути — без сброса кэша старая подпись
+    // осталась бы висеть до следующего открытия ролика.
+    ui.speechCache.delete(photo.path);
+    renderSpeech(photo);
+    loadState();
+  } catch (error) { toast(error.message); }
+});
 
 // Клик по времени реплики перематывает ролик на это место.
 // Перемотка ролика на секунду — используется и репликами, и лицами в кадре.

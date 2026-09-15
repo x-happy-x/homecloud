@@ -1106,10 +1106,23 @@ dialog::backdrop { background: rgb(10 16 15 / 62%); backdrop-filter: blur(3px); 
 .speech-lines button { padding: 0; border: 0; background: none; color: var(--patina); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
 .speech-lines button:hover { text-decoration: underline; }
 .speech-lines span { flex: 1 1 auto; min-width: 0; }
-.speech-voice { flex: 0 0 auto; font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .02em; }
+.speech-voice {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  cursor: pointer;
+}
+.speech-voice:hover { text-decoration: underline; }
 .speech-voice[data-voice="0"], .speech-voice[data-voice="3"] { color: var(--patina); }
 .speech-voice[data-voice="1"], .speech-voice[data-voice="4"] { color: var(--brass); }
 .speech-voice[data-voice="2"], .speech-voice[data-voice="5"] { color: var(--rose); }
+.speech-voice.unassigned { color: var(--muted); }
 /* Узнан по голосу, а не по лицу в кадре, — это подсказка, а не факт. */
 .speech-voice.is-guess { font-weight: 500; text-transform: none; opacity: .75; border-bottom: 1px dashed currentColor; cursor: help; }
 .speech-empty { color: var(--muted); font-size: .8rem; }
