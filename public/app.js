@@ -78,6 +78,7 @@ const ui = {
   jobTiming: new Map(),
   etaProfiles: {},
   timers: {},
+  reclusterTracking: false,
 };
 
 try { ui.etaProfiles = JSON.parse(localStorage.getItem('homecloud-eta-profiles') || '{}'); }
@@ -111,13 +112,146 @@ async function api(path, options = {}) {
   return data;
 }
 
-function toast(message) {
-  const element = $('#toast');
-  element.textContent = message;
-  element.classList.add('show');
-  clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => element.classList.remove('show'), 3000);
+/* ---------- уведомления и фоновые задачи (правый нижний угол) ---------- */
+
+const TASK_HISTORY_KEY = 'homecloud-task-history';
+let taskHistory = [];
+try { taskHistory = JSON.parse(localStorage.getItem(TASK_HISTORY_KEY) || '[]'); }
+catch { taskHistory = []; }
+const taskCards = new Map();
+
+function saveTaskHistory() {
+  taskHistory = taskHistory.slice(-50);
+  localStorage.setItem(TASK_HISTORY_KEY, JSON.stringify(taskHistory));
+  $('#taskHistoryButton').classList.toggle('show', taskHistory.length > 0);
 }
+
+function pushHistory(entry) {
+  taskHistory.push({...entry, at: Date.now()});
+  saveTaskHistory();
+}
+
+function dismissTask(id) {
+  const entry = taskCards.get(id);
+  if (!entry) return;
+  entry.el.classList.remove('show');
+  entry.el.classList.add('leaving');
+  setTimeout(() => entry.el.remove(), 260);
+  taskCards.delete(id);
+}
+
+function finishTask(id, {delay = 3600} = {}) {
+  clearTimeout(taskCards.get(id)?.timer);
+  const entry = taskCards.get(id);
+  if (entry) entry.timer = setTimeout(() => dismissTask(id), delay);
+}
+
+// Одна карточка на id: и простые тосты, и фоновые задачи (пересборка групп и
+// т.п.) используют один и тот же компонент — задача просто умеет разворачиваться
+// в список шагов с прогрессом по каждому, а тост — нет (нечего разворачивать).
+function renderTaskCard(id, {title, sub = '', level = 'info', progress = null, steps = null,
+    stepIndex = 0, spinning = false, stopAction = null, expandable = true}) {
+  let entry = taskCards.get(id);
+  if (!entry) {
+    const el = document.createElement('div');
+    el.className = 'task-card';
+    el.innerHTML = `
+      <div class="task-card-head">
+        <span class="task-card-icon"></span>
+        <div class="task-card-body">
+          <div class="task-card-title"></div>
+          <div class="task-card-sub"></div>
+        </div>
+        <span class="task-card-caret">▾</span>
+        <button class="task-card-close" type="button" title="Скрыть">×</button>
+      </div>
+      <div class="task-card-bar"><span></span></div>
+      <div class="task-card-details">
+        <ol class="task-card-steps"></ol>
+        <div class="task-card-actions"></div>
+      </div>`;
+    $('#taskCenterList').appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    el.querySelector('.task-card-head').addEventListener('click', () => {
+      if (entry.expandable) el.classList.toggle('expanded');
+    });
+    el.querySelector('.task-card-close').addEventListener('click', event => {
+      event.stopPropagation();
+      dismissTask(id);
+    });
+    entry = {el};
+    taskCards.set(id, entry);
+  }
+  clearTimeout(entry.timer);
+  entry.expandable = expandable && Boolean(steps && steps.length);
+  const el = entry.el;
+  el.classList.toggle('level-error', level === 'error');
+  el.classList.toggle('level-success', level === 'success');
+  el.classList.toggle('has-details', entry.expandable);
+  el.querySelector('.task-card-caret').style.visibility = entry.expandable ? '' : 'hidden';
+  const icon = el.querySelector('.task-card-icon');
+  icon.textContent = level === 'error' ? '!' : level === 'success' ? '✓' : '';
+  icon.classList.toggle('spin', spinning);
+  el.querySelector('.task-card-title').textContent = title;
+  el.querySelector('.task-card-sub').textContent = sub;
+  const bar = el.querySelector('.task-card-bar');
+  bar.style.display = progress === null && !spinning ? 'none' : '';
+  bar.classList.toggle('indeterminate', spinning && progress === null);
+  bar.querySelector('span').style.width = progress === null ? '' : `${Math.max(0, Math.min(100, progress))}%`;
+  // Текущее состояние уже написано строкой выше (.task-card-sub) — здесь
+  // только отмечаем, какой шаг сейчас идёт, без повторения текста.
+  const stepsList = el.querySelector('.task-card-steps');
+  stepsList.innerHTML = (steps || []).map((step, index) => {
+    const num = index + 1;
+    const state = num < stepIndex ? 'done' : num === stepIndex ? 'active' : '';
+    return `<li class="task-card-step ${state}"><span class="dot">${num < stepIndex ? '✓' : num}</span>
+      <span>${escapeHtml(step.title)}</span></li>`;
+  }).join('');
+  const actions = el.querySelector('.task-card-actions');
+  actions.innerHTML = '';
+  if (stopAction) {
+    const button = document.createElement('button');
+    button.className = 'button danger small';
+    button.type = 'button';
+    button.textContent = 'Остановить';
+    button.addEventListener('click', event => { event.stopPropagation(); stopAction(button); });
+    actions.appendChild(button);
+  }
+  return entry;
+}
+
+function toast(message, level = 'info') {
+  const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  renderTaskCard(id, {title: message, level, spinning: false, expandable: false});
+  pushHistory({kind: 'toast', title: message, level});
+  finishTask(id, {delay: level === 'error' ? 5200 : 3200});
+}
+
+function renderTaskHistory() {
+  const list = $('#taskHistoryList');
+  if (!taskHistory.length) {
+    list.innerHTML = '<p class="task-history-empty">Пока пусто — здесь будут появляться уведомления.</p>';
+    return;
+  }
+  list.innerHTML = [...taskHistory].reverse().map(item => {
+    const time = new Date(item.at).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+    const mark = item.level === 'error' ? '⚠' : item.level === 'success' ? '✓' : '•';
+    return `<div class="task-history-item"><span class="task-history-time">${time}</span>
+      <span>${mark} <strong>${escapeHtml(item.title)}</strong>${item.message
+        ? `<br><span style="color:var(--muted)">${escapeHtml(item.message)}</span>` : ''}</span></div>`;
+  }).join('');
+}
+
+saveTaskHistory();
+$('#taskHistoryButton').addEventListener('click', () => {
+  renderTaskHistory();
+  $('#taskHistoryDialog').showModal();
+});
+$('#taskHistoryDialog').querySelector('.dialog-close')
+  .addEventListener('click', () => $('#taskHistoryDialog').close());
+$('#taskHistoryDialog').addEventListener('click', event => {
+  if (event.target === $('#taskHistoryDialog')) $('#taskHistoryDialog').close();
+});
 
 /* ---------- вход ---------- */
 
@@ -2960,6 +3094,7 @@ async function openDeviceScan(id) {
 
 async function pollStatus() {
   if (!ui.session) return;
+  await pollRecluster();
   if (ui.view === 'duplicates') await pollDuplicates();
   if (ui.view === 'training') {
     const wasActive = Boolean(ui.routerJob?.active);
@@ -3230,28 +3365,77 @@ $('#lightbox').addEventListener('click', event => {
 });
 
 // Метки групп лежат в каталоге: при сканировании считаются только новые лица,
-// а полная пересборка — отдельная осознанная команда.
-$('#reclusterButton').addEventListener('click', async event => {
-  const button = event.currentTarget;
-  if (!confirm('Пересобрать автоматические группы заново? Имена и исключения останутся, '
-    + 'а безымянные группы соберутся по-новому. Это может занять минуту.')) return;
-  const label = button.textContent;
+// а полная пересборка — отдельная осознанная команда. Считается в фоне на
+// сервере (people-albums пересборка может занять минуту-другую на большом
+// каталоге), поэтому кнопка только запускает задачу — прогресс приходит
+// через pollRecluster() и карточку в правом нижнем углу.
+function reclusterProgressPercent(job) {
+  if (!job.steps_total) return 0;
+  const stepFraction = job.total ? Math.max(0, Math.min(1, job.done / job.total)) : (job.done ? 1 : 0);
+  const completed = Math.max(0, (job.step_index || 1) - 1);
+  return Math.round(((completed + stepFraction) / job.steps_total) * 100);
+}
+
+function renderReclusterJob(job) {
+  const steps = job.steps || [];
+  const running = job.status === 'running';
+  const finished = ['completed', 'stopped', 'error'].includes(job.status);
+  const level = job.status === 'error' ? 'error' : job.status === 'completed' ? 'success' : 'info';
+  let sub = job.message || '';
+  if (running && job.total > 1) sub += ` · ${formatNumber(job.done)} / ${formatNumber(job.total)}`;
+  renderTaskCard('recluster', {
+    title: 'Пересборка групп лиц',
+    sub,
+    level,
+    progress: running ? reclusterProgressPercent(job) : (job.status === 'completed' ? 100 : null),
+    steps,
+    stepIndex: finished ? steps.length + 1 : (job.step_index || 1),
+    spinning: running,
+    stopAction: running ? stopRecluster : null,
+  });
+}
+
+async function stopRecluster(button) {
   button.disabled = true;
-  button.textContent = 'Собираю…';
-  try {
-    const result = await api('/api/recluster', {method: 'POST', body: '{}'});
-    ui.state = result.state || ui.state;
-    renderStats();
-    renderPeople();
-    renderReview();
-    renderPersonFilters();
-    toast('Группы пересобраны');
-  } catch (error) {
-    toast(error.message);
-  } finally {
-    button.disabled = false;
-    button.textContent = label;
+  try { await api('/api/recluster/stop', {method: 'POST', body: '{}'}); }
+  catch (error) { toast(error.message, 'error'); }
+  finally { button.disabled = false; }
+}
+
+async function pollRecluster() {
+  let job;
+  try { job = await api('/api/recluster/status'); }
+  catch { return; }
+  if (job.status === 'running') {
+    ui.reclusterTracking = true;
+    renderReclusterJob(job);
+    return;
   }
+  if (!ui.reclusterTracking) return;
+  ui.reclusterTracking = false;
+  renderReclusterJob(job);
+  if (job.status === 'completed') {
+    try {
+      ui.state = await api('/api/state');
+      renderStats(); renderPeople(); renderReview(); renderPersonFilters();
+    } catch { /* обновится на следующем обычном опросе */ }
+  }
+  pushHistory({
+    kind: 'job', title: 'Пересборка групп лиц',
+    level: job.status === 'error' ? 'error' : job.status === 'stopped' ? 'info' : 'success',
+    message: job.status === 'error' ? (job.error || 'Ошибка пересборки') : job.message,
+  });
+  finishTask('recluster', {delay: job.status === 'error' ? 6000 : 3600});
+}
+
+$('#reclusterButton').addEventListener('click', async () => {
+  if (!confirm('Пересобрать автоматические группы заново? Имена и исключения останутся, '
+    + 'а безымянные группы соберутся по-новому. Можно остановить в любой момент.')) return;
+  try {
+    await api('/api/recluster/start', {method: 'POST', body: '{}'});
+    ui.reclusterTracking = true;
+    await pollRecluster();
+  } catch (error) { toast(error.message, 'error'); }
 });
 
 $('#undoButton').addEventListener('click', async () => {

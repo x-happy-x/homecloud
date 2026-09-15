@@ -771,7 +771,20 @@
     </form>
   </dialog>
 
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog id="taskHistoryDialog">
+    <form class="sheet task-history-sheet" method="dialog">
+      <header class="sheet-head">
+        <div><p class="eyebrow">Уведомления</p><h2>История</h2></div>
+        <button class="icon-button dialog-close" type="button" aria-label="Закрыть">×</button>
+      </header>
+      <div class="task-history-list" id="taskHistoryList"></div>
+    </form>
+  </dialog>
+
+  <div class="task-center" id="taskCenter" aria-live="polite">
+    <div class="task-center-list" id="taskCenterList"></div>
+    <button class="task-center-history" id="taskHistoryButton" type="button" title="История уведомлений">🕘</button>
+  </div>
   <script src="/app.js?v=__ASSET_VERSION__" defer></script>
 </body>
 </html>
