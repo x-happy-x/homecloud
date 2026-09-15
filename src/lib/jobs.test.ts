@@ -1,5 +1,7 @@
 import {describe, expect, test} from 'vitest';
-import {jobFraction, jobWork, scanOverallFraction, scanStepIndex, scanSteps, videoWeight} from './jobs';
+import {
+  jobFraction, jobWork, scanOverallFraction, scanStepIndex, scanSteps, videoWeight, withFeatureDeps,
+} from './jobs';
 
 describe('videoWeight', () => {
   test('лица: цена ролика растёт с частотой проверки кадров', () => {
@@ -54,4 +56,19 @@ test('общая готовность: пройденные этапы плюс 
   // Второй этап пройден наполовину → (1 + 0.5) / 3.
   expect(scanOverallFraction(steps, 2, {total: 100, completed: 50} as never)).toBeCloseTo(0.5);
   expect(scanOverallFraction([], 1, {} as never)).toBe(0);
+});
+
+describe('withFeatureDeps', () => {
+  const none = {faces: false, visual: false, ocr: false, caption: false, adult: false};
+  test('OCR тянет за собой визуальный индекс', () => {
+    expect(withFeatureDeps(none, 'ocr', true)).toEqual({...none, ocr: true, visual: true});
+  });
+  test('описанию нужны и визуальный индекс, и анализ 18+', () => {
+    expect(withFeatureDeps(none, 'caption', true))
+      .toEqual({...none, caption: true, visual: true, adult: true});
+  });
+  test('снятие галочки зависимости не трогает', () => {
+    const all = {...none, visual: true, caption: true, adult: true};
+    expect(withFeatureDeps(all, 'caption', false)).toEqual({...all, caption: false});
+  });
 });

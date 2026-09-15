@@ -1,4 +1,4 @@
-@use '../mixins' as *;
+@use '../../styles/mixins' as *;
 
 .history-list { display: grid; gap: 6px; margin-bottom: 10px; }
 .history-head { font-size: .76rem; color: var(--muted); }
@@ -60,15 +60,9 @@
 .tree-state.missing { color: var(--rose); }
 .tree-off { opacity: .75; }
 .tree-row:hover .tree-off { opacity: 1; }
-#collectButton { margin-top: 10px; }
+.collect-row { margin-top: 10px; }
 
 .processing-banner { position: sticky; top: 70px; z-index: 20; margin-bottom: var(--gap); padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--patina) 35%, var(--line)); border-radius: var(--r-m); background: color-mix(in srgb, var(--surface-2) 94%, transparent); box-shadow: var(--shadow); backdrop-filter: blur(14px); }
-.processing-head, .processing-foot { display: flex; align-items: center; gap: 10px; }
-.processing-head { justify-content: space-between; margin-bottom: 8px; }
-.processing-head strong, .processing-head span { display: block; }
-.processing-head span, .processing-foot { color: var(--muted); font-size: .75rem; }
-.processing-foot { margin-top: 8px; }
-.processing-foot code { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: .72rem var(--mono); }
 
 .device-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: var(--gap); }
 .device-card { display: flex; flex-direction: column; gap: 15px; min-width: 0; padding: clamp(16px, 2.4vw, 22px); border: 1px solid var(--line-soft); border-radius: var(--r-l); background: var(--surface-2); box-shadow: var(--shadow); }

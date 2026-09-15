@@ -23,6 +23,10 @@ export function Dialog({open, onClose, closeThroughHistory, className, children}
 
 export interface SheetProps {
   title: string;
+  /** Отправка формы; без него форма закрывает окно, как method="dialog". */
+  onSubmit?(): void;
+  /** Своё тело вместо .sheet-body: у форм устройств свои отступы и сетка. */
+  bodyClassName?: string;
   eyebrow?: ReactNode;
   note?: ReactNode;
   onClose(): void;
@@ -35,9 +39,14 @@ export interface SheetProps {
 
 /** Обычная начинка окна: шапка с заголовком и крестиком, тело, подвал. */
 export const Sheet = ({
-  title, eyebrow, note, onClose, headActions, toolbar, footer, className, children,
+  title, onSubmit, bodyClassName = 'sheet-body', eyebrow, note, onClose, headActions, toolbar,
+  footer, className, children,
 }: SheetProps) => (
-  <form className={['sheet', className].filter(Boolean).join(' ')} method="dialog">
+  <form
+    className={['sheet', className].filter(Boolean).join(' ')}
+    method="dialog"
+    onSubmit={onSubmit ? event => { event.preventDefault(); onSubmit(); } : undefined}
+  >
     <header className="sheet-head">
       <div>
         {eyebrow && <p className="eyebrow">{eyebrow}</p>}
@@ -48,7 +57,7 @@ export const Sheet = ({
       <IconButton icon="close" label="Закрыть" onClick={onClose} />
     </header>
     {toolbar && <div className="sheet-toolbar">{toolbar}</div>}
-    <div className="sheet-body">{children}</div>
+    <div className={bodyClassName}>{children}</div>
     {footer && <div className="form-actions">{footer}</div>}
   </form>
 );

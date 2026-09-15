@@ -1,3 +1,11 @@
 .progress-track { height: 8px; border-radius: 999px; background: var(--ground); overflow: hidden; }
 .progress-track span { display: block; height: 100%; width: 0; border-radius: 999px; background: var(--patina); transition: width .4s ease; }
 .progress-track.indeterminate span { width: 35% !important; animation: shimmer-bar 1.3s infinite ease-in-out; }
+
+/* Шапка полосы хода задания: баннер сканирования, дубликаты, обучение. */
+.processing-head, .processing-foot { display: flex; align-items: center; gap: 10px; }
+.processing-head { justify-content: space-between; margin-bottom: 8px; }
+.processing-head strong, .processing-head span { display: block; }
+.processing-head span, .processing-foot { color: var(--muted); font-size: .75rem; }
+.processing-foot { margin-top: 8px; }
+.processing-foot code { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: .72rem var(--mono); }

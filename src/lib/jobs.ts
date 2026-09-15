@@ -115,3 +115,18 @@ export function scanOverallFraction(steps: ScanStep[], stepIndex: number, job: J
   const completed = Math.max(0, stepIndex - 1);
   return (completed + fraction) / steps.length;
 }
+
+/**
+ * Зависимости этапов: OCR и описания строятся поверх визуального индекса,
+ * а описанию ещё нужен анализ 18+ — его теги идут в подсказку модели.
+ */
+export function withFeatureDeps<T extends Record<string, boolean>>(
+  features: T,
+  key: string,
+  checked: boolean,
+): T {
+  const next: Record<string, boolean> = {...features, [key]: checked};
+  if (checked && (key === 'ocr' || key === 'caption')) next.visual = true;
+  if (checked && key === 'caption') next.adult = true;
+  return next as T;
+}
