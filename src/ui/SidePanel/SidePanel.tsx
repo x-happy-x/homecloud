@@ -21,14 +21,14 @@ export interface SidePanelProps<T extends string> {
 export function SidePanel<T extends string>({
   open, title, onClose, tabs, activeTab, onTab, className, children,
 }: SidePanelProps<T>) {
+  // Закрытая панель не рендерится. Атрибут hidden перебивается любым display в
+  // стилях и на глаз не отличим от класса .hidden; анимация выезда и так
+  // проигрывается при появлении узла.
+  if (!open) return null;
   return (
     <>
-      <div className="sidepage-backdrop" hidden={!open} onClick={onClose} />
-      <aside
-        className={['sidepage', className].filter(Boolean).join(' ')}
-        hidden={!open}
-        aria-label={title}
-      >
+      <div className="sidepage-backdrop" onClick={onClose} />
+      <aside className={['sidepage', className].filter(Boolean).join(' ')} aria-label={title}>
         <header className="sidepage-head">
           <strong>{title}</strong>
           <IconButton icon="close" label="Закрыть панель" onClick={onClose} />
