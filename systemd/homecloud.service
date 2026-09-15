@@ -1,0 +1,23 @@
+[Unit]
+Description=HomeCloud — домашняя фототека
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/homecloud
+Environment=NODE_ENV=production
+Environment=HOST=0.0.0.0
+Environment=PORT=4180
+Environment=BACKENDS_FILE=/var/lib/homecloud/backends.json
+EnvironmentFile=/etc/homecloud.env
+StateDirectory=homecloud
+ExecStart=/usr/bin/node /opt/homecloud/server.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

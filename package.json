@@ -1,0 +1,12 @@
+{
+  "name": "homecloud",
+  "version": "1.0.0",
+  "description": "HomeCloud — домашняя фототека: интерфейс на Proxmox, распознавание на Windows",
+  "type": "module",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": { "node": ">=22.5" }
+}
