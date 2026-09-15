@@ -1,11 +1,11 @@
 import {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {Avatar} from '../Avatar/Avatar';
 import {plural} from '../../lib/format';
-import type {Group, KinPerson} from '../../types/api';
+import type {BigfamId, KinPerson, NamedPerson} from '../../types/api';
 
 export interface PickerValue {
   name: string;
-  bigfamId: number | null;
+  bigfamId: BigfamId | null;
 }
 
 export interface PickerOption extends PickerValue {
@@ -19,7 +19,7 @@ export interface PersonPickerProps {
   onChange(value: PickerValue): void;
   placeholder: string;
   /** Люди, уже названные в HomeCloud. */
-  people?: Group[];
+  people?: NamedPerson[];
   /** Люди картотеки bigfam. */
   kin?: KinPerson[];
   autoFocus?: boolean;
@@ -28,12 +28,12 @@ export interface PersonPickerProps {
 const MAX_OPTIONS = 60;
 const lower = (value: string) => value.toLocaleLowerCase('ru');
 
-function buildOptions(people: Group[], kin: KinPerson[], search: string): PickerOption[] {
+function buildOptions(people: NamedPerson[], kin: KinPerson[], search: string): PickerOption[] {
   const known: PickerOption[] = people.map(person => ({
     bigfamId: person.bigfam_id ?? null,
-    name: person.name ?? '',
+    name: person.name,
     source: 'catalog',
-    meta: `${person.faces} ${plural(person.faces, 'лицо', 'лица', 'лиц')} в каталоге`,
+    meta: `${person.count} ${plural(person.count, 'лицо', 'лица', 'лиц')} в каталоге`,
     avatar: person.bigfam_id ? `/media/bigfam/${person.bigfam_id}` : '',
   }));
 
@@ -43,7 +43,7 @@ function buildOptions(people: Group[], kin: KinPerson[], search: string): Picker
     source: 'kin',
     meta: [person.birth, person.deceased ? `† ${person.death || ''}` : '']
       .filter(Boolean).join(' · ') || 'из картотеки',
-    avatar: `/media/bigfam/${person.id}`,
+    avatar: person.avatar,
   }));
 
   // Кто уже есть в HomeCloud, того не показываем второй раз из картотеки.

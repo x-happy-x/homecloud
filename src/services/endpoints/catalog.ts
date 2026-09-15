@@ -1,23 +1,20 @@
 import {api, post, query} from '../api';
-import type {Album, CatalogStats, Face, Group, PhotoSummary, PhotosPage} from '../../types/api';
+import type {
+  CatalogStats, Folder, Group, GroupDetail, NamedPerson, PeopleAlbum, PhotoCard, PhotosPage,
+} from '../../types/api';
 
 export interface CatalogState {
   stats: CatalogStats;
   groups: Group[];
-  people: Group[];
-  noise?: Group[];
-  excluded?: Group[];
-  albums?: Album[];
-  people_albums?: unknown[];
-  hidden_count?: number;
+  people: NamedPerson[];
+  people_albums: PeopleAlbum[];
 }
 
 export const getState = (hideAdult: boolean) =>
   api<CatalogState>(`/api/state${query({adult: hideAdult ? 'hide' : ''})}`);
 
 export const getGroup = (key: string, hideAdult: boolean) =>
-  api<{group: Group; faces: Face[]}>(
-    `/api/group${query({key, adult: hideAdult ? 'hide' : ''})}`);
+  api<GroupDetail>(`/api/group${query({key, adult: hideAdult ? 'hide' : ''})}`);
 
 export interface PhotosParams {
   limit: number;
@@ -27,25 +24,37 @@ export interface PhotosParams {
   type?: string;
   kind?: string;
   blurry?: boolean;
-  adult?: string;
+  adult?: boolean;
   folder?: string;
-  folder_deep?: string;
+  folderDeep?: boolean;
   album?: number;
   hidden?: boolean;
 }
 
 export function getPhotos(params: PhotosParams): Promise<PhotosPage> {
-  const {person = [], ...rest} = params;
-  const search = new URLSearchParams(query(rest as Record<string, string | number | boolean>).slice(1));
-  person.forEach(name => search.append('person', name));
+  const search = new URLSearchParams();
+  params.person?.forEach(name => search.append('person', name));
+  if (params.q) search.set('q', params.q);
+  if (params.type) search.set('type', params.type);
+  if (params.kind) search.set('kind', params.kind);
+  if (params.blurry) search.set('blurry', '1');
+  if (params.adult) search.set('adult', '1');
+  if (params.hidden) search.set('hidden', '1');
+  if (params.folder) {
+    search.set('folder', params.folder);
+    if (params.folderDeep === false) search.set('folder_deep', '0');
+  }
+  if (params.album) search.set('album', String(params.album));
+  search.set('limit', String(params.limit));
+  search.set('offset', String(params.offset));
   return api<PhotosPage>(`/api/photos?${search.toString()}`);
 }
 
 export const getPhoto = (path: string) =>
-  api<{photo: PhotoSummary}>(`/api/photo${query({path})}`).then(data => data.photo);
+  api<{photo: PhotoCard}>(`/api/photo${query({path})}`).then(data => data.photo);
 
 export const getFolders = (path: string) =>
-  api<{trail: Array<{name: string; path: string}>; items: Array<{name: string; path: string; photos: number}>}>(
+  api<{path: string; trail: Array<{name: string; path: string}>; folders: Folder[]}>(
     `/api/folders${query({path})}`);
 
-export const undo = () => post('/api/undo');
+export const undo = () => post<{description: string | null; state: CatalogState}>('/api/undo');

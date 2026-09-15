@@ -1,6 +1,5 @@
 import type {StateCreator} from 'zustand';
-import type {Face} from '../../types/api';
-import type {PhotoSummary} from '../../types/api';
+import type {GroupFace as Face, PhotoCard as PhotoSummary} from '../../types/api';
 import type {Store} from '../index';
 
 export interface ViewerSlice {

@@ -1,5 +1,5 @@
 import type {StateCreator} from 'zustand';
-import type {SessionUser} from '../../types/api';
+import type {SessionResponse, SessionUser} from '../../types/api';
 import type {Store} from '../index';
 
 export interface SessionSlice {
@@ -12,22 +12,27 @@ export interface SessionSlice {
     /** Сессия истекла: поднять окно входа. */
     needsLogin: boolean;
   };
-  setSession(user: SessionUser | null, bigfamUrl?: string): void;
+  /** Ответ /api/session целиком; null — выход. */
+  setSession(response: SessionResponse | null): void;
   requireLogin(): void;
 }
 
 export const createSessionSlice: StateCreator<Store, [], [], SessionSlice> = set => ({
   session: {user: null, canEdit: false, isAdmin: false, bigfamUrl: '#', needsLogin: false},
 
-  setSession: (user, bigfamUrl) => set(state => ({
-    session: {
-      user,
-      canEdit: Boolean(user) && user?.role !== 'viewer',
-      isAdmin: user?.role === 'admin',
-      bigfamUrl: bigfamUrl ?? state.session.bigfamUrl,
-      needsLogin: !user,
-    },
-  })),
+  setSession: response => set(state => {
+    const user = response?.user ?? null;
+    return {
+      session: {
+        user,
+        // Права решает server.js; по роли — только если он промолчал.
+        canEdit: Boolean(user) && (response?.canEdit ?? user?.role !== 'viewer'),
+        isAdmin: user?.role === 'admin',
+        bigfamUrl: response?.bigfamUrl ?? state.session.bigfamUrl,
+        needsLogin: !user,
+      },
+    };
+  }),
 
   requireLogin: () => set(state => ({session: {...state.session, needsLogin: true}})),
 });

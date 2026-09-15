@@ -6,6 +6,12 @@ import {Icon} from '../../ui/Icon/Icon';
 import {Popover} from '../../ui/Popover/Popover';
 import {useStore} from '../../store';
 
+const ROLES: Record<string, string> = {
+  admin: 'Администратор',
+  editor: 'Редактор',
+  viewer: 'Наблюдатель',
+};
+
 export function AccountMenu() {
   const session = useStore(state => state.session);
   const setSession = useStore(state => state.setSession);
@@ -23,7 +29,7 @@ export function AccountMenu() {
   });
 
   const user = session.user;
-  const name = user?.display || user?.name || 'Гость';
+  const name = user ? (user.name || user.login) : 'Гость';
 
   return (
     <>
@@ -38,7 +44,9 @@ export function AccountMenu() {
         <span className="account-avatar">{name.trim().charAt(0).toUpperCase() || '?'}</span>
         <span className="account-body">
           <span className="account-name">{name}</span>
-          <span className="account-role">{user ? user.name : 'не выполнен вход'}</span>
+          <span className="account-role">
+            {user ? (ROLES[user.role] ?? user.role) : 'не выполнен вход'}
+          </span>
         </span>
       </button>
 
@@ -51,7 +59,7 @@ export function AccountMenu() {
       >
         <div className="menu-head">
           <strong>{name}</strong>
-          <span>{user ? user.name : 'вход не выполнен'}</span>
+          <span>{user ? user.login : 'вход не выполнен'}</span>
         </div>
         <hr />
         <a href={session.bigfamUrl} target="_blank" rel="noopener" role="menuitem">

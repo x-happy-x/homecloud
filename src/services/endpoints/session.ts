@@ -1,10 +1,11 @@
 import {api, post} from '../api';
-import type {KinPerson, SessionResponse} from '../../types/api';
+import type {KinPerson, SessionResponse, SessionUser} from '../../types/api';
 
 export const getSession = () => api<SessionResponse>('/api/session');
 
-export const login = (name: string, password: string) =>
-  post<SessionResponse>('/api/auth/login', {name, password});
+// Картотека читает поле login: с полем name вход всегда отвечал отказом.
+export const login = (loginName: string, password: string) =>
+  post<{user: SessionUser}>('/api/auth/login', {login: loginName, password});
 
 export const logout = () => post('/api/auth/logout');
 

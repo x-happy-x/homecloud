@@ -1,21 +1,33 @@
 import {api, post} from '../api';
 
+export interface ReclusterStep {
+  key: string;
+  title: string;
+}
+
+/**
+ * Пересборка групп. Признака active у неё нет — идёт она или нет, видно
+ * только по status.
+ */
 export interface ReclusterStatus {
-  active: boolean;
-  step?: string;
-  step_index?: number;
-  steps_total?: number;
-  message?: string;
-  done?: number;
-  total?: number;
-  started?: number;
-  faces_total?: number;
-  error?: string;
+  status: 'idle' | 'running' | 'completed' | 'stopped' | 'error' | string;
+  step: string;
+  step_index: number;
+  steps_total: number;
+  done: number;
+  total: number;
+  faces_total: number;
+  message: string;
+  error: string;
+  /** Секунды эпохи, как их отдаёт бэкенд. */
+  started_at: number;
+  step_started_at: number;
+  steps: ReclusterStep[];
 }
 
 export const getReclusterStatus = () => api<ReclusterStatus>('/api/recluster/status');
-export const startRecluster = () => post('/api/recluster/start');
-export const stopRecluster = () => post('/api/recluster/stop');
+export const startRecluster = () => post<{job: ReclusterStatus}>('/api/recluster/start');
+export const stopRecluster = () => post<{job: ReclusterStatus}>('/api/recluster/stop');
 
 export interface DuplicatesStatus {
   active: boolean;

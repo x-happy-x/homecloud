@@ -99,7 +99,7 @@ export function lifeYears(
   return death ? `† ${death}` : '';
 }
 
-export const photoDate = (taken: string | null | undefined): string => taken
+export const photoDate = (taken: string | number | null | undefined): string => taken
   ? new Date(taken).toLocaleDateString('ru-RU', {day: 'numeric', month: 'long', year: 'numeric'})
   : '';
 

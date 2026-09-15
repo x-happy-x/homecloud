@@ -1,6 +1,6 @@
 import {useRef, useState} from 'react';
 import {useMutation} from '@tanstack/react-query';
-import {login} from '../../services/endpoints/session';
+import {getSession, login} from '../../services/endpoints/session';
 import {queryClient} from '../../services/queryClient';
 import {useNativeDialog} from '../../hooks/useNativeDialog';
 import {useStore} from '../../store';
@@ -10,17 +10,21 @@ export function LoginDialog() {
   const bigfamUrl = useStore(state => state.session.bigfamUrl);
   const setSession = useStore(state => state.setSession);
   const dialog = useRef<HTMLDialogElement>(null);
-  const [name, setName] = useState('');
+  const [loginName, setLoginName] = useState('');
   const [password, setPassword] = useState('');
 
   // Окно входа само не закрывается: без сессии смотреть всё равно нечего.
   useNativeDialog(dialog, open, {onClose: () => {}});
 
   const submit = useMutation({
-    mutationFn: () => login(name.trim(), password),
-    onSuccess: data => {
+    // Ответ входа не знает прав и адреса картотеки — их отдаёт /api/session.
+    mutationFn: async () => {
+      await login(loginName.trim(), password);
+      return getSession();
+    },
+    onSuccess: session => {
       setPassword('');
-      setSession(data.user ?? null, data.bigfam_url);
+      setSession(session);
       queryClient.invalidateQueries();
     },
   });
@@ -46,8 +50,9 @@ export function LoginDialog() {
               name="login"
               autoComplete="username"
               required
-              value={name}
-              onChange={event => setName(event.target.value)}
+              autoFocus
+              value={loginName}
+              onChange={event => setLoginName(event.target.value)}
             />
           </label>
           <label>

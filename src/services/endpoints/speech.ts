@@ -1,15 +1,28 @@
 import {api, query} from '../api';
 
-export interface SpeechLine {
-  start: number;
-  end: number;
-  text: string;
-  speaker?: number | null;
-  name?: string | null;
-  confidence?: number | null;
-  /** Откуда взято имя: лицо в кадре — факт, голос — догадка. */
-  source?: 'manual' | 'face' | 'voice' | null;
+/** Кто говорит. Порядок доверия: назначено руками → лицо в кадре → похожий голос. */
+export interface SpeechPerson {
+  name: string;
+  confidence: number;
+  source: 'manual' | 'face' | 'voice';
 }
 
-export const getSpeech = (path: string) =>
-  api<{lines: SpeechLine[]; note?: string}>(`/api/speech${query({path})}`);
+export interface SpeechSegment {
+  start: number;
+  stop: number;
+  text: string;
+  /** Метка диаризации вроде «SPEAKER_00»; пусто, если голоса не разделяли. */
+  speaker?: string | null;
+  person?: SpeechPerson | null;
+}
+
+export interface SpeechData {
+  status: string;
+  language: string;
+  model: string;
+  /** Сколько разных голосов нашлось в ролике. */
+  speakers: number;
+  segments: SpeechSegment[];
+}
+
+export const getSpeech = (path: string) => api<SpeechData>(`/api/speech${query({path})}`);

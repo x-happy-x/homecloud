@@ -20,8 +20,8 @@ export interface Photo {
   preview: string;
   video?: string;
   kind?: PhotoKind;
-  taken?: string | null;
-  modified?: string | null;
+  /** Время файла в миллисекундах. */
+  taken?: number | null;
   size?: number;
   width?: number;
   height?: number;

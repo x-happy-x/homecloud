@@ -1,14 +1,26 @@
 import {post} from '../api';
 
-export const hidePhotos = (paths: string[]) => post('/api/photos/hide', {paths});
-export const revealPhotos = (paths: string[]) => post('/api/photos/reveal', {paths});
-export const deletePhotos = (paths: string[]) => post('/api/photos/delete', {paths});
+/** Пакетные действия со снимками: что получилось и что нет, по путям. */
+export interface BatchErrors {
+  errors: Array<{path?: string; error?: string} | string>;
+}
+
+export const hidePhotos = (paths: string[]) =>
+  post<{hidden: number} & BatchErrors>('/api/photos/hide', {paths});
+export const revealPhotos = (paths: string[]) =>
+  post<{revealed: number} & BatchErrors>('/api/photos/reveal', {paths});
+export const deletePhotos = (paths: string[]) =>
+  post<{deleted: number} & BatchErrors>('/api/photos/delete', {paths});
 
 export const processPhotos = (payload: {paths: string[]; features: Record<string, boolean>; force: boolean}) =>
   post('/api/photos/process', payload);
 
-export const assignSpeaker = (payload: Record<string, unknown>) =>
-  post('/api/photos/assign-speaker', payload);
+export const assignSpeaker = (payload: {
+  path: string;
+  speaker: string;
+  name: string;
+  bigfam_id: string | null;
+}) => post('/api/photos/assign-speaker', payload);
 
 /**
  * Заливает уменьшенную копию во временное хранилище и возвращает прямую

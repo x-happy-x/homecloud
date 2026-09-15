@@ -1,18 +1,68 @@
 import {api, post, query} from '../api';
 
+export interface DeviceDrive {
+  path: string;
+  name: string;
+  free?: number;
+  total?: number;
+}
+
+export interface VisualModel {
+  id: string;
+  name: string;
+  note?: string;
+  installed?: boolean;
+}
+
+export interface DeviceInfo {
+  id: string;
+  name: string;
+  drives: DeviceDrive[];
+  visual_model: string;
+  visual_models: VisualModel[];
+  capabilities: Record<string, boolean>;
+}
+
+/** Итог описи: сколько нашли и что изменилось с прошлого раза. */
+export interface InventorySummary {
+  total: number;
+  new: number;
+  changed: number;
+  missing: number;
+  known?: number;
+  excluded?: number;
+}
+
 export interface DeviceJob {
   active: boolean;
   status?: string;
-  message?: string;
+  /** Текущий этап: inventory, faces, visual… */
+  phase?: string;
   error?: string;
-  done?: number;
   total?: number;
-  faces_total?: number;
+  completed?: number;
+  /** Пока список файлов не собран, total неизвестен — есть только найденное. */
+  found?: number;
+  current?: string;
   videos_done?: number;
-  step_index?: number;
-  steps_total?: number;
-  started?: number;
+  videos_total?: number;
+  video_track_step?: number;
+  /** Секунды эпохи. */
+  started_at?: number;
+  phase_started_at?: number;
+  pid?: number;
+  roots?: string[];
+  paths?: string[];
   features?: Record<string, boolean>;
+  inventory?: InventorySummary;
+  catalog?: Record<string, number>;
+  catalog_photos?: number;
+  catalog_faces?: number;
+  catalog_videos?: number;
+  catalog_indexed?: number;
+  catalog_ocr?: number;
+  catalog_captioned?: number;
+  catalog_adult_analyzed?: number;
 }
 
 export interface Device {
@@ -21,41 +71,89 @@ export interface Device {
   url: string;
   online: boolean;
   primary?: boolean;
+  hasToken?: boolean;
   error?: string;
+  device?: DeviceInfo;
   job?: DeviceJob;
-  device?: {
-    drives?: string[];
-    capabilities?: Record<string, boolean>;
-    catalog?: Record<string, number>;
-  };
 }
 
 export const getDevices = () =>
   api<{backends: Device[]}>('/api/backends').then(data => data.backends ?? []);
 
-export const saveBackend = (payload: Record<string, unknown>) =>
-  post('/api/backends/save', payload);
+export const saveBackend = (payload: {
+  id: string; name: string; url: string; token: string; primary: boolean;
+}) => post('/api/backends/save', payload);
 
 export const removeBackend = (id: string) => post('/api/backends/remove', {id});
 
+const device = (id: string, tail: string) => `/api/backends/${encodeURIComponent(id)}/${tail}`;
+
+/** Без пути — список дисков; с путём — вложенные папки. */
 export const browseDevice = (id: string, path: string) =>
-  api<{path: string; parent: string | null; folders: Array<{name: string; path: string}>}>(
-    `/api/backends/${encodeURIComponent(id)}/browse${query({path})}`);
+  api<{path: string; parent: string | null; directories: Array<{name?: string; path: string}>}>(
+    device(id, `browse${query({path})}`));
 
-export const getTree = (id: string, path?: string) =>
-  api<Record<string, unknown>>(`/api/backends/${encodeURIComponent(id)}/tree${query({path})}`);
+export interface TreeCounts {
+  files?: number;
+  subtree?: number;
+  new?: number;
+  changed?: number;
+  missing?: number;
+  excluded?: number;
+}
 
-export const setExclusions = (id: string, payload: Record<string, unknown>) =>
-  post(`/api/backends/${encodeURIComponent(id)}/exclusions`, payload);
+export interface TreeDirectory extends TreeCounts {
+  path: string;
+  name: string;
+  off: boolean;
+}
 
-export const startJob = (id: string, payload: Record<string, unknown>) =>
-  post(`/api/backends/${encodeURIComponent(id)}/job/start`, payload);
+export interface TreeFile {
+  path: string;
+  name?: string;
+  state?: string;
+  off: boolean;
+}
 
-export const stopJob = (id: string) => post(`/api/backends/${encodeURIComponent(id)}/job/stop`);
+export interface TreeNode {
+  path: string;
+  parent: string | null;
+  /** Только у корня дерева: источники прошлых описей. */
+  roots?: Array<TreeCounts & {path: string}>;
+  directories: TreeDirectory[];
+  files: TreeFile[];
+  truncated?: boolean;
+}
+
+export const getTree = (id: string, path = '') => api<TreeNode>(device(id, `tree${query({path})}`));
+
+export const setExclusions = (id: string, payload: {add?: string[]; remove?: string[]}) =>
+  post(device(id, 'exclusions'), payload);
+
+export const startJob = (id: string, payload: {
+  roots: string[];
+  paths?: string[];
+  features: Record<string, boolean>;
+  force?: boolean;
+  visual_model?: string;
+}) => post(device(id, 'job/start'), payload);
+
+export const stopJob = (id: string) => post(device(id, 'job/stop'));
+
+export interface ScanRun {
+  id: number;
+  roots: string[];
+  paths: string[];
+  last_run_at: string | number;
+  /** Этапы, дошедшие до конца. */
+  done: string[];
+  status: string;
+  photos: number;
+}
 
 export const getScanHistory = (id: string) =>
-  api<{runs: Array<{id: number; roots: string[]; paths: string[]; at: string}>}>(
-    `/api/backends/${encodeURIComponent(id)}/history`);
+  api<{runs: ScanRun[]}>(device(id, 'history')).then(data => data.runs ?? []);
 
-export const forgetScanRun = (id: string, run: number) =>
-  post(`/api/backends/${encodeURIComponent(id)}/history/forget`, {run});
+// Бэкенд ищет запуск по полю id: с полем run «забыть» ничего не забывало.
+export const forgetScanRun = (id: string, runId: number) =>
+  post(device(id, 'history/forget'), {id: runId});

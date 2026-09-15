@@ -47,7 +47,8 @@ export function query(params: Record<string, string | number | boolean | null | 
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === null || value === undefined || value === '' || value === false) continue;
-    search.set(key, String(value));
+    // Флаги бэкенд сравнивает со строкой '1', а не 'true'.
+    search.set(key, value === true ? '1' : String(value));
   }
   const text = search.toString();
   return text ? `?${text}` : '';
