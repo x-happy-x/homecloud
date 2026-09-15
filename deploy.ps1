@@ -26,11 +26,16 @@ $token = (Get-Content -LiteralPath $TokenFile -Raw).Trim()
 if (-not $token) { throw "Пустой токен в $TokenFile" }
 
 Write-Host "-> $Target`:$RemotePath"
-Invoke-Remote "mkdir -p $RemotePath/public"
-& scp.exe @ssh -q server.js package.json "${Target}:$RemotePath/"
+& npm.cmd ci
+if ($LASTEXITCODE -ne 0) { throw 'npm ci не удался' }
+& npm.cmd run build
+if ($LASTEXITCODE -ne 0) { throw 'npm run build не удался' }
+
+Invoke-Remote "rm -rf $RemotePath/dist && mkdir -p $RemotePath/dist"
+& scp.exe @ssh -q server.js package.json package-lock.json "${Target}:$RemotePath/"
 if ($LASTEXITCODE -ne 0) { throw 'scp server.js не удался' }
-& scp.exe @ssh -q (Get-ChildItem public | ForEach-Object FullName) "${Target}:$RemotePath/public/"
-if ($LASTEXITCODE -ne 0) { throw 'scp public не удался' }
+& scp.exe @ssh -q -r (Get-ChildItem dist | ForEach-Object FullName) "${Target}:$RemotePath/dist/"
+if ($LASTEXITCODE -ne 0) { throw 'scp dist не удался' }
 & scp.exe @ssh -q systemd/homecloud.service "${Target}:/etc/systemd/system/homecloud.service"
 if ($LASTEXITCODE -ne 0) { throw 'scp unit не удался' }
 

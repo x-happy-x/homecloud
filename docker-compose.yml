@@ -1,0 +1,19 @@
+services:
+  homecloud:
+    build: .
+    network_mode: host
+    env_file:
+      - /etc/homecloud.env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4180
+      BACKENDS_FILE: /var/lib/homecloud/backends.json
+    volumes:
+      - /var/lib/homecloud:/var/lib/homecloud
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4180/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

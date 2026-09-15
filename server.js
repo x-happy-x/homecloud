@@ -2,11 +2,11 @@
 import { createServer, request as httpRequest } from 'node:http';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { dirname, extname, join, normalize, resolve } from 'node:path';
+import { dirname, extname, join, normalize, relative as pathRelative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)));
-const PUBLIC = join(ROOT, 'public');
+const PUBLIC = join(ROOT, 'dist');
 const HOST = process.env.HOST || '0.0.0.0';
 const PORT = Number(process.env.PORT || 4180);
 const BACKEND = new URL(process.env.PHOTO_BACKEND || 'http://192.168.1.10:18311');
@@ -266,14 +266,17 @@ const readBody = request => new Promise((done, fail) => {
 async function sendStatic(response, pathname) {
   const relative = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');
   const target = resolve(join(PUBLIC, normalize(relative)));
-  if (target !== PUBLIC && !target.startsWith(PUBLIC + '/')) {
+  const insidePublic = pathRelative(PUBLIC, target);
+  if (insidePublic.startsWith('..') || insidePublic === '..' || resolve(target) === PUBLIC) {
     return sendJson(response, 404, {error: 'Страница не найдена'});
   }
   let info;
   try {
     info = await stat(target);
   } catch {
-    return sendJson(response, 404, {error: 'Страница не найдена'});
+    return pathname === '/'
+      ? sendJson(response, 404, {error: 'Страница не найдена'})
+      : sendStatic(response, '/');
   }
   if (!info.isFile()) return sendJson(response, 404, {error: 'Страница не найдена'});
   const type = TYPES[extname(target).toLowerCase()] || 'application/octet-stream';

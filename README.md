@@ -1,12 +1,13 @@
 # HomeCloud — домашняя фототека
 
-Это исходники фронтенда. Правим здесь, публикуем на Proxmox скриптом `deploy.ps1`.
+Это исходники фронтенда и Node-прокси. Интерфейс собирается через React TS +
+Rsbuild, публикуем на Proxmox скриптом `deploy.ps1` или через Docker Compose.
 
 ## Как разложено
 
 | Где | Что | Почему |
 | --- | --- | --- |
-| Proxmox `s1` 192.168.99.10, `/opt/homecloud` | Node без зависимостей: статика `public/`, вход через bigfam, реестр устройств и обратный прокси на `/api` и `/media`. Служба `homecloud.service`, порт **4180**, рядом с bigfam (4173). | Ни моделей, ни зависимостей: только Node из базовой системы. |
+| Proxmox `s1` 192.168.99.10, `/opt/homecloud` | Node-прокси: собранная статика `dist/`, вход через bigfam, реестр устройств и обратный прокси на `/api` и `/media`. Служба `homecloud.service` или контейнер, порт **4180**, рядом с bigfam (4173). | Ни моделей, ни обработки фото: только UI, сессии и прокси. |
 | Windows `PC-X` 192.168.1.10, `F:\services\homecloud-core` | `web_server.py` в режиме API+медиа и агента сканирования, порт **18311**, плюс окружения, модели, каталоги и оригиналы. | GPU, ONNX Runtime, InsightFace, SigLIP, PaddleOCR и Qwen3-VL остаются у железа. |
 
 Открывать: **http://192.168.99.10:4180/**
@@ -192,8 +193,9 @@ OCR использует визуальный индекс как подгото
 .\deploy.ps1
 ```
 
-Копирует `server.js`, `package.json`, `public/*` и юнит, переписывает
-`/etc/homecloud.env`, перезапускает службу и проверяет `/healthz`.
+Выполняет `npm ci`, собирает `dist/`, копирует `server.js`, `package.json`,
+`package-lock.json`, `dist/*` и юнит, переписывает `/etc/homecloud.env`,
+перезапускает службу и проверяет `/healthz`.
 Ходит по ключу `~\.ssh\id_ed25519_pve` (уже прописан в authorized_keys на pve).
 
 Только файлы, без перезапуска:
@@ -210,6 +212,23 @@ OCR использует визуальный индекс как подгото
 
 Адрес картотеки задаётся переменной `BIGFAM_URL` в `/etc/homecloud.env`
 (по умолчанию `http://127.0.0.1:4173`).
+
+Локальная сборка:
+
+```powershell
+npm ci
+npm run build
+npm start
+```
+
+Docker-вариант:
+
+```bash
+docker compose up --build -d
+```
+
+Compose использует `network_mode: host`, читает `/etc/homecloud.env` и хранит
+реестр устройств в `/var/lib/homecloud/backends.json`.
 
 ## Запуск бэкенда на Windows
 
