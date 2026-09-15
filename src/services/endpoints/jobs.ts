@@ -19,6 +19,8 @@ export const stopRecluster = () => post('/api/recluster/stop');
 
 export interface DuplicatesStatus {
   active: boolean;
+  /** counting — собираем список файлов, running — считаем хеши. */
+  status?: string;
   done?: number;
   total?: number;
   current?: string;
