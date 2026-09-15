@@ -183,7 +183,6 @@
   background: #000;
   outline: none;
 }
-.viewer-stage video[hidden], .viewer-stage img[hidden] { display: none; }
 
 @include bp-md {
     .viewer.with-info .viewer-stage { inset: 0 0 48dvh 0; }
