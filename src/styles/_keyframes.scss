@@ -1,0 +1,32 @@
+// Все анимации собраны вместе: в старом файле две разные раскладывались под
+// одним именем slide, вторая побеждала, и мерцание .grid-more.loading молча
+// не работало. Теперь имена говорят, что именно движется.
+
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+
+@keyframes pulse { 50% { opacity: .5; } }
+
+@keyframes slide-in { from { transform: translateX(24px); opacity: .4; } }
+
+// Бегущая подсветка фоном — подгрузка следующей страницы галереи.
+@keyframes shimmer-bg { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+
+// Бегущий отрезок внутри дорожки — прогресс без известной доли.
+@keyframes shimmer-bar { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+
+@keyframes notif-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--patina) 55%, transparent); }
+  50% { box-shadow: 0 0 0 5px transparent; }
+}
+
+@keyframes notif-flash {
+  0%, 100% { transform: none; color: inherit; }
+  30% { transform: scale(1.18); color: var(--patina); }
+}
+
+@keyframes task-spin { to { transform: rotate(360deg); } }
+
+@keyframes task-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--patina) 45%, transparent); }
+  50% { box-shadow: 0 0 0 4px transparent; }
+}

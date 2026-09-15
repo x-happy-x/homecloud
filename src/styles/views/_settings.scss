@@ -1,0 +1,34 @@
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--gap);
+  align-items: start;
+}
+.settings-card {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-l);
+  background: var(--surface-2);
+  box-shadow: var(--shadow);
+}
+.settings-card h2 { font-family: var(--serif); font-size: 1.15rem; }
+.settings-card > p { color: var(--muted); font-size: .84rem; line-height: 1.5; margin: -4px 0 2px; }
+.settings-card .field { display: grid; gap: 5px; font-size: .85rem; }
+.settings-card .field input, .settings-card .field textarea, .settings-card .field select {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.settings-card .field textarea { min-height: 88px; resize: vertical; font-family: var(--mono); font-size: .8rem; }
+.settings-card .field small { color: var(--muted); font-size: .75rem; line-height: 1.4; }
+.settings-card .check-row { font-size: .88rem; }
+.settings-card input:disabled, .settings-card textarea:disabled, .settings-card select:disabled { opacity: .55; }
+
+.settings-card.wide { grid-column: 1 / -1; }
+.settings-card code { padding: 1px 5px; border-radius: 6px; background: var(--ground); font-size: .82em; }

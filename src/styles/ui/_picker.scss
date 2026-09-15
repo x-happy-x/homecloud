@@ -1,0 +1,67 @@
+.kin-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--surface-2);
+  box-shadow: 0 0 0 1px var(--patina);
+  flex: 0 0 auto;
+}
+.kin-dot {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--patina-soft); color: var(--patina);
+  font-size: .78rem; font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.picker { position: relative; }
+.picker-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 8px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.picker-field:focus-within { border-color: var(--patina); box-shadow: 0 0 0 3px var(--patina-soft); }
+.picker-field input { flex: 1; min-width: 0; border: 0; background: transparent; outline: 0; }
+.picker-field .kin-avatar, .picker-field .kin-dot { width: 26px; height: 26px; }
+.picker-toggle { border: 0; background: transparent; color: var(--muted); display: grid; padding: 4px; border-radius: 50%; }
+.picker-toggle:hover { color: var(--ink); background: var(--ground); }
+
+.picker-list {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: calc(100% + 7px);
+  z-index: 40;
+  min-width: min(340px, calc(100vw - 40px));
+  max-height: min(46vh, 340px);
+  overflow: hidden auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-lift);
+}
+.picker-list.below { bottom: auto; top: calc(100% + 7px); }
+.picker-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: var(--r-s);
+  background: transparent;
+  text-align: left;
+}
+.picker-option:hover, .picker-option.cursor { background: var(--ground); }
+.picker-option .body { display: block; min-width: 0; flex: 1; }
+.picker-option .name { display: block; font-size: .9rem; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker-option .meta { display: block; font-size: .74rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker-option .tick { color: var(--patina); }
+.picker-empty { padding: 12px; color: var(--muted); font-size: .82rem; text-align: center; }
+.picker-head { padding: 8px 10px 6px; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+.lightbox-assign .picker { flex: 1; min-width: 160px; }

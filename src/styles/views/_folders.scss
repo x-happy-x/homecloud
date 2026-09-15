@@ -1,0 +1,43 @@
+.folder-tree, .album-tree { display: grid; gap: 2px; }
+/* Диалог сканирования (#folderList) переиспользует .folder-row/.folder-open
+   в старом смысле — эти правила касаются только новой панели «Папки». */
+#folderTree.folder-tree .folder-row,
+.folder-tree .folder-row { display: flex; align-items: center; gap: 2px; border-radius: 10px; }
+.folder-tree .folder-row.active, .album-row.active { background: var(--patina-soft); }
+.folder-tree .folder-row.here { margin-bottom: 6px; }
+.folder-tree .folder-open {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 34px;
+  border: 0;
+  background: none;
+  display: grid;
+  place-items: center;
+}
+.folder-tree .folder-open svg { width: 16px; height: 16px; fill: var(--muted); }
+.folder-tree .folder-open:disabled { opacity: 0; }
+.folder-pick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: .86rem;
+  text-align: left;
+}
+.folder-pick:hover { background: var(--ground); }
+.folder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-count { flex: 0 0 auto; color: var(--muted); font-size: .76rem; font-variant-numeric: tabular-nums; }
+
+.folder-tree .folder-row .icon-button.tiny { opacity: 0; flex: 0 0 auto; }
+.folder-tree .folder-row:hover .icon-button.tiny,
+.folder-tree .folder-row:focus-within .icon-button.tiny { opacity: .75; }
+.folder-tree .folder-row .icon-button.tiny:hover { opacity: 1; color: var(--rose); }

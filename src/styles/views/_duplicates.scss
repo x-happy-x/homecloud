@@ -1,0 +1,56 @@
+.dup-progress {
+  display: grid;
+  gap: 10px;
+  margin-bottom: var(--gap);
+  padding: 16px 18px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-l);
+  background: var(--surface-2);
+}
+.dup-progress .processing-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dup-progress .processing-head span { display: block; color: var(--muted); font-size: .75rem; word-break: break-all; }
+.dup-progress .progress-track { height: 6px; border-radius: 999px; background: var(--ground); overflow: hidden; }
+.dup-progress .progress-track span { display: block; height: 100%; background: var(--patina); transition: width .3s; }
+.dup-progress .button { justify-self: start; }
+
+.dup-list { display: grid; gap: 14px; }
+.dup-group {
+  padding: 14px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-l);
+  background: var(--surface-2);
+}
+.dup-group.off { opacity: .5; }
+.dup-group header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.dup-group header .check-row { font-size: .85rem; }
+.dup-gain { color: var(--muted); font-size: .78rem; }
+.dup-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.dup-card {
+  position: relative;
+  flex: 0 0 auto;
+  width: 168px;
+  margin: 0;
+  border: 2px solid transparent;
+  border-radius: var(--r-m);
+  overflow: hidden;
+  background: var(--ground);
+  cursor: pointer;
+}
+.dup-card img { width: 100%; height: 118px; object-fit: cover; display: block; }
+.dup-card figcaption { display: grid; gap: 1px; padding: 7px 9px 9px; }
+.dup-card figcaption b { font-size: .82rem; font-variant-numeric: tabular-nums; }
+.dup-card figcaption span { color: var(--muted); font-size: .75rem; }
+.dup-card figcaption small { color: var(--muted); font-size: .68rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dup-mark {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(20 29 27 / 62%);
+  color: #fff;
+  font-size: .67rem;
+}
+.dup-card.keep { border-color: var(--patina); }
+.dup-card.keep .dup-mark { background: var(--patina); color: var(--patina-ink); font-weight: 600; }
+.dup-more { flex: 0 0 auto; align-self: center; padding: 0 14px; color: var(--muted); font-size: .8rem; }

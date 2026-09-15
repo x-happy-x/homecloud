@@ -1,0 +1,3 @@
+.pill { padding: 5px 12px; border-radius: 999px; background: var(--ground); font-size: .78rem; color: var(--muted); }
+.pill.running { background: var(--patina-soft); color: var(--patina); font-weight: 600; }
+.pill.error { background: var(--rose-soft); color: var(--rose); font-weight: 600; }

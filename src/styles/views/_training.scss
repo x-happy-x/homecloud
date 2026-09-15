@@ -1,0 +1,40 @@
+@use '../mixins' as *;
+
+.training-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.router-progress { margin: 18px 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.router-stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 12px; margin: 18px 0; }
+.router-stat { padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.router-stat b { display: block; font-size: 1.45rem; margin-bottom: 3px; }
+.router-stat small { color: var(--muted); }
+.router-automation { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; margin: -2px 0 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.router-automation label { display: flex; align-items: center; gap: 7px; font-size: .86rem; }
+.router-automation select { min-height: 34px; padding: 0 28px 0 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-2); color: var(--ink); }
+.router-automation small { width: 100%; color: var(--muted); }
+.router-layout { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(280px,.7fr); gap: 18px; align-items: start; }
+.router-review-card,.router-versions { border: 1px solid var(--line); border-radius: 24px; background: var(--surface); overflow: hidden; }
+.router-photo { min-height: 360px; max-height: 58vh; display: grid; place-items: center; background: #17191d; }
+.router-photo img { display: block; max-width: 100%; max-height: 58vh; object-fit: contain; }
+.router-review-body,.router-versions { padding: 20px; }
+.router-labels { display: flex; flex-wrap: wrap; gap: 9px; margin: 18px 0; }
+.router-label-group { width: 100%; }
+.router-label-group > b { display: block; margin: 12px 0 7px; color: var(--muted); font-size: .76rem; letter-spacing: .04em; text-transform: uppercase; }
+.router-label-group > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.router-label { position: relative; }
+.router-label input { position: absolute; opacity: 0; pointer-events: none; }
+.router-label span { display: inline-flex; align-items: center; gap: 6px; padding: 9px 13px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+.router-label input:checked + span { color: #fff; background: var(--patina); border-color: var(--patina); }
+.router-label em { font-size: .72rem; opacity: .72; font-style: normal; }
+.router-review-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.router-version { padding: 13px 0; border-bottom: 1px solid var(--line); }
+.router-version:last-child { border-bottom: 0; }
+.router-version-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.router-version p { color: var(--muted); margin: 5px 0 10px; font-size: .86rem; }
+.router-version .active-pill { color: var(--patina); font-weight: 700; }
+
+@include bp-md {
+    .router-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .router-layout { grid-template-columns: 1fr; }
+    .router-photo { min-height: 260px; }
+    .training-actions { width: 100%; }
+    .training-actions .button { flex: 1; }
+}

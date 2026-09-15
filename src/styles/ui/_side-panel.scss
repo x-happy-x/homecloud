@@ -1,0 +1,65 @@
+@use '../mixins' as *;
+
+.sidepage-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgb(10 16 15 / 38%);
+  backdrop-filter: blur(2px);
+}
+.sidepage {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 56;
+  display: flex;
+  flex-direction: column;
+  width: min(400px, 100vw);
+  height: 100dvh;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow-lift);
+  animation: slide-in .18s ease;
+}
+
+.sidepage[hidden] { display: none; }
+.sidepage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 12px 12px 20px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.sidepage-head strong { font-family: var(--serif); font-size: 1.15rem; }
+.sidepage-tabs { display: flex; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--line-soft); }
+.sidepage-tab {
+  flex: 1;
+  min-height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: .85rem;
+}
+.sidepage-tab:hover { background: var(--ground); }
+.sidepage-tab.active { background: var(--patina-soft); color: var(--ink); font-weight: 600; }
+.sidepage-body { flex: 1; overflow: auto; padding: 16px 18px 28px; }
+.sidepage-panel { display: none; }
+.sidepage-panel.active { display: block; animation: rise .18s ease; }
+.sidepage-panel .section-label { margin: 14px 0 8px; }
+.sidepage-panel .chips { flex-wrap: wrap; overflow: visible; }
+.sidepage-panel .adult-mode-label select { max-width: 100%; }
+.panel-actions { display: flex; gap: 8px; margin-bottom: 12px; }
+#resetFilters { margin-top: 18px; }
+
+.filters { display: grid; gap: 8px; padding-bottom: 18px; }
+.adult-mode-label { display: flex; align-items: center; gap: 10px; width: fit-content; color: var(--muted); font-size: .8rem; }
+.adult-mode-label select { min-height: 36px; max-width: min(100%, 340px); padding: 7px 32px 7px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--ink); }
+.filter-label { font-size: .73rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+@include bp-md {
+    .sidepage { width: 100vw; border-left: 0; }
+    .people-bubbles { grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); }
+}

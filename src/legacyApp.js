@@ -4104,3 +4104,7 @@ const savedTheme = localStorage.getItem('theme') || 'system';
 applyTheme(savedTheme);
 $('#themeMode').value = savedTheme;
 boot().catch(error => toast(error.message));
+
+// Файл подключается динамическим import() из App.tsx — пометка делает его
+// модулем для TypeScript; сборщик и так оборачивает его в область модуля.
+export {};

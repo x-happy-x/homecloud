@@ -1,0 +1,119 @@
+@use '../mixins' as *;
+
+.people-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 15vw, 172px), 1fr));
+  align-items: start;
+  gap: clamp(12px, 1.6vw, 22px);
+}
+
+.person-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 3px 2px 8px;
+  text-align: center;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+.person-photo { position: relative; width: 100%; max-width: 172px; }
+
+.person-avatar {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--ground);
+  box-shadow: 0 0 0 1px var(--line-soft), var(--shadow);
+  transition: box-shadow .2s, transform .2s;
+}
+.person-card:hover .person-avatar { transform: translateY(-2px); box-shadow: 0 0 0 1px var(--line), var(--shadow-lift); }
+.person-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.person-card.selected .person-avatar { box-shadow: 0 0 0 3px var(--patina), var(--shadow-lift); }
+.person-letter {
+  position: absolute;
+  inset: 0;
+  display: grid; place-items: center;
+  background: var(--patina-soft);
+  color: var(--patina);
+  font-size: clamp(1.4rem, 5vw, 2rem);
+  font-weight: 700;
+}
+
+/* лейбл с числами: лиц / фотографий */
+.count-badge {
+  position: absolute;
+  right: 3%; bottom: 3%;
+  z-index: 2;
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1.5px solid var(--surface);
+  background: rgb(20 29 27 / 66%);
+  color: #fff;
+  font-size: .7rem; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(4px);
+}
+.count-badge i { font-style: normal; opacity: .6; }
+
+.tick-mark {
+  position: absolute;
+  left: 4%; top: 4%;
+  z-index: 2;
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  background: var(--patina);
+  color: var(--patina-ink);
+  font-size: .78rem;
+  opacity: 0;
+  transform: scale(.55);
+  transition: opacity .15s, transform .15s;
+}
+.person-card.selected .tick-mark, .face-card.selected .tick-mark { opacity: 1; transform: none; }
+
+.hidden-badge {
+  position: absolute;
+  right: 4%; top: 4%;
+  z-index: 2;
+  width: 24px; height: 24px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--surface);
+  background: rgb(20 29 27 / 66%);
+  font-size: .74rem;
+  backdrop-filter: blur(4px);
+}
+
+.person-label {
+  display: block;
+  width: 100%;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+.person-name { display: block; font-weight: 600; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.person-label:hover .person-name { color: var(--patina); }
+.person-years { display: block; margin-top: 1px; font-size: .76rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.grid-hint { margin: -6px 0 10px; font-size: .8rem; color: var(--muted); }
+#reclusterButton { flex: none; }
+
+.person-meta { font-size: .76rem; color: var(--muted); }
+
+@include bp-sm {
+    .people-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; }
+    .count-badge { padding: 2px 7px; font-size: .65rem; }
+}

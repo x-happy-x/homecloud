@@ -1,0 +1,19 @@
+// Точки переноса. Держим их в одном месте: раньше правила для телефона лежали
+// общим хвостом в конце styles.css, и найти, что именно ломается на 720px
+// у конкретного блока, можно было только поиском по всему файлу.
+
+@mixin bp-lg {
+  @media (max-width: 1000px) { @content; }
+}
+
+@mixin bp-md {
+  @media (max-width: 720px) { @content; }
+}
+
+@mixin bp-sm {
+  @media (max-width: 420px) { @content; }
+}
+
+@mixin reduced-motion {
+  @media (prefers-reduced-motion: reduce) { @content; }
+}

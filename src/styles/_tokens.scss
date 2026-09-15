@@ -1,0 +1,38 @@
+@use './mixins' as *;
+
+:root {
+  color-scheme: light;
+  --paper: #edf0ee;
+  --ground: #e3e8e5;
+  --surface: #f8faf9;
+  --surface-2: #fff;
+  --ink: #141d1b;
+  --ink-2: #3a4744;
+  --muted: #687873;
+  --line: #cbd5d1;
+  --line-soft: #dce3e0;
+  --patina: #2e7d6b;
+  --patina-ink: #fff;
+  --patina-soft: #dceae5;
+  --brass: #9c6b22;
+  --rose: #ae4c5b;
+  --rose-soft: #f6e3e5;
+  --shadow: 0 1px 2px rgb(20 29 27 / 6%), 0 12px 32px -18px rgb(20 29 27 / 35%);
+  --shadow-lift: 0 2px 6px rgb(20 29 27 / 8%), 0 24px 60px -24px rgb(20 29 27 / 45%);
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --serif: Georgia, "Times New Roman", "Droid Serif", serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r-s: 8px;
+  --r-m: 14px;
+  --r-l: 22px;
+  --rail: 248px;
+  --gap: clamp(14px, 2.2vw, 26px);
+}
+
+@include bp-lg {
+    :root { --rail: 76px; }
+}
+
+@include bp-md {
+    :root { --rail: 0px; --gap: 14px; }
+}

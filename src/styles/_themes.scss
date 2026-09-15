@@ -1,0 +1,30 @@
+// Тёмная палитра нужна в двух местах с разными условиями, поэтому она вынесена
+// в примесь: системная тема применяется, пока пользователь явно не выбрал
+// светлую, а data-theme="dark" — это уже его выбор в настройках.
+
+@mixin dark-tokens {
+  color-scheme: dark;
+  --paper: #0e1614;
+  --ground: #0a100f;
+  --surface: #141d1b;
+  --surface-2: #1b2624;
+  --ink: #e8eeeb;
+  --ink-2: #c2cfcb;
+  --muted: #8a9c97;
+  --line: #2a3733;
+  --line-soft: #212c29;
+  --patina: #4fbfa3;
+  --patina-ink: #06201a;
+  --patina-soft: #122c27;
+  --brass: #d3a45e;
+  --rose: #de8590;
+  --rose-soft: #2e1d20;
+  --shadow: 0 1px 2px rgb(0 0 0 / 50%), 0 12px 32px -18px rgb(0 0 0 / 90%);
+  --shadow-lift: 0 2px 8px rgb(0 0 0 / 55%), 0 28px 60px -24px rgb(0 0 0 / 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { @include dark-tokens; }
+}
+
+:root[data-theme="dark"] { @include dark-tokens; }

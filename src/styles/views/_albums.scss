@@ -1,0 +1,88 @@
+.album-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 12px;
+  padding-left: calc(var(--depth, 0) * 14px);
+}
+.album-pick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 11px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.album-pick:hover { background: var(--ground); }
+.album-cover {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--ground);
+}
+.album-cover img { width: 100%; height: 100%; object-fit: cover; }
+.album-body { min-width: 0; display: grid; }
+.album-body b { font-size: .89rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.album-body small { color: var(--muted); font-size: .73rem; }
+.album-tools { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; }
+.album-row:hover .album-tools, .album-row:focus-within .album-tools { opacity: 1; }
+
+.album-move { width: 100%; min-height: 32px; margin: 4px 0; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-2); color: var(--ink); }
+
+.album-chips { flex-wrap: wrap; overflow: visible; }
+.link-button { margin-left: 8px; border: 0; background: none; color: var(--patina); font: inherit; font-size: .8rem; text-decoration: underline; }
+
+.album-pick-body { display: grid; gap: 12px; padding: 0 22px 22px; }
+.album-pick-list { display: grid; gap: 2px; max-height: 40vh; overflow: auto; }
+.album-pick-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 12px;
+  margin-left: calc(var(--depth, 0) * 14px);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: inherit;
+  font: inherit;
+  font-size: .88rem;
+  text-align: left;
+}
+.album-pick-item:hover { background: var(--patina-soft); border-color: var(--patina); }
+.album-pick-item small { color: var(--muted); }
+.album-new { display: grid; gap: 6px; font-size: .82rem; color: var(--muted); }
+.album-new input, .album-new select {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+}
+
+.album-row.secret { margin-bottom: 8px; border: 1px dashed var(--line); }
+.album-row.secret .album-cover { font-size: 1.15rem; background: var(--patina-soft); }
+
+/* ---------- альбомы людей ---------- */
+
+.people-album-tree { margin-bottom: 14px; }
+.people-album-tree.hidden { display: none; }
+.people-album-crumbs { flex-wrap: wrap; margin-bottom: 4px; }
+.people-album-crumbs .album-pick { flex: 0 0 auto; padding: 4px 10px; }
+.people-album-crumbs .album-pick.active b { color: var(--muted); font-weight: 500; }
+.people-album-crumbs .album-pick:last-child b { color: var(--ink); font-weight: 700; }
+.people-album-hidden { opacity: .55; }
+.people-album-hidden .album-body b { font-style: italic; }

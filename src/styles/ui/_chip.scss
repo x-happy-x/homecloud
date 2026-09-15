@@ -1,0 +1,32 @@
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+.chips::-webkit-scrollbar { height: 4px; }
+.chips::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+.chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: .87rem;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.chip:hover { background: var(--ground); }
+.chip.active { background: var(--patina-soft); border-color: var(--patina); color: var(--ink); font-weight: 600; }
+.chip small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; margin-left: -6px; }
+
+.context-chips { min-width: 0; }
+.chip.context { background: var(--patina-soft); border-color: var(--patina); font-weight: 600; }
+.chip.context i { font-style: normal; color: var(--muted); font-size: 1.05rem; line-height: 1; }
+.chip.context:hover i { color: var(--rose); }

@@ -1,0 +1,73 @@
+.people-bubbles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 12px 8px;
+}
+.bubble {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 6px 2px;
+  border: 0;
+  border-radius: var(--r-m);
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.bubble:hover { background: var(--ground); }
+.bubble-photo {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--ground);
+  border: 2px solid transparent;
+}
+.bubble.active .bubble-photo { border-color: var(--patina); }
+.bubble-photo img { width: 100%; height: 100%; object-fit: cover; }
+.bubble-photo .person-letter { font-family: var(--serif); font-size: 1.3rem; color: var(--muted); }
+.bubble-count {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgb(10 16 15 / 62%);
+  color: #fff;
+  font-size: .64rem;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+.bubble-name {
+  max-width: 100%;
+  font-size: .74rem;
+  line-height: 1.15;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bubble.active .bubble-name { font-weight: 700; }
+
+/* Лицо без имени в просмотрщике — приглушённая рамка-пунктир: кликом выбирается
+   для назначения имени, а не открывает чью-то страницу. */
+.bubble.face-unnamed .bubble-photo { border: 2px dashed var(--line); }
+.bubble.face-unnamed .bubble-name { color: var(--muted); }
+.bubble.face-unnamed.selected .bubble-photo { border-color: var(--patina); border-style: solid; }
+.bubble.face-unnamed.selected .bubble-name { color: var(--ink); font-weight: 600; }
+.bubble.face-unnamed.readonly { cursor: default; }
+.bubble-time {
+  position: absolute;
+  left: -1px;
+  bottom: -1px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgb(10 16 15 / 62%);
+  color: #fff;
+  font-size: .62rem;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,47 @@
+@use './mixins' as *;
+
+* { box-sizing: border-box; }
+html { min-width: 320px; background: var(--paper); }
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  color: var(--ink);
+  background: var(--paper);
+  font: 16px/1.5 var(--sans);
+  -webkit-text-size-adjust: 100%;
+}
+
+body.lightbox-open { overflow: hidden; }
+
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -.01em; margin: 0; }
+svg { width: 22px; height: 22px; fill: currentColor; flex: 0 0 auto; }
+.hidden { display: none !important; }
+img { max-width: 100%; }
+
+:where(button, input, a, [tabindex]):focus-visible {
+  outline: 2px solid var(--patina);
+  outline-offset: 2px;
+}
+
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+img { -webkit-user-drag: none; user-drag: none; }
+
+input, textarea, select, [contenteditable],
+p, code, pre, h1, h2, h3, summary,
+.viewer-title, .viewer-label, .lightbox-description, .lightbox-ocr,
+.adult-description, .sheet-path, .sheet-trail, .viewer-path,
+.person-name, .person-years, .face-name, .album-body, .folder-name,
+.caption, .hint, .hint-line, .grid-hint, .photo-meta, .person-meta {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+@include reduced-motion {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+}

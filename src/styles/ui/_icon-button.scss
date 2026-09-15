@@ -1,0 +1,14 @@
+.icon-button {
+  width: 42px; height: 42px;
+  display: grid; place-items: center;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-2);
+  transition: background .15s, color .15s;
+}
+.icon-button:hover { background: var(--ground); color: var(--ink); }
+.icon-button[disabled] { opacity: .4; cursor: default; }
+
+.icon-button.tiny { width: 26px; height: 26px; font-size: .8rem; }
+.icon-button.tiny.danger { color: var(--rose); }

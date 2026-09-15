@@ -1,0 +1,3 @@
+.skeleton { border-radius: var(--r-l); background: var(--ground); animation: pulse 1.3s infinite ease-in-out; }
+.skeleton.tile { aspect-ratio: .82; }
+.skeleton.photo { aspect-ratio: 1; border-radius: var(--r-m); }

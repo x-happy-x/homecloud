@@ -1,0 +1,14 @@
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 10px; }
+.crumbs i, .sheet-trail i { color: var(--muted); font-style: normal; }
+.crumb {
+  border: 0;
+  border-radius: 8px;
+  padding: 3px 7px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: .82rem;
+}
+.crumb:hover { background: var(--ground); color: var(--ink); }
+
+.sheet-trail { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }

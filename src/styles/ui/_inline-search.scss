@@ -1,0 +1,14 @@
+.inline-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 340px;
+  margin: 0 0 14px;
+  padding: 0 12px;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.inline-search svg { width: 16px; height: 16px; fill: var(--muted); flex: 0 0 auto; }
+.inline-search input { flex: 1; min-width: 0; border: 0; background: none; color: var(--ink); font: inherit; outline: none; }
