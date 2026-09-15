@@ -2179,8 +2179,12 @@ const phaseOrder = ['inventory', 'faces', 'visual', 'ocr', 'adult', 'caption'];
 const phaseSeconds = {inventory: .003, faces: .09, visual: .07, ocr: .8, adult: .16, caption: 20};
 
 function videoWeight(phase, job = {}) {
-  if (Number(job.video_frames) > 1) return Number(job.video_frames);
-  return phase === 'faces' ? 12 : phase === 'adult' ? 3 : 2;
+  if (phase !== 'faces') return phase === 'adult' ? 3 : 2;
+  // Постоянного числа кадров на ролик больше нет — детектор идёт по всей
+  // длине с фиксированным шагом. Точной длины типичного клипа тут не знаем,
+  // поэтому берём грубую оценку по шагу: чаще проверяем — дороже ролик.
+  const step = Number(job.video_track_step) || 0.5;
+  return Math.min(120, Math.max(4, Math.round(20 / step)));
 }
 
 function jobWork(job = {}, phase = job.phase) {
