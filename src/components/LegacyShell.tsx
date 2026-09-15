@@ -193,18 +193,6 @@ const legacyMarkup = String.raw`
             </label>
             <small>Модель обучится в фоне, но основной станет только после ручной активации.</small>
           </section>
-          <section class="router-batch">
-            <div>
-              <strong>Пакетная проверка в любом vision-ИИ</strong>
-              <p>Скачайте ZIP с 10 уменьшенными копиями, категориями и готовым промптом. Ответ JSON загрузите обратно.</p>
-              <small>HomeCloud никуда не отправляет архив. Оригиналы и их пути в него не попадают.</small>
-            </div>
-            <div class="router-batch-actions">
-              <button class="button" id="routerExport" type="button">Скачать пакет из 10</button>
-              <button class="button primary" id="routerImport" type="button">Загрузить JSON-ответ</button>
-              <input class="hidden" id="routerImportFile" type="file" accept=".json,.txt,application/json,text/plain">
-            </div>
-          </section>
           <div class="router-layout">
             <section class="router-review-card" id="routerReviewCard">
               <div class="router-photo"><img id="routerPhoto" alt="Фотография для проверки"></div>
