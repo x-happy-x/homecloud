@@ -18,6 +18,8 @@ export interface GallerySlice {
   setQuery(query: string): void;
   togglePerson(name: string): void;
   clearFilters(): void;
+  /** Галерея одного человека: остальные фильтры остаются, поиск сбрасывается. */
+  showPersonPhotos(name: string): void;
   setRoutePhoto(path: string): void;
   setRouteGroup(key: string): void;
   /** Применить разобранную ссылку целиком — вызывается из hashSync. */
@@ -35,7 +37,12 @@ export const createGallerySlice: StateCreator<Store, [], [], GallerySlice> = set
   routePhoto: '',
   routeGroup: '',
 
-  setView: view => set({view}),
+  // Просмотрщик живёт только на фотографиях, карточка группы — на людях и проверке.
+  setView: view => set(state => ({
+    view,
+    routePhoto: view === 'photos' ? state.routePhoto : '',
+    routeGroup: view === 'people' || view === 'review' ? state.routeGroup : '',
+  })),
   setFilters: part => set(state => ({filters: {...state.filters, ...part}})),
   setQuery: query => set(state => ({filters: {...state.filters, query}})),
 
@@ -48,6 +55,13 @@ export const createGallerySlice: StateCreator<Store, [], [], GallerySlice> = set
 
   clearFilters: () => set(state => ({
     filters: {...filtersOf(emptyRoute()), query: state.filters.query},
+  })),
+
+  showPersonPhotos: name => set(state => ({
+    view: 'photos',
+    routePhoto: '',
+    routeGroup: '',
+    filters: {...state.filters, people: [name], query: ''},
   })),
 
   setRoutePhoto: routePhoto => set({routePhoto}),

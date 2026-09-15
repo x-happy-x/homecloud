@@ -55,6 +55,8 @@ export interface NotificationsSlice {
   setJob(id: string, data: Omit<NotifData, 'kind'>): void;
   finishJob(id: string, result: {title: string; level: NotifLevel; message?: string}): void;
   dismissFloating(id: string): void;
+  /** Новый запуск задачи вправе снова показать карточку, закрытую в прошлый раз. */
+  resetFloating(id: string): void;
   toggleJobExpanded(id: string): void;
   openNotifPanel(): void;
   closeNotifPanel(): void;
@@ -148,6 +150,12 @@ export const createNotificationsSlice: StateCreator<Store, [], [], Notifications
           }
         }
         patch({queue, visible, dismissed});
+      },
+
+      resetFloating: id => {
+        const dismissed = new Set(get().notifications.dismissed);
+        dismissed.delete(id);
+        patch({dismissed});
       },
 
       toggleJobExpanded: id => set(state => {

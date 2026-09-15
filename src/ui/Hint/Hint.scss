@@ -2,3 +2,6 @@
 .hint strong { display: block; color: var(--ink); margin-bottom: 4px; }
 
 .hint-line { margin: 6px 0 0; font-size: .78rem; color: var(--muted); line-height: 1.4; }
+
+/* Мелкая приглушённая подпись: пустые списки альбомов и папок, счётчики. */
+.person-meta { font-size: .76rem; color: var(--muted); }

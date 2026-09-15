@@ -104,3 +104,15 @@ export function parseHash(hash: string): RouteState {
     group: params.get('group') || '',
   };
 }
+
+/**
+ * Открытие просмотрщика или карточки группы — отдельный шаг истории: Esc
+ * уходит назад, и адрес не расходится с экраном. Смена экрана — тоже шаг;
+ * правка фильтров и листание снимков внутри просмотрщика — нет, иначе
+ * «назад» превращается в отмену каждого щелчка.
+ */
+export function historyMode(next: RouteState, previous: RouteState): 'push' | 'replace' {
+  if (next.view !== previous.view) return 'push';
+  if ((next.photo && !previous.photo) || (next.group && !previous.group)) return 'push';
+  return 'replace';
+}

@@ -1,4 +1,4 @@
-import {buildHash, parseHash, VIEW_TITLES, type RouteState} from '../app/routes';
+import {buildHash, historyMode, parseHash, VIEW_TITLES, type RouteState} from '../app/routes';
 import {useStore} from './index';
 import type {Store} from './index';
 
@@ -34,12 +34,15 @@ export function startHashSync(): () => void {
   const unsubscribe = useStore.subscribe(routeOf, (next, previous) => {
     if (applying || sameRoute(next, previous)) return;
     document.title = `${VIEW_TITLES[next.view]} · HomeCloud`;
-    // Смена экрана — это шаг назад в истории; правка фильтров — нет,
-    // иначе кнопка «назад» превращается в отмену каждого щелчка.
-    const mode = next.view !== previous.view ? 'pushState' : 'replaceState';
+    // Отметка overlay говорит окну, что закрыть его можно шагом назад.
+    const overlay = Boolean(next.photo || next.group);
     applying = true;
     try {
-      window.history[mode](window.history.state ?? {}, '', buildHash(next));
+      if (historyMode(next, previous) === 'push') {
+        window.history.pushState({overlay}, '', buildHash(next));
+      } else {
+        window.history.replaceState({...(window.history.state ?? {}), overlay}, '', buildHash(next));
+      }
     } finally {
       applying = false;
     }

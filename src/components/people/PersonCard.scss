@@ -1,4 +1,4 @@
-@use '../mixins' as *;
+@use '../../styles/mixins' as *;
 
 .people-grid {
   display: grid;
@@ -108,10 +108,6 @@
 .person-name { display: block; font-weight: 600; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .person-label:hover .person-name { color: var(--patina); }
 .person-years { display: block; margin-top: 1px; font-size: .76rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-.grid-hint { margin: -6px 0 10px; font-size: .8rem; color: var(--muted); }
-#reclusterButton { flex: none; }
-
-.person-meta { font-size: .76rem; color: var(--muted); }
 
 @include bp-sm {
     .people-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; }

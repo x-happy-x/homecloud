@@ -1,4 +1,5 @@
-import {memo} from 'react';
+import {memo, type MouseEvent} from 'react';
+import './PersonCard.scss';
 import {formatNumber, lifeYears, plural, shortName} from '../../lib/format';
 import {useLongPress} from '../../hooks/useLongPress';
 import {useStore} from '../../store';
@@ -10,7 +11,7 @@ export interface PersonGroup {
   title: string;
   name?: string | null;
   kind?: 'person' | 'auto' | 'noise' | 'excluded' | string;
-  bigfam_id?: number | null;
+  bigfam_id?: string | null;
   count: number;
   photos: number;
   covers?: string[];
@@ -42,8 +43,16 @@ export const PersonCard = memo(function PersonCard({
   // Подписка на свой бит выделения: иначе щелчок по одной карточке
   // перерисовывал бы всю сетку.
   const selected = useStore(state => state.selection.groups.has(group.key));
+  const selecting = useStore(state => state.selection.groups.size > 0);
   const canEdit = useStore(state => state.session.canEdit);
-  const hold = useLongPress(() => { if (selectable && canEdit) onSelect(group.key); });
+  const canSelect = selectable && canEdit;
+  const hold = useLongPress(() => { if (canSelect) onSelect(group.key); });
+
+  // Пока что-то выбрано, обычный щелчок продолжает выбор — как в галерее телефона.
+  const click = (event: MouseEvent) => {
+    if (canSelect && (event.ctrlKey || event.metaKey || selecting)) onSelect(group.key);
+    else onOpen(group.key);
+  };
 
   const years = lifeYears(kin);
   const label = group.kind === 'person' ? shortName(group.title, kin) : group.title;
@@ -53,12 +62,7 @@ export const PersonCard = memo(function PersonCard({
   return (
     <article className={`person-card${selected ? ' selected' : ''}`} {...hold}>
       <div className="person-photo">
-        <button
-          className="person-avatar"
-          type="button"
-          aria-label={`Открыть ${group.title}`}
-          onClick={() => onOpen(group.key)}
-        >
+        <button className="person-avatar" type="button" aria-label={`Открыть ${group.title}`} onClick={click}>
           <Avatar srcs={avatarSources(group)} name={group.title} />
         </button>
         {group.hidden && (
@@ -69,12 +73,7 @@ export const PersonCard = memo(function PersonCard({
         </span>
         <span className="tick-mark" aria-hidden="true">✓</span>
       </div>
-      <button
-        className="person-label"
-        type="button"
-        title={group.title}
-        onClick={() => onOpen(group.key)}
-      >
+      <button className="person-label" type="button" title={group.title} onClick={click}>
         <span className="person-name">{label}</span>
         {years
           ? <span className="person-years">{years}</span>

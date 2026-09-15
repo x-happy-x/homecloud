@@ -32,7 +32,10 @@ export function useNativeDialog(
     const cancel = (event: Event) => {
       if (!closeThroughHistory) return;
       event.preventDefault();
-      history.back();
+      // Окно, открытое прямо по ссылке, своего шага в истории не имеет:
+      // назад увело бы со страницы, поэтому такое закрываем как обычно.
+      if ((history.state as {overlay?: boolean} | null)?.overlay) history.back();
+      else onClose();
     };
     const closed = () => onClose();
     // Клик мимо содержимого: цель события — сам <dialog>, а не его начинка.

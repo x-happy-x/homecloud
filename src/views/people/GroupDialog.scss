@@ -1,3 +1,4 @@
+/* Галочка выбора .tick-mark общая с карточкой человека — она в PersonCard.scss. */
 .face-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(clamp(104px, 15vw, 140px), 1fr)); gap: 12px; }
 .face-card {
   position: relative;

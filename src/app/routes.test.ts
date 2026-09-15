@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest';
-import {buildHash, emptyRoute, parseHash, type RouteState} from './routes';
+import {buildHash, emptyRoute, historyMode, parseHash, type RouteState} from './routes';
 
 const route = (part: Partial<RouteState>): RouteState => ({...emptyRoute(), ...part});
 
@@ -72,5 +72,20 @@ describe('разбор и сборка обратимы', () => {
   ];
   test.each(cases.map(c => [buildHash(c), c] as const))('%s', (hash, original) => {
     expect(buildHash(parseHash(hash))).toBe(hash);
+  });
+});
+
+describe('historyMode', () => {
+  test('смена экрана — шаг истории', () => {
+    expect(historyMode(route({view: 'photos'}), route({view: 'people'}))).toBe('push');
+  });
+  test('открытие снимка или группы — шаг истории', () => {
+    expect(historyMode(route({view: 'photos', photo: 'a'}), route({view: 'photos'}))).toBe('push');
+    expect(historyMode(route({group: 'auto:1'}), route({}))).toBe('push');
+  });
+  test('листание, закрытие и фильтры — без шага', () => {
+    expect(historyMode(route({view: 'photos', photo: 'b'}), route({view: 'photos', photo: 'a'}))).toBe('replace');
+    expect(historyMode(route({view: 'photos'}), route({view: 'photos', photo: 'a'}))).toBe('replace');
+    expect(historyMode(route({query: 'море'}), route({}))).toBe('replace');
   });
 });
