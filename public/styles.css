@@ -1142,6 +1142,8 @@ dialog::backdrop { background: rgb(10 16 15 / 62%); backdrop-filter: blur(3px); 
 .speech-voice[data-voice="0"], .speech-voice[data-voice="3"] { color: var(--patina); }
 .speech-voice[data-voice="1"], .speech-voice[data-voice="4"] { color: var(--brass); }
 .speech-voice[data-voice="2"], .speech-voice[data-voice="5"] { color: var(--rose); }
+/* Узнан по голосу, а не по лицу в кадре, — это подсказка, а не факт. */
+.speech-voice.is-guess { font-weight: 500; text-transform: none; opacity: .75; border-bottom: 1px dashed currentColor; cursor: help; }
 .speech-empty { color: var(--muted); font-size: .8rem; }
 
 /* вход */

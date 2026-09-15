@@ -1540,15 +1540,15 @@ async function renderSpeech(photo) {
   // Пока грузили, зритель мог пролистнуть дальше — тогда реплики уже не его.
   if (ui.photos[ui.lightboxIndex]?.path !== wanted) return;
   $('#lightboxSpeechNote').textContent = data.language || '';
-  // Метка говорящего полезна только когда голосов больше одного — иначе это
-  // просто «SPEAKER_00» на каждой строке, чистый шум.
+  // Безымянная метка полезна только когда голосов больше одного — иначе это
+  // просто «SPEAKER_00» на каждой строке, чистый шум. Настоящее имя, если
+  // оно узнано, шумом не бывает и показывается всегда.
   const multi = (data.speakers || 0) > 1;
   lines.innerHTML = data.segments?.length
     ? data.segments.map(item => {
-      const voice = multi && item.speaker ? speakerLabel(item.speaker) : '';
+      const voice = speakerTag(item, multi);
       return `<li><button type="button" data-at="${item.start}">${clock(item.start)}</button>`
-        + (voice ? `<b class="speech-voice" data-voice="${speakerIndex(item.speaker)}">${voice}</b>` : '')
-        + `<span>${escapeHtml(item.text)}</span></li>`;
+        + (voice || '') + `<span>${escapeHtml(item.text)}</span></li>`;
     }).join('')
     : `<li class="speech-empty">${escapeHtml(data.error || 'Речь не распознана')}</li>`;
 }
@@ -1556,6 +1556,24 @@ async function renderSpeech(photo) {
 // «SPEAKER_00» → «Голос 1» — цифра остаётся якорем для цвета подписи.
 const speakerIndex = speaker => (Number(String(speaker).match(/\d+/)?.[0]) || 0) % 6;
 const speakerLabel = speaker => `Голос ${speakerIndex(speaker) + 1}`;
+
+// Имя, если узнали (по лицу в кадре — уверенно, по одному голосу —
+// с оговоркой «похоже»); иначе просто «Голос N», и то не в одиночку.
+function speakerTag(item, multi) {
+  const person = item.person;
+  if (person) {
+    const guess = person.source === 'voice';
+    const title = guess ? `Похоже, по голосу (${Math.round(person.confidence * 100)}%)` : '';
+    return `<b class="speech-voice${guess ? ' is-guess' : ''}" `
+      + `data-voice="${speakerIndex(item.speaker)}" title="${escapeHtml(title)}">`
+      + `${escapeHtml(person.name)}${guess ? ' ?' : ''}</b>`;
+  }
+  if (multi && item.speaker) {
+    return `<b class="speech-voice" data-voice="${speakerIndex(item.speaker)}">`
+      + `${speakerLabel(item.speaker)}</b>`;
+  }
+  return '';
+}
 
 // Клик по времени реплики перематывает ролик на это место.
 $('#lightboxSpeechLines').addEventListener('click', event => {
