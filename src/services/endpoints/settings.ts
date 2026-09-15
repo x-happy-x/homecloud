@@ -7,5 +7,6 @@ export interface SettingsResponse {
 }
 
 export const getSettings = () => api<SettingsResponse>('/api/settings');
+// Бэкенд ждёт настройки вложенными в поле settings, а не россыпью.
 export const saveSettings = (settings: Record<string, unknown>) =>
-  post<SettingsResponse>('/api/settings', settings);
+  post<SettingsResponse>('/api/settings', {settings});
