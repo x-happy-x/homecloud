@@ -1,5 +1,6 @@
 import {useEffect, useState, type CSSProperties} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
+import './AlbumTree.scss';
 import {useCatalogState} from '../../hooks/useCatalogState';
 import {formatNumber, plural} from '../../lib/format';
 import {

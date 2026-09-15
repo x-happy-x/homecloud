@@ -1,5 +1,6 @@
 import {useState} from 'react';
 import {useMutation} from '@tanstack/react-query';
+import '../../components/albums/AlbumTree.scss';
 import {AlbumMoveSelect} from '../../components/albums/AlbumMoveSelect';
 import {formatNumber, plural} from '../../lib/format';
 import {

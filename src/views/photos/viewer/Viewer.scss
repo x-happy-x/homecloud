@@ -199,3 +199,7 @@
     .viewer-nav.next { right: 4px; }
     .strip-item { width: 40px; height: 40px; }
 }
+
+/* Альбомы и ссылка «добавить» в сведениях снимка. */
+.album-chips { flex-wrap: wrap; overflow: visible; }
+.link-button { margin-left: 8px; border: 0; background: none; color: var(--patina); font: inherit; font-size: .8rem; text-decoration: underline; }

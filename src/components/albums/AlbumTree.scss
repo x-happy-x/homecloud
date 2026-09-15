@@ -1,3 +1,6 @@
+.album-tree { display: grid; gap: 2px; }
+.album-row.active { background: var(--patina-soft); }
+
 .album-row {
   display: flex;
   align-items: center;
@@ -39,8 +42,6 @@
 
 .album-move { width: 100%; min-height: 32px; margin: 4px 0; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-2); color: var(--ink); }
 
-.album-chips { flex-wrap: wrap; overflow: visible; }
-.link-button { margin-left: 8px; border: 0; background: none; color: var(--patina); font: inherit; font-size: .8rem; text-decoration: underline; }
 
 .album-pick-body { display: grid; gap: 12px; padding: 0 22px 22px; }
 .album-pick-list { display: grid; gap: 2px; max-height: 40vh; overflow: auto; }

@@ -50,10 +50,8 @@
 .sidepage-panel .section-label { margin: 14px 0 8px; }
 .sidepage-panel .chips { flex-wrap: wrap; overflow: visible; }
 .panel-actions { display: flex; gap: 8px; margin-bottom: 12px; }
-#resetFilters { margin-top: 18px; }
 
 
 @include bp-md {
     .sidepage { width: 100vw; border-left: 0; }
-    .people-bubbles { grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); }
 }

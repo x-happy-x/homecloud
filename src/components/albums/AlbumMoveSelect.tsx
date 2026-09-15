@@ -1,3 +1,5 @@
+import './AlbumTree.scss';
+
 export interface MovableAlbum {
   id: number;
   parent_id: number;

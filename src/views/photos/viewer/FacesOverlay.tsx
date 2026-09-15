@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {useMutation} from '@tanstack/react-query';
+import '../../../components/people/Bubbles.scss';
 import {useCatalogState} from '../../../hooks/useCatalogState';
 import {useKin} from '../../../hooks/useKin';
 import {formatNumber, shortName, timecode} from '../../../lib/format';
