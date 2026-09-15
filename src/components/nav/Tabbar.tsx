@@ -1,10 +1,11 @@
+import './Tabbar.scss';
 import {NAV_ITEMS} from '../../app/navItems';
 import type {ViewName} from '../../app/routes';
 import {NavItem} from '../../ui/NavItem/NavItem';
 
 export interface TabbarProps {
   view: ViewName;
-  counts: Partial<Record<ViewName, number | '—'>>;
+  counts: Partial<Record<ViewName, number | string>>;
   onNavigate(view: ViewName): void;
 }
 

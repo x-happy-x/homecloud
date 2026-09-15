@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react';
+import './Notifications.scss';
 import {usePrevious} from '../../hooks/usePrevious';
 import {useStore} from '../../store';
 import {Icon} from '../../ui/Icon/Icon';

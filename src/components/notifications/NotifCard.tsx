@@ -1,3 +1,4 @@
+import './Notifications.scss';
 import type {NotifData} from '../../store/slices/notifications';
 import {Button} from '../../ui/Button/Button';
 

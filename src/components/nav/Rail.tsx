@@ -1,3 +1,4 @@
+import './Rail.scss';
 import {NAV_ITEMS} from '../../app/navItems';
 import type {ViewName} from '../../app/routes';
 import {Icon} from '../../ui/Icon/Icon';
@@ -6,7 +7,7 @@ import {AccountMenu} from './AccountMenu';
 
 export interface RailProps {
   view: ViewName;
-  counts: Partial<Record<ViewName, number | '—'>>;
+  counts: Partial<Record<ViewName, number | string>>;
   onNavigate(view: ViewName): void;
 }
 

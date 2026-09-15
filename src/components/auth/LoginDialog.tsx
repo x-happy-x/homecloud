@@ -1,4 +1,5 @@
 import {useRef, useState} from 'react';
+import './LoginDialog.scss';
 import {useMutation} from '@tanstack/react-query';
 import {getSession, login} from '../../services/endpoints/session';
 import {queryClient} from '../../services/queryClient';

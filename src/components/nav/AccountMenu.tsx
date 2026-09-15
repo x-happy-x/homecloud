@@ -1,4 +1,5 @@
 import {useRef, useState} from 'react';
+import './AccountMenu.scss';
 import {useMutation} from '@tanstack/react-query';
 import {logout} from '../../services/endpoints/session';
 import {queryClient} from '../../services/queryClient';

@@ -1,10 +1,10 @@
-import { LegacyShell } from './components/LegacyShell';
-import { useEffect } from 'react';
+import {AppShell} from './app/AppShell';
+import {Providers} from './app/Providers';
 
 export function App() {
-  useEffect(() => {
-    void import('./legacyApp.js');
-  }, []);
-
-  return <LegacyShell />;
+  return (
+    <Providers>
+      <AppShell />
+    </Providers>
+  );
 }

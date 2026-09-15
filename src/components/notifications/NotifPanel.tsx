@@ -1,3 +1,4 @@
+import './Notifications.scss';
 import {useStore} from '../../store';
 import {SidePanel} from '../../ui/SidePanel/SidePanel';
 import {NotifCard} from './NotifCard';

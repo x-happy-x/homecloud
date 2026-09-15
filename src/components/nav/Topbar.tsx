@@ -1,4 +1,5 @@
 import {useRef} from 'react';
+import './Topbar.scss';
 import {useMutation} from '@tanstack/react-query';
 import {undo} from '../../services/endpoints/catalog';
 import {queryClient} from '../../services/queryClient';

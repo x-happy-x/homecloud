@@ -1,3 +1,4 @@
+import './Notifications.scss';
 import {useStore} from '../../store';
 import {NotifCard} from './NotifCard';
 

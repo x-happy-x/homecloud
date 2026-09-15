@@ -6,7 +6,7 @@ export interface NavItemProps {
   icon: IconName;
   label: string;
   /** Прочерк — счётчик ещё не посчитан. */
-  count?: number | '—';
+  count?: number | string;
   /** Счётчик проверки выделяется цветом и виден даже в нижней панели телефона. */
   attention?: boolean;
   active: boolean;

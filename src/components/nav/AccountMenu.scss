@@ -1,3 +1,30 @@
+@use '../../styles/mixins' as *;
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-m);
+  background: var(--surface-2);
+  text-align: left;
+}
+.account-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--patina-soft); color: var(--patina);
+  font-weight: 700; font-size: .9rem;
+}
+.account-body { min-width: 0; flex: 1; }
+.account-name { font-size: .88rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.account-role { font-size: .72rem; color: var(--muted); }
+
+@include bp-lg {
+    .account-body { display: none; }
+    .account { justify-content: center; padding: 8px; }
+}
+
 .menu {
   position: fixed;
   z-index: 50;
