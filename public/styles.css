@@ -1134,9 +1134,14 @@ dialog::backdrop { background: rgb(10 16 15 / 62%); backdrop-filter: blur(3px); 
 .lightbox-speech { max-width: 760px; margin-top: 10px; }
 .lightbox-speech h3 small { margin-left: 8px; color: var(--muted); font-weight: 400; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
 .speech-lines { max-height: 260px; margin: 6px 0 0; padding: 8px; overflow: auto; list-style: none; border-radius: var(--r-s); background: var(--surface); display: grid; gap: 6px; }
-.speech-lines li { display: grid; grid-template-columns: auto 1fr; gap: 9px; align-items: baseline; font-size: .82rem; color: var(--ink-2); }
+.speech-lines li { display: flex; flex-wrap: wrap; gap: 4px 9px; align-items: baseline; font-size: .82rem; color: var(--ink-2); }
 .speech-lines button { padding: 0; border: 0; background: none; color: var(--patina); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
 .speech-lines button:hover { text-decoration: underline; }
+.speech-lines span { flex: 1 1 auto; min-width: 0; }
+.speech-voice { flex: 0 0 auto; font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .02em; }
+.speech-voice[data-voice="0"], .speech-voice[data-voice="3"] { color: var(--patina); }
+.speech-voice[data-voice="1"], .speech-voice[data-voice="4"] { color: var(--brass); }
+.speech-voice[data-voice="2"], .speech-voice[data-voice="5"] { color: var(--rose); }
 .speech-empty { color: var(--muted); font-size: .8rem; }
 
 /* вход */

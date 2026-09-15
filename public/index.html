@@ -193,6 +193,18 @@
             </label>
             <small>Модель обучится в фоне, но основной станет только после ручной активации.</small>
           </section>
+          <section class="router-batch">
+            <div>
+              <strong>Пакетная проверка в любом vision-ИИ</strong>
+              <p>Скачайте ZIP с 10 уменьшенными копиями, категориями и готовым промптом. Ответ JSON загрузите обратно.</p>
+              <small>HomeCloud никуда не отправляет архив. Оригиналы и их пути в него не попадают.</small>
+            </div>
+            <div class="router-batch-actions">
+              <button class="button" id="routerExport" type="button">Скачать пакет из 10</button>
+              <button class="button primary" id="routerImport" type="button">Загрузить JSON-ответ</button>
+              <input class="hidden" id="routerImportFile" type="file" accept=".json,.txt,application/json,text/plain">
+            </div>
+          </section>
           <div class="router-layout">
             <section class="router-review-card" id="routerReviewCard">
               <div class="router-photo"><img id="routerPhoto" alt="Фотография для проверки"></div>
@@ -677,6 +689,7 @@
           <label class="feature-option"><input type="checkbox" data-feature="caption"><span><b>Описание</b><small>WD-теги → подробное JSON-описание через Qwen3-VL</small></span></label>
           <label class="feature-option"><input type="checkbox" data-feature="adult"><span><b>Контент 18+</b><small>Подробные теги и области для выборочного блюра</small></span></label>
           <label class="feature-option"><input type="checkbox" data-feature="speech"><span><b>Речь в видео</b><small>Расшифровать сказанное: субтитры и поиск по словам</small></span></label>
+          <label class="feature-option"><input type="checkbox" data-feature="diarize"><span><b>Кто говорит</b><small>Разделить голоса — подписать реплики; нужна уже расшифрованная речь</small></span></label>
         </div>
         <label class="check-row"><input type="checkbox" id="photoProcessForce"> Переделать заново, даже если уже посчитано</label>
         <p class="hint-line">Обычно повторно считается только то, что изменилось: этапы пропускают файлы, уже обработанные в этой же версии.</p>

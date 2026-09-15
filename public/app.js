@@ -63,7 +63,7 @@ const ui = {
   treeOpen: new Set(),
   treeBusy: false,
   selectedFeatures: {faces: true, visual: true, ocr: false, caption: false,
-    adult: false, speech: false},
+    adult: false, speech: false, diarize: false},
   routePhoto: '',
   routeGroup: '',
   applyingRoute: false,
@@ -1540,12 +1540,22 @@ async function renderSpeech(photo) {
   // Пока грузили, зритель мог пролистнуть дальше — тогда реплики уже не его.
   if (ui.photos[ui.lightboxIndex]?.path !== wanted) return;
   $('#lightboxSpeechNote').textContent = data.language || '';
+  // Метка говорящего полезна только когда голосов больше одного — иначе это
+  // просто «SPEAKER_00» на каждой строке, чистый шум.
+  const multi = (data.speakers || 0) > 1;
   lines.innerHTML = data.segments?.length
-    ? data.segments.map(item =>
-      `<li><button type="button" data-at="${item.start}">${clock(item.start)}</button>`
-      + `<span>${escapeHtml(item.text)}</span></li>`).join('')
+    ? data.segments.map(item => {
+      const voice = multi && item.speaker ? speakerLabel(item.speaker) : '';
+      return `<li><button type="button" data-at="${item.start}">${clock(item.start)}</button>`
+        + (voice ? `<b class="speech-voice" data-voice="${speakerIndex(item.speaker)}">${voice}</b>` : '')
+        + `<span>${escapeHtml(item.text)}</span></li>`;
+    }).join('')
     : `<li class="speech-empty">${escapeHtml(data.error || 'Речь не распознана')}</li>`;
 }
+
+// «SPEAKER_00» → «Голос 1» — цифра остаётся якорем для цвета подписи.
+const speakerIndex = speaker => (Number(String(speaker).match(/\d+/)?.[0]) || 0) % 6;
+const speakerLabel = speaker => `Голос ${speakerIndex(speaker) + 1}`;
 
 // Клик по времени реплики перематывает ролик на это место.
 $('#lightboxSpeechLines').addEventListener('click', event => {
@@ -2105,6 +2115,7 @@ const jobLabels = {
   idle: 'Готово к запуску', inventory: 'Поиск фотографий', faces: 'Распознавание лиц',
   visual: 'Визуальный индекс', ocr: 'Распознавание текста', caption: 'Описание изображений',
   adult: 'Анализ 18+ и областей', speech: 'Расшифровка речи',
+  diarize: 'Разделение голосов',
   running: 'Обработка', completed: 'Завершено', stopped: 'Остановлено',
   interrupted: 'Прервано', error: 'Ошибка',
 };
