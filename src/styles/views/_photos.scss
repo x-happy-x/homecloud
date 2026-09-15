@@ -74,9 +74,6 @@
 .zoom-step svg { width: 17px; height: 17px; fill: currentColor; }
 .zoom-step.active { background: var(--surface-2); color: var(--ink); box-shadow: var(--shadow); }
 
-.photo-people { display: flex; flex-wrap: wrap; gap: 4px; min-height: 22px; }
-.photo-person { display: inline-flex; align-items: center; max-width: 100%; padding: 3px 7px; border-radius: 999px; background: var(--patina-soft); color: var(--patina); font-size: .69rem; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
-.photo-person:hover { filter: brightness(.96); text-decoration: underline; }
 .photo-unknown { color: var(--muted); font-size: .7rem; }
 .photo-action-bar { position: sticky; top: 72px; z-index: 12; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-m); background: color-mix(in srgb, var(--surface-2) 94%, transparent); box-shadow: var(--shadow); backdrop-filter: blur(12px); }
 .photo-action-bar.hidden { display: none; }

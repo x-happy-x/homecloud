@@ -50,14 +50,9 @@
 .sidepage-panel.active { display: block; animation: rise .18s ease; }
 .sidepage-panel .section-label { margin: 14px 0 8px; }
 .sidepage-panel .chips { flex-wrap: wrap; overflow: visible; }
-.sidepage-panel .adult-mode-label select { max-width: 100%; }
 .panel-actions { display: flex; gap: 8px; margin-bottom: 12px; }
 #resetFilters { margin-top: 18px; }
 
-.filters { display: grid; gap: 8px; padding-bottom: 18px; }
-.adult-mode-label { display: flex; align-items: center; gap: 10px; width: fit-content; color: var(--muted); font-size: .8rem; }
-.adult-mode-label select { min-height: 36px; max-width: min(100%, 340px); padding: 7px 32px 7px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--ink); }
-.filter-label { font-size: .73rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 
 @include bp-md {
     .sidepage { width: 100vw; border-left: 0; }
