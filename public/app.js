@@ -79,6 +79,7 @@ const ui = {
   etaProfiles: {},
   timers: {},
   reclusterTracking: false,
+  reclusterLastJob: null,
 };
 
 try { ui.etaProfiles = JSON.parse(localStorage.getItem('homecloud-eta-profiles') || '{}'); }
@@ -95,6 +96,13 @@ const plural = (value, one, few, many) => {
   const last = n % 10;
   return last === 1 ? one : last >= 2 && last <= 4 ? few : many;
 };
+function formatDuration(seconds) {
+  if (seconds == null || !isFinite(seconds) || seconds < 0) return '';
+  if (seconds < 1) return '<1 с';
+  if (seconds < 60) return `${Math.round(seconds)} с`;
+  const minutes = Math.floor(seconds / 60), rest = Math.round(seconds % 60);
+  return rest ? `${minutes} мин ${rest} с` : `${minutes} мин`;
+}
 
 async function api(path, options = {}) {
   const headers = {...(options.headers || {})};
@@ -112,146 +120,265 @@ async function api(path, options = {}) {
   return data;
 }
 
-/* ---------- уведомления и фоновые задачи (правый нижний угол) ---------- */
+/* ---------- уведомления: выезжающая справа панель + всплывающий стек ---------- */
+//
+// Панель (#notifPanel) — полная история и список текущих фоновых задач,
+// открывается колокольчиком. Стек в углу (#notifStack) — то же самое, но
+// мельком: не больше 3 карточек одновременно, лишнее ждёт своей очереди.
+// Обычный тост в стеке живёт 5с, а карточка активной задачи (пересборка
+// групп и т.п.) висит, пока её не закроют руками — по просьбе пользователя.
 
 const TASK_HISTORY_KEY = 'homecloud-task-history';
 let taskHistory = [];
 try { taskHistory = JSON.parse(localStorage.getItem(TASK_HISTORY_KEY) || '[]'); }
 catch { taskHistory = []; }
-const taskCards = new Map();
+const activeJobs = new Map();      // id -> данные задачи (для секции "Сейчас" в панели)
+const expandedJobs = new Set();    // id задач с развёрнутым списком шагов
+const floatingData = new Map();    // id -> данные последней карточки в стеке
+const floatingOrder = [];          // id карточек, которые сейчас показаны (макс. 3)
+const floatingQueue = [];          // id карточек, ждущих освободившегося места
+const floatingDismissed = new Set(); // id, которые пользователь закрыл руками
+const floatingTimers = new Map();  // id -> таймер автоскрытия (только тосты)
+const MAX_VISIBLE_NOTIFS = 3;
+const TOAST_LIFETIME_MS = 5000;
+let notifUnseen = 0;
 
 function saveTaskHistory() {
   taskHistory = taskHistory.slice(-50);
   localStorage.setItem(TASK_HISTORY_KEY, JSON.stringify(taskHistory));
-  $('#taskHistoryButton').classList.toggle('show', taskHistory.length > 0);
+}
+
+function isNotifOpen() { return !$('#notifPanel').hidden; }
+
+function updateNotifBadge() {
+  const badge = $('#notifBadge');
+  const active = activeJobs.size > 0;
+  badge.classList.toggle('pulse', active);
+  badge.textContent = active ? '' : (notifUnseen > 0 ? String(Math.min(notifUnseen, 9)) : '');
+  badge.classList.toggle('hidden', !active && notifUnseen === 0);
+}
+
+function bellFlash() {
+  const button = $('#notificationsButton');
+  button.classList.remove('flash');
+  void button.offsetWidth; // перезапустить CSS-анимацию
+  button.classList.add('flash');
 }
 
 function pushHistory(entry) {
   taskHistory.push({...entry, at: Date.now()});
   saveTaskHistory();
-}
-
-function dismissTask(id) {
-  const entry = taskCards.get(id);
-  if (!entry) return;
-  entry.el.classList.remove('show');
-  entry.el.classList.add('leaving');
-  setTimeout(() => entry.el.remove(), 260);
-  taskCards.delete(id);
-}
-
-function finishTask(id, {delay = 3600} = {}) {
-  clearTimeout(taskCards.get(id)?.timer);
-  const entry = taskCards.get(id);
-  if (entry) entry.timer = setTimeout(() => dismissTask(id), delay);
-}
-
-// Одна карточка на id: и простые тосты, и фоновые задачи (пересборка групп и
-// т.п.) используют один и тот же компонент — задача просто умеет разворачиваться
-// в список шагов с прогрессом по каждому, а тост — нет (нечего разворачивать).
-function renderTaskCard(id, {title, sub = '', level = 'info', progress = null, steps = null,
-    stepIndex = 0, spinning = false, stopAction = null, expandable = true}) {
-  let entry = taskCards.get(id);
-  if (!entry) {
-    const el = document.createElement('div');
-    el.className = 'task-card';
-    el.innerHTML = `
-      <div class="task-card-head">
-        <span class="task-card-icon"></span>
-        <div class="task-card-body">
-          <div class="task-card-title"></div>
-          <div class="task-card-sub"></div>
-        </div>
-        <span class="task-card-caret">▾</span>
-        <button class="task-card-close" type="button" title="Скрыть">×</button>
-      </div>
-      <div class="task-card-bar"><span></span></div>
-      <div class="task-card-details">
-        <ol class="task-card-steps"></ol>
-        <div class="task-card-actions"></div>
-      </div>`;
-    $('#taskCenterList').appendChild(el);
-    requestAnimationFrame(() => el.classList.add('show'));
-    el.querySelector('.task-card-head').addEventListener('click', () => {
-      if (entry.expandable) el.classList.toggle('expanded');
-    });
-    el.querySelector('.task-card-close').addEventListener('click', event => {
-      event.stopPropagation();
-      dismissTask(id);
-    });
-    entry = {el};
-    taskCards.set(id, entry);
-  }
-  clearTimeout(entry.timer);
-  entry.expandable = expandable && Boolean(steps && steps.length);
-  const el = entry.el;
-  el.classList.toggle('level-error', level === 'error');
-  el.classList.toggle('level-success', level === 'success');
-  el.classList.toggle('has-details', entry.expandable);
-  el.querySelector('.task-card-caret').style.visibility = entry.expandable ? '' : 'hidden';
-  const icon = el.querySelector('.task-card-icon');
-  icon.textContent = level === 'error' ? '!' : level === 'success' ? '✓' : '';
-  icon.classList.toggle('spin', spinning);
-  el.querySelector('.task-card-title').textContent = title;
-  el.querySelector('.task-card-sub').textContent = sub;
-  const bar = el.querySelector('.task-card-bar');
-  bar.style.display = progress === null && !spinning ? 'none' : '';
-  bar.classList.toggle('indeterminate', spinning && progress === null);
-  bar.querySelector('span').style.width = progress === null ? '' : `${Math.max(0, Math.min(100, progress))}%`;
-  // Текущее состояние уже написано строкой выше (.task-card-sub) — здесь
-  // только отмечаем, какой шаг сейчас идёт, без повторения текста.
-  const stepsList = el.querySelector('.task-card-steps');
-  stepsList.innerHTML = (steps || []).map((step, index) => {
-    const num = index + 1;
-    const state = num < stepIndex ? 'done' : num === stepIndex ? 'active' : '';
-    return `<li class="task-card-step ${state}"><span class="dot">${num < stepIndex ? '✓' : num}</span>
-      <span>${escapeHtml(step.title)}</span></li>`;
-  }).join('');
-  const actions = el.querySelector('.task-card-actions');
-  actions.innerHTML = '';
-  if (stopAction) {
-    const button = document.createElement('button');
-    button.className = 'button danger small';
-    button.type = 'button';
-    button.textContent = 'Остановить';
-    button.addEventListener('click', event => { event.stopPropagation(); stopAction(button); });
-    actions.appendChild(button);
-  }
-  return entry;
+  if (!isNotifOpen()) { notifUnseen += 1; bellFlash(); }
+  updateNotifBadge();
+  renderNotifPanel();
 }
 
 function toast(message, level = 'info') {
   const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  renderTaskCard(id, {title: message, level, spinning: false, expandable: false});
   pushHistory({kind: 'toast', title: message, level});
-  finishTask(id, {delay: level === 'error' ? 5200 : 3200});
+  showFloating(id, {kind: 'toast', title: message, level, sub: '', progress: null,
+    spinning: false, steps: []});
 }
 
-function renderTaskHistory() {
-  const list = $('#taskHistoryList');
-  if (!taskHistory.length) {
-    list.innerHTML = '<p class="task-history-empty">Пока пусто — здесь будут появляться уведомления.</p>';
-    return;
+function setJob(id, data) {
+  activeJobs.set(id, data);
+  updateNotifBadge();
+  renderNotifPanel();
+  showFloating(id, {...data, kind: 'job'});
+}
+
+function finishJob(id, {title, level, message}) {
+  activeJobs.delete(id);
+  expandedJobs.delete(id);
+  pushHistory({kind: 'job', title, level, message});
+  // Задача больше не активна, но карточка в углу остаётся видна — пользователь
+  // закрывает её сам, когда заметил результат (по просьбе: "пусть висит").
+  showFloating(id, {kind: 'job', title, sub: message, level, progress: null,
+    spinning: false, steps: [], canStop: false});
+}
+
+function notifStepsHtml(data) {
+  return (data.steps || []).map((step, index) => {
+    const num = index + 1;
+    const state = num < data.stepIndex ? 'done' : num === data.stepIndex ? 'active' : '';
+    const detail = num === data.stepIndex ? data.stepDetail : '';
+    return `<li class="notif-job-step ${state}"><span class="dot">${num < data.stepIndex ? '✓' : num}</span>
+      <span class="notif-job-step-body"><span>${escapeHtml(step.title)}</span>${detail
+        ? `<span class="notif-job-step-detail">${escapeHtml(detail)}</span>` : ''}</span></li>`;
+  }).join('');
+}
+
+function notifBlockHtml(id, data, {closable = false} = {}) {
+  const expandable = Boolean(data.steps && data.steps.length);
+  const expanded = expandable && expandedJobs.has(id);
+  const iconMark = data.level === 'error' ? '!' : data.level === 'success' ? '✓' : '';
+  const hasBar = data.progress !== null && data.progress !== undefined || data.spinning;
+  // Ширина полосы выставляется отдельно через .style.width (wireNotifBlock) —
+  // инлайновый style="" в разметке режет CSP (style-src 'self').
+  const barHtml = !hasBar ? '' : `
+    <div class="notif-job-bar ${data.spinning && data.progress == null ? 'indeterminate' : ''}"><span></span></div>`;
+  // Остановить нужно без разворачивания карточки — кнопка живёт отдельно от
+  // списка шагов, который сворачивается сам по себе.
+  const detailsHtml = expandable ? `
+    <div class="notif-job-details"><ol class="notif-job-steps">${notifStepsHtml(data)}</ol></div>` : '';
+  const actionsHtml = data.canStop
+    ? '<div class="notif-job-actions"><button class="button danger small" type="button" '
+      + 'data-stop-job>Остановить</button></div>' : '';
+  return `
+    <div class="notif-job ${data.level === 'error' ? 'level-error' : ''} ${expanded ? 'expanded' : ''}" data-job="${id}">
+      <div class="notif-job-head ${expandable ? '' : 'no-expand'}" ${expandable ? `data-job-head="${id}"` : ''}>
+        <span class="notif-job-icon ${data.spinning ? 'spin' : ''}">${iconMark}</span>
+        <div class="notif-job-body">
+          <div class="notif-job-title">${escapeHtml(data.title)}</div>
+          <div class="notif-job-sub">${escapeHtml(data.sub || '')}</div>
+        </div>
+        ${expandable ? '<span class="notif-job-caret">▾</span>' : ''}
+        ${closable ? '<button class="notif-job-close" type="button" data-close-notif title="Скрыть">×</button>' : ''}
+      </div>
+      ${barHtml}
+      ${detailsHtml}
+      ${actionsHtml}
+    </div>`;
+}
+
+function wireNotifBlock(container, id, data, {closable = false} = {}) {
+  const barSpan = container.querySelector('.notif-job-bar span');
+  if (barSpan) {
+    const pct = data.progress == null ? 0 : Math.max(0, Math.min(100, data.progress));
+    barSpan.style.width = `${pct}%`;
   }
-  list.innerHTML = [...taskHistory].reverse().map(item => {
+  const head = container.querySelector('[data-job-head]');
+  if (head) head.addEventListener('click', () => {
+    if (expandedJobs.has(id)) expandedJobs.delete(id); else expandedJobs.add(id);
+    if (activeJobs.has(id)) renderNotifPanel();
+    if (floatingOrder.includes(id)) renderFloatingCard(id);
+  });
+  const stopButton = container.querySelector('[data-stop-job]');
+  if (stopButton) stopButton.addEventListener('click', event => {
+    event.stopPropagation();
+    const data = activeJobs.get(id) || floatingData.get(id);
+    if (data && data.onStop) data.onStop(stopButton);
+  });
+  if (closable) {
+    const closeButton = container.querySelector('[data-close-notif]');
+    if (closeButton) closeButton.addEventListener('click', event => {
+      event.stopPropagation();
+      floatingDismissed.add(id);
+      hideFloating(id);
+    });
+  }
+}
+
+function renderNotifPanel() {
+  const list = $('#notifList');
+  if (!list) return;
+  const jobsHtml = [...activeJobs.entries()]
+    .map(([id, job]) => notifBlockHtml(id, job, {closable: false})).join('');
+  const historyHtml = taskHistory.length ? [...taskHistory].reverse().map(item => {
     const time = new Date(item.at).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
     const mark = item.level === 'error' ? '⚠' : item.level === 'success' ? '✓' : '•';
     return `<div class="task-history-item"><span class="task-history-time">${time}</span>
       <span>${mark} <strong>${escapeHtml(item.title)}</strong>${item.message
         ? `<br><span style="color:var(--muted)">${escapeHtml(item.message)}</span>` : ''}</span></div>`;
-  }).join('');
+  }).join('') : '<p class="task-history-empty">Пока пусто — здесь будут появляться уведомления.</p>';
+  list.innerHTML = `
+    ${jobsHtml ? `<div><div class="notif-section-label">Сейчас</div>${jobsHtml}</div>` : ''}
+    <div><div class="notif-section-label">История</div>${historyHtml}</div>`;
+  activeJobs.forEach((job, id) => {
+    const container = list.querySelector(`[data-job="${id}"]`);
+    if (container) wireNotifBlock(container, id, job, {closable: false});
+  });
 }
 
-saveTaskHistory();
-$('#taskHistoryButton').addEventListener('click', () => {
-  renderTaskHistory();
-  $('#taskHistoryDialog').showModal();
+function openNotifPanel() {
+  closeSidepage();
+  $('#notifPanel').hidden = false;
+  $('#notifBackdrop').hidden = false;
+  document.body.classList.add('sidepage-open');
+  notifUnseen = 0;
+  updateNotifBadge();
+  renderNotifPanel();
+}
+
+function closeNotifPanel() {
+  $('#notifPanel').hidden = true;
+  $('#notifBackdrop').hidden = true;
+  document.body.classList.remove('sidepage-open');
+}
+
+updateNotifBadge();
+$('#notificationsButton').addEventListener('click', () => {
+  if (isNotifOpen()) closeNotifPanel(); else openNotifPanel();
 });
-$('#taskHistoryDialog').querySelector('.dialog-close')
-  .addEventListener('click', () => $('#taskHistoryDialog').close());
-$('#taskHistoryDialog').addEventListener('click', event => {
-  if (event.target === $('#taskHistoryDialog')) $('#taskHistoryDialog').close();
-});
+$('#closeNotifPanel').addEventListener('click', closeNotifPanel);
+$('#notifBackdrop').addEventListener('click', closeNotifPanel);
+
+/* ---------- тот же стек уведомлений, но в углу (макс. 3 + очередь) ---------- */
+
+function renderFloatingCard(id) {
+  const data = floatingData.get(id);
+  const el = document.getElementById(`notif-float-${id}`);
+  if (!data || !el) return;
+  el.innerHTML = notifBlockHtml(id, data, {closable: true});
+  wireNotifBlock(el, id, data, {closable: true});
+}
+
+function promoteFloatingQueue() {
+  while (floatingOrder.length < MAX_VISIBLE_NOTIFS && floatingQueue.length) {
+    const id = floatingQueue.shift();
+    if (floatingDismissed.has(id) || !floatingData.has(id)) continue;
+    floatingOrder.push(id);
+    createFloatingCard(id);
+  }
+}
+
+function createFloatingCard(id) {
+  const data = floatingData.get(id);
+  if (!data) return;
+  const el = document.createElement('div');
+  el.id = `notif-float-${id}`;
+  el.className = 'notif-float-item';
+  el.innerHTML = notifBlockHtml(id, data, {closable: true});
+  $('#notifStack').appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  wireNotifBlock(el, id, data, {closable: true});
+  if (data.kind === 'toast') scheduleFloatingDismiss(id);
+}
+
+function scheduleFloatingDismiss(id) {
+  clearTimeout(floatingTimers.get(id));
+  floatingTimers.set(id, setTimeout(() => hideFloating(id), TOAST_LIFETIME_MS));
+}
+
+function showFloating(id, data) {
+  floatingData.set(id, data);
+  if (floatingDismissed.has(id)) return; // пользователь уже закрыл эту карточку
+  if (floatingOrder.includes(id)) { renderFloatingCard(id); return; }
+  if (floatingQueue.includes(id)) return; // уже ждёт своей очереди, просто обновили данные
+  if (floatingOrder.length < MAX_VISIBLE_NOTIFS) {
+    floatingOrder.push(id);
+    createFloatingCard(id);
+  } else {
+    floatingQueue.push(id);
+  }
+}
+
+function hideFloating(id) {
+  clearTimeout(floatingTimers.get(id));
+  floatingTimers.delete(id);
+  const queueIndex = floatingQueue.indexOf(id);
+  if (queueIndex !== -1) floatingQueue.splice(queueIndex, 1);
+  const orderIndex = floatingOrder.indexOf(id);
+  if (orderIndex === -1) return;
+  floatingOrder.splice(orderIndex, 1);
+  const el = document.getElementById(`notif-float-${id}`);
+  if (el) {
+    el.classList.remove('show');
+    el.classList.add('leaving');
+    setTimeout(() => el.remove(), 260);
+  }
+  promoteFloatingQueue();
+}
 
 /* ---------- вход ---------- */
 
@@ -1173,6 +1300,7 @@ function setContentType(value) {
 /* ---------- боковая панель ---------- */
 
 function openSidepage(tab = ui.sidepageTab) {
+  closeNotifPanel();
   showSidepageTab(tab);
   $('#sidepage').hidden = false;
   $('#sidepageBackdrop').hidden = false;
@@ -2792,6 +2920,97 @@ function renderDevices() {
       </footer></article>`;
   }).join('');
   renderProcessing(ui.devices.find(device => device.job?.active));
+  syncDeviceJobNotifications();
+}
+
+// Сканирование устройства идёт своим долгим процессом — та же логика и тот же
+// вид, что у пересборки групп: список этапов (какие включены — по features
+// задачи), отметка пройденных, прогресс и время на текущем, карточка в
+// уведомлениях (и в углу, и в панели), пока задача активна. Отдельно от
+// подробного баннера на вкладке «Скан» — он никуда не делся.
+const deviceJobTracking = new Set();
+const SCAN_PHASE_ORDER = [
+  {key: 'inventory', always: true},
+  {key: 'faces', flag: 'faces'},
+  {key: 'authenticity', flag: 'authenticity'},
+  {key: 'visual', flag: f => f.visual || f.ocr || f.caption},
+  {key: 'ocr', flag: 'ocr'},
+  {key: 'caption', flag: 'caption'},
+  {key: 'adult', flag: 'adult'},
+  {key: 'speech', flag: 'speech'},
+  {key: 'diarize', flag: 'diarize'},
+];
+
+function scanSteps(job) {
+  const features = job.features || {};
+  return SCAN_PHASE_ORDER
+    .filter(item => item.always || (typeof item.flag === 'function' ? item.flag(features) : features[item.flag]))
+    .map(item => ({key: item.key, title: jobLabels[item.key] || item.key}));
+}
+
+function scanStepIndex(steps, phase) {
+  const index = steps.findIndex(step => step.key === phase);
+  return index === -1 ? 1 : index + 1;
+}
+
+function scanOverallPercent(steps, stepIndex, job) {
+  if (!steps.length) return 0;
+  const work = jobWork(job);
+  const fraction = work.total ? Math.max(0, Math.min(1, work.done / work.total)) : 0;
+  const completed = Math.max(0, stepIndex - 1);
+  return Math.round(((completed + fraction) / steps.length) * 100);
+}
+
+function syncDeviceJobNotifications() {
+  const activeIds = new Set();
+  ui.devices.forEach(device => {
+    const job = device.job || {};
+    if (!(device.online && job.active)) return;
+    const id = `device:${device.id}`;
+    activeIds.add(id);
+    deviceJobTracking.add(id);
+    const steps = scanSteps(job);
+    const stepIndex = scanStepIndex(steps, job.phase);
+    const work = jobWork(job);
+    const determinate = work.total > 0;
+    const eta = processingEta(device);
+    const videos = job.phase === 'faces' && job.videos_done
+      ? ` · видео: ${formatNumber(job.videos_done)}` : '';
+    const progressText = (determinate
+      ? `${formatNumber(job.completed)} / ${formatNumber(work.total)} файлов`
+      : job.found ? `просмотрено ${formatNumber(job.found)}` : 'готовлюсь') + videos;
+    setJob(id, {
+      title: `Сканирование · ${device.name}`,
+      sub: `Шаг ${stepIndex} из ${steps.length}: ${jobLabels[job.phase] || 'Обработка'}`,
+      level: 'info',
+      progress: scanOverallPercent(steps, stepIndex, job),
+      spinning: true,
+      steps,
+      stepIndex,
+      stepDetail: [progressText, eta, job.current].filter(Boolean).join(' · '),
+      canStop: ui.canEdit,
+      onStop: async button => {
+        button.disabled = true;
+        try {
+          await api(`/api/backends/${encodeURIComponent(device.id)}/job/stop`, {method: 'POST', body: '{}'});
+          await loadDevices();
+        } catch (error) { toast(error.message, 'error'); }
+        finally { button.disabled = false; }
+      },
+    });
+  });
+  [...deviceJobTracking].forEach(id => {
+    if (activeIds.has(id)) return;
+    deviceJobTracking.delete(id);
+    const deviceId = id.slice('device:'.length);
+    const device = ui.devices.find(item => item.id === deviceId);
+    const status = device?.job?.status;
+    finishJob(id, {
+      title: `Сканирование · ${device ? device.name : deviceId}`,
+      level: status === 'error' ? 'error' : status === 'stopped' || status === 'interrupted' ? 'info' : 'success',
+      message: jobLabels[status] || 'Обработка завершена',
+    });
+  });
 }
 
 async function loadDevices() {
@@ -3106,11 +3325,12 @@ async function pollStatus() {
   }
   try {
     await loadDevices();
+    // Уведомление о завершении даёт syncDeviceJobNotifications() (внутри
+    // loadDevices → renderDevices) — здесь только обновляем галерею.
     const active = ui.devices.some(device => device.job?.active);
     if (ui.photoJobActive && !active) {
       ui.photoJobActive = false;
       await loadState();
-      toast('Обработка фотографий завершена');
     }
   } catch { /* сохраняем последнее состояние */ }
 }
@@ -3366,9 +3586,8 @@ $('#lightbox').addEventListener('click', event => {
 
 // Метки групп лежат в каталоге: при сканировании считаются только новые лица,
 // а полная пересборка — отдельная осознанная команда. Считается в фоне на
-// сервере (people-albums пересборка может занять минуту-другую на большом
-// каталоге), поэтому кнопка только запускает задачу — прогресс приходит
-// через pollRecluster() и карточку в правом нижнем углу.
+// сервере, поэтому кнопка только запускает задачу — прогресс приходит через
+// pollRecluster() в панель уведомлений (шаги, счётчики, время).
 function reclusterProgressPercent(job) {
   if (!job.steps_total) return 0;
   const stepFraction = job.total ? Math.max(0, Math.min(1, job.done / job.total)) : (job.done ? 1 : 0);
@@ -3376,22 +3595,65 @@ function reclusterProgressPercent(job) {
   return Math.round(((completed + stepFraction) / job.steps_total) * 100);
 }
 
+// На шаге кластеризации нет счётчика файлов (один долгий вызов HDBSCAN), но
+// можно запомнить, сколько это занимало в прошлый раз на похожем объёме лиц —
+// тот же приём, что уже используется для ETA задач с устройства.
+function reclusterEtaKey(facesTotal) {
+  return `recluster:cluster:${Math.round((facesTotal || 0) / 1000)}`;
+}
+
+function trackReclusterTiming(job) {
+  const prev = ui.reclusterLastJob;
+  ui.reclusterLastJob = job;
+  if (!prev || prev.step !== 'cluster' || job.step === 'cluster') return;
+  if (!prev.step_started_at || !job.step_started_at || !prev.faces_total) return;
+  const duration = job.step_started_at - prev.step_started_at;
+  if (duration < 1) return;
+  const key = reclusterEtaKey(prev.faces_total);
+  const observed = ui.etaProfiles[key];
+  ui.etaProfiles[key] = observed ? observed * .6 + duration * .4 : duration;
+  localStorage.setItem('homecloud-eta-profiles', JSON.stringify(ui.etaProfiles));
+}
+
+function reclusterStepDetail(job) {
+  const now = Date.now() / 1000;
+  const elapsed = job.step_started_at ? Math.max(0, now - job.step_started_at) : 0;
+  if (job.step === 'cluster') {
+    const bits = [`${formatNumber(job.faces_total)} лиц`, `идёт ${formatDuration(elapsed)}`];
+    const learned = ui.etaProfiles[reclusterEtaKey(job.faces_total)];
+    if (learned && learned > elapsed + 1) bits.push(`обычно ~${formatDuration(learned)}`);
+    return bits.join(' · ');
+  }
+  if (job.total > 1) {
+    const bits = [`${formatNumber(job.done)} / ${formatNumber(job.total)} файлов`];
+    if (elapsed > .6) bits.push(`прошло ${formatDuration(elapsed)}`);
+    if (job.done > 0 && job.done < job.total && elapsed > .6) {
+      const rate = job.done / elapsed;
+      if (rate > 0) bits.push(`осталось ~${formatDuration((job.total - job.done) / rate)}`);
+    }
+    return bits.join(' · ');
+  }
+  return elapsed > .6 ? `прошло ${formatDuration(elapsed)}` : '';
+}
+
 function renderReclusterJob(job) {
-  const steps = job.steps || [];
+  trackReclusterTiming(job);
   const running = job.status === 'running';
-  const finished = ['completed', 'stopped', 'error'].includes(job.status);
-  const level = job.status === 'error' ? 'error' : job.status === 'completed' ? 'success' : 'info';
-  let sub = job.message || '';
-  if (running && job.total > 1) sub += ` · ${formatNumber(job.done)} / ${formatNumber(job.total)}`;
-  renderTaskCard('recluster', {
+  const overallElapsed = job.started_at ? Math.max(0, Date.now() / 1000 - job.started_at) : 0;
+  const sub = running
+    ? `${job.message || ''} · шаг ${job.step_index} из ${job.steps_total} · всего прошло ${formatDuration(overallElapsed)}`
+    : (job.message || '');
+  setJob('recluster', {
     title: 'Пересборка групп лиц',
     sub,
-    level,
-    progress: running ? reclusterProgressPercent(job) : (job.status === 'completed' ? 100 : null),
-    steps,
-    stepIndex: finished ? steps.length + 1 : (job.step_index || 1),
+    level: job.status === 'error' ? 'error' : 'info',
+    progress: running ? reclusterProgressPercent(job) : null,
     spinning: running,
-    stopAction: running ? stopRecluster : null,
+    steps: job.steps || [],
+    stepIndex: job.step_index || 1,
+    stepDetail: reclusterStepDetail(job),
+    canStop: running,
+    onStop: stopRecluster,
   });
 }
 
@@ -3413,19 +3675,18 @@ async function pollRecluster() {
   }
   if (!ui.reclusterTracking) return;
   ui.reclusterTracking = false;
-  renderReclusterJob(job);
+  ui.reclusterLastJob = null;
   if (job.status === 'completed') {
     try {
       ui.state = await api('/api/state');
       renderStats(); renderPeople(); renderReview(); renderPersonFilters();
     } catch { /* обновится на следующем обычном опросе */ }
   }
-  pushHistory({
-    kind: 'job', title: 'Пересборка групп лиц',
+  finishJob('recluster', {
+    title: 'Пересборка групп лиц',
     level: job.status === 'error' ? 'error' : job.status === 'stopped' ? 'info' : 'success',
     message: job.status === 'error' ? (job.error || 'Ошибка пересборки') : job.message,
   });
-  finishTask('recluster', {delay: job.status === 'error' ? 6000 : 3600});
 }
 
 $('#reclusterButton').addEventListener('click', async () => {
@@ -3434,6 +3695,7 @@ $('#reclusterButton').addEventListener('click', async () => {
   try {
     await api('/api/recluster/start', {method: 'POST', body: '{}'});
     ui.reclusterTracking = true;
+    floatingDismissed.delete('recluster'); // новый запуск — карточка вправе появиться снова
     await pollRecluster();
   } catch (error) { toast(error.message, 'error'); }
 });
@@ -3446,10 +3708,17 @@ $('#undoButton').addEventListener('click', async () => {
   } catch (error) { toast(error.message); }
 });
 
-$('#themeButton').addEventListener('click', () => {
-  const dark = document.documentElement.dataset.theme !== 'dark';
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  localStorage.setItem('theme', dark ? 'dark' : 'light');
+/* ---------- тема оформления (настройки) ---------- */
+
+function applyTheme(mode) {
+  if (mode === 'light' || mode === 'dark') document.documentElement.dataset.theme = mode;
+  else delete document.documentElement.dataset.theme;
+}
+
+$('#themeMode').addEventListener('change', event => {
+  const mode = event.target.value;
+  localStorage.setItem('theme', mode);
+  applyTheme(mode);
 });
 
 $('#addBackendButton').addEventListener('click', () => openBackendDialog());
@@ -3801,6 +4070,7 @@ document.addEventListener('keydown', event => {
     $('#searchInput').focus();
   }
   if (event.key === 'Escape' && !$('#sidepage').hidden) closeSidepage();
+  if (event.key === 'Escape' && isNotifOpen()) closeNotifPanel();
   if (event.key === 'Escape' && ui.selectedGroups.size && !$('#groupDialog').open) {
     ui.selectedGroups.clear();
     renderPeople();
@@ -3830,6 +4100,7 @@ async function boot() {
   ui.timers.poll = setInterval(() => { if (!document.hidden) pollStatus(); }, 1500);
 }
 
-const savedTheme = localStorage.getItem('theme');
-if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+const savedTheme = localStorage.getItem('theme') || 'system';
+applyTheme(savedTheme);
+$('#themeMode').value = savedTheme;
 boot().catch(error => toast(error.message));

@@ -7,7 +7,7 @@ param(
     [string]$RemotePath  = '/opt/homecloud',
     [string]$IdentityFile = (Join-Path $env:USERPROFILE '.ssh\id_ed25519_pve'),
     [string]$BackendUrl  = 'http://192.168.1.10:18311',
-    [string]$TokenFile   = 'C:\Users\amagomedsharipov\Documents\Codex\2026-09-10\https-github-com-reconurge-flowsint-https-2\outputs\photo-prototype\backend-token.txt',
+    [string]$TokenFile   = 'F:\services\homecloud-core\backend-token.txt',
     [switch]$SkipRestart
 )
 

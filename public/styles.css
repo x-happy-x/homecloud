@@ -1194,88 +1194,82 @@ dialog::backdrop { background: rgb(10 16 15 / 62%); backdrop-filter: blur(3px); 
 
 .tabbar { display: none; }
 
-/* ---------- уведомления и фоновые задачи (правый нижний угол) ---------- */
+/* ---------- уведомления (выезжающая панель) ---------- */
 
-.task-center {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 70;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-  max-width: min(380px, calc(100vw - 28px));
-  pointer-events: none;
+.notif-badge {
+  position: absolute;
+  top: 4px; right: 4px;
+  min-width: 15px; height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--rose);
+  color: #fff;
+  font-size: .62rem;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
 }
-.task-center-list { display: flex; flex-direction: column-reverse; gap: 10px; width: 100%; }
-.task-center-history {
-  pointer-events: auto;
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-  color: var(--ink-2);
-  box-shadow: var(--shadow);
-  cursor: pointer;
-  font-size: 1rem;
-  display: none;
-  align-items: center;
-  justify-content: center;
-}
-.task-center-history.show { display: flex; }
+.notif-badge.pulse { background: var(--patina); animation: notif-pulse 1.4s ease-in-out infinite; }
+#notificationsButton { position: relative; }
+#notificationsButton.flash { animation: notif-flash .7s ease; }
 
-.task-card {
-  pointer-events: auto;
-  width: 100%;
+@keyframes notif-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--patina) 55%, transparent); }
+  50% { box-shadow: 0 0 0 5px transparent; }
+}
+@keyframes notif-flash {
+  0%, 100% { transform: none; color: inherit; }
+  30% { transform: scale(1.18); color: var(--patina); }
+}
+
+.notif-body { display: flex; flex-direction: column; gap: 14px; }
+.notif-section-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); padding: 0 2px; }
+.notif-empty { color: var(--muted); font-size: .84rem; padding: 6px 2px; }
+
+.notif-job {
   border: 1px solid var(--line);
   border-radius: var(--r-m);
-  background: color-mix(in srgb, var(--surface-2) 96%, transparent);
-  box-shadow: var(--shadow-lift);
-  backdrop-filter: blur(14px);
+  background: var(--surface-2);
   overflow: hidden;
-  opacity: 0;
-  transform: translateY(12px);
-  transition: opacity .22s ease, transform .26s cubic-bezier(.2, .8, .3, 1);
 }
-.task-card.show { opacity: 1; transform: translateY(0); }
-.task-card.leaving { opacity: 0; transform: translateY(6px) scale(.98); }
-
-.task-card-head { display: flex; align-items: center; gap: 10px; padding: 11px 12px; cursor: pointer; }
-.task-card-icon { width: 26px; height: 26px; flex: none; display: grid; place-items: center;
+.notif-job.level-error { border-color: color-mix(in srgb, var(--rose) 45%, var(--line)); }
+.notif-job-head { display: flex; align-items: center; gap: 10px; padding: 11px 12px; cursor: pointer; }
+.notif-job-icon { width: 26px; height: 26px; flex: none; display: grid; place-items: center;
   border-radius: 50%; background: var(--patina-soft); color: var(--patina); font-size: .85rem; }
-.task-card.level-error .task-card-icon { background: var(--rose-soft); color: var(--rose); }
-.task-card-icon.spin { animation: task-spin 1s linear infinite; }
-.task-card-body { flex: 1; min-width: 0; }
-.task-card-title { font-size: .84rem; font-weight: 600; color: var(--ink); }
-.task-card-sub { font-size: .74rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap; }
-.task-card-caret { color: var(--muted); font-size: .7rem; transition: transform .2s; flex: none; }
-.task-card.expanded .task-card-caret { transform: rotate(180deg); }
-.task-card-close { flex: none; border: none; background: none; color: var(--muted); cursor: pointer;
-  font-size: .95rem; line-height: 1; padding: 2px; }
-.task-card-close:hover { color: var(--ink); }
+.notif-job.level-error .notif-job-icon { background: var(--rose-soft); color: var(--rose); }
+.notif-job-icon.spin { animation: task-spin 1s linear infinite; }
+.notif-job-body { flex: 1; min-width: 0; }
+.notif-job-title { font-size: .86rem; font-weight: 600; color: var(--ink); }
+.notif-job-sub { font-size: .75rem; color: var(--muted); }
+.notif-job-caret { color: var(--muted); font-size: .7rem; transition: transform .2s; flex: none; }
+.notif-job.expanded .notif-job-caret { transform: rotate(180deg); }
 
-.task-card-bar { height: 4px; background: var(--ground); }
-.task-card-bar span { display: block; height: 100%; width: 0; background: var(--patina);
+.notif-job-bar { height: 4px; background: var(--ground); }
+.notif-job-bar span { display: block; height: 100%; width: 0; background: var(--patina);
   transition: width .35s ease; }
-.task-card.level-error .task-card-bar span { background: var(--rose); }
-.task-card-bar.indeterminate span { width: 30% !important; animation: slide 1.3s infinite ease-in-out; }
+.notif-job.level-error .notif-job-bar span { background: var(--rose); }
+.notif-job-bar.indeterminate span { width: 30% !important; animation: slide 1.3s infinite ease-in-out; }
 
-.task-card-details { max-height: 0; overflow: hidden; transition: max-height .25s ease; }
-.task-card.expanded .task-card-details { max-height: 320px; overflow-y: auto; }
-.task-card-steps { list-style: none; margin: 0; padding: 10px 12px 4px; display: flex;
-  flex-direction: column; gap: 6px; }
-.task-card-step { display: flex; align-items: center; gap: 8px; font-size: .76rem; color: var(--muted); }
-.task-card-step .dot { width: 16px; height: 16px; flex: none; border-radius: 50%;
+.notif-job-details { max-height: 0; overflow: hidden; transition: max-height .25s ease; }
+.notif-job.expanded .notif-job-details { max-height: 420px; }
+.notif-job-steps { list-style: none; margin: 0; padding: 10px 12px 4px; display: flex;
+  flex-direction: column; gap: 8px; }
+.notif-job-step { display: flex; align-items: flex-start; gap: 8px; font-size: .78rem; color: var(--muted); }
+.notif-job-step .dot { width: 16px; height: 16px; flex: none; margin-top: 1px; border-radius: 50%;
   border: 1.5px solid var(--line); display: grid; place-items: center; font-size: .6rem; }
-.task-card-step.done { color: var(--ink-2); }
-.task-card-step.done .dot { background: var(--patina); border-color: var(--patina); color: var(--patina-ink); }
-.task-card-step.active { color: var(--ink); font-weight: 600; }
-.task-card-step.active .dot { border-color: var(--patina); color: var(--patina);
+.notif-job-step-body { display: flex; flex-direction: column; gap: 2px; }
+.notif-job-step.done { color: var(--ink-2); }
+.notif-job-step.done .dot { background: var(--patina); border-color: var(--patina); color: var(--patina-ink); }
+.notif-job-step.active { color: var(--ink); font-weight: 600; }
+.notif-job-step.active .dot { border-color: var(--patina); color: var(--patina);
   animation: task-pulse 1.2s ease-in-out infinite; }
-.task-card-step-progress { padding: 0 12px 2px 34px; color: var(--muted); font: .7rem var(--mono); }
-.task-card-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 12px 12px; }
+.notif-job-step-detail { font-weight: 400; color: var(--muted); font: .72rem var(--mono); }
+.notif-job-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 12px 12px; }
+.notif-job-head.no-expand { cursor: default; }
+.notif-job-close { flex: none; border: none; background: none; color: var(--muted); cursor: pointer;
+  font-size: .95rem; line-height: 1; padding: 2px; align-self: flex-start; }
+.notif-job-close:hover { color: var(--ink); }
 
 @keyframes task-spin { to { transform: rotate(360deg); } }
 @keyframes task-pulse {
@@ -1283,14 +1277,39 @@ dialog::backdrop { background: rgb(10 16 15 / 62%); backdrop-filter: blur(3px); 
   50% { box-shadow: 0 0 0 4px transparent; }
 }
 
-.task-history-sheet { width: min(420px, calc(100vw - 32px)); }
-.task-history-list { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column;
-  gap: 4px; padding: 4px 0 8px; }
-.task-history-item { display: flex; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--line-soft);
+.task-history-list { display: flex; flex-direction: column; gap: 2px; }
+.task-history-item { display: flex; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--line-soft);
   font-size: .8rem; }
 .task-history-item:last-child { border-bottom: none; }
-.task-history-time { flex: none; color: var(--muted); font: .7rem var(--mono); min-width: 46px; }
-.task-history-empty { color: var(--muted); font-size: .82rem; padding: 12px 4px; }
+.task-history-time { flex: none; color: var(--muted); font: .7rem var(--mono); min-width: 40px; padding-top: 1px; }
+.task-history-empty { color: var(--muted); font-size: .82rem; padding: 12px 2px; }
+
+/* ---------- всплывающие уведомления в углу (макс. 3, остальное в очереди) ---------- */
+
+.notif-stack {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 70;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  width: min(360px, calc(100vw - 28px));
+  pointer-events: none;
+}
+.notif-float-item {
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity .22s ease, transform .26s cubic-bezier(.2, .8, .3, 1);
+}
+.notif-float-item.show { opacity: 1; transform: translateY(0); }
+.notif-float-item.leaving { opacity: 0; transform: translateY(6px) scale(.98); pointer-events: none; }
+.notif-float-item .notif-job {
+  background: color-mix(in srgb, var(--surface-2) 96%, transparent);
+  box-shadow: var(--shadow-lift);
+  backdrop-filter: blur(14px);
+}
 
 /* ---------- адаптив ---------- */
 
@@ -1318,7 +1337,7 @@ dialog::backdrop { background: rgb(10 16 15 / 62%); backdrop-filter: blur(3px); 
   .page-head { padding: 8px 0 14px; }
   main { padding-bottom: 96px; }
   .action-bar { bottom: 84px; }
-  .task-center { bottom: 84px; }
+  .notif-stack { bottom: 84px; }
 
   .tabbar {
     position: fixed;

@@ -7,7 +7,7 @@
 | Где | Что | Почему |
 | --- | --- | --- |
 | Proxmox `s1` 192.168.99.10, `/opt/homecloud` | Node без зависимостей: статика `public/`, вход через bigfam, реестр устройств и обратный прокси на `/api` и `/media`. Служба `homecloud.service`, порт **4180**, рядом с bigfam (4173). | Ни моделей, ни зависимостей: только Node из базовой системы. |
-| Windows `PC-X` 192.168.1.10, `outputs\photo-prototype` | `web_server.py` в режиме API+медиа и агента сканирования, порт **18311**, плюс окружения, модели, каталоги и оригиналы. | GPU, ONNX Runtime, InsightFace, SigLIP, PaddleOCR и Qwen3-VL остаются у железа. |
+| Windows `PC-X` 192.168.1.10, `F:\services\homecloud-core` | `web_server.py` в режиме API+медиа и агента сканирования, порт **18311**, плюс окружения, модели, каталоги и оригиналы. | GPU, ONNX Runtime, InsightFace, SigLIP, PaddleOCR и Qwen3-VL остаются у железа. |
 
 Открывать: **http://192.168.99.10:4180/**
 
@@ -214,7 +214,7 @@ OCR использует визуальный индекс как подгото
 ## Запуск бэкенда на Windows
 
 ```powershell
-cd C:\Users\amagomedsharipov\Documents\Codex\2026-09-10\https-github-com-reconurge-flowsint-https-2\outputs\photo-prototype
+cd F:\services\homecloud-core
 .\backend.ps1
 ```
 
