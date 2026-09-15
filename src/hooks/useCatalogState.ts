@@ -9,5 +9,7 @@ import {useStore} from '../store';
  */
 export function useCatalogState() {
   const hideAdult = useStore(state => state.prefs.adultMode === 'hide');
-  return useQuery({queryKey: qk.state(hideAdult), queryFn: () => getState(hideAdult)});
+  // До входа каталог отвечает 401 — спрашивать его незачем.
+  const signedIn = useStore(state => Boolean(state.session.user));
+  return useQuery({queryKey: qk.state(hideAdult), queryFn: () => getState(hideAdult), enabled: signedIn});
 }
