@@ -194,6 +194,7 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
   const src = retry ? withRetry(mediaUrl, retry) : mediaUrl;
   const mediaKey = photo ? `${photo.path}|${movie ? 'video' : 'photo'}|${mediaUrl}|${retry}` : '';
   const readyForVideoSearch = movie && mediaStatus === 'ready' && !player.seeking && Boolean(video.current?.videoWidth);
+  const showVideoPoster = movie && !player.playing && player.current < 0.05;
 
   useEffect(() => {
     if (!open) return;
@@ -506,6 +507,7 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
               )}
               {movie
                 ? (
+                  <>
                     <video
                       key={mediaKey}
                       ref={video}
@@ -536,6 +538,24 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
                         ...state, volume: event.currentTarget.volume, muted: event.currentTarget.muted,
                       }))}
                     />
+                    {showVideoPoster && (
+                      <>
+                        <img
+                          className="viewer-video-poster"
+                          src={imageUrl}
+                          alt=""
+                          style={mediaStyle(transform)}
+                          aria-hidden="true"
+                        />
+                        {mediaStatus !== 'error' && (
+                          <button className="viewer-video-play viewer-ui" type="button" aria-label="Воспроизвести видео"
+                            onClick={togglePlay}>
+                            <Icon name="play" />
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </>
                   )
                 : (
                     <img

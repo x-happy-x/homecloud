@@ -27,8 +27,15 @@
 .viewer.is-zoomed .viewer-media-shell { cursor: grab; }
 .viewer-media-shell img,
 .viewer-media-shell video {
+  justify-self: center;
+  align-self: center;
+  width: auto;
+  height: auto;
   max-width: 100%;
   max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: auto;
   object-fit: contain;
   display: block;
   background: #000;
@@ -39,6 +46,33 @@
 }
 .viewer.is-zoomed .viewer-media-shell img,
 .viewer.is-zoomed .viewer-media-shell video { transition: none; }
+.viewer-video-poster {
+  position: absolute;
+  z-index: 1;
+  background: #000;
+  pointer-events: none;
+}
+.viewer-video-play {
+  position: absolute;
+  z-index: 2;
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 90%);
+  color: #111;
+  box-shadow: 0 18px 60px rgb(0 0 0 / 38%);
+  backdrop-filter: blur(8px);
+}
+.viewer-video-play svg {
+  width: 32px;
+  height: 32px;
+  margin-left: 3px;
+  fill: currentColor;
+}
+.viewer-video-play:hover { background: #fff; }
 .viewer.bare .viewer-stage { inset: 0; }
 .viewer.with-info .viewer-stage { inset: 62px 380px 78px 0; }
 .viewer.bare.with-info .viewer-stage { inset: 0 380px 0 0; }
