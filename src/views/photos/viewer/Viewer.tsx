@@ -437,7 +437,7 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
   };
 
   const handleWheel = (event: ReactWheelEvent<HTMLElement>) => {
-    if (!isMediaTarget(event.target)) return;
+    if (!isMediaElementTarget(event.target)) return;
     event.preventDefault();
     showChrome();
     const rect = stage.current?.getBoundingClientRect();
@@ -447,7 +447,7 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
   };
 
   const handleDoubleClick = (event: React.MouseEvent<HTMLElement>) => {
-    if (!isMediaTarget(event.target)) return;
+    if (!isMediaElementTarget(event.target)) return;
     event.preventDefault();
     const rect = stage.current?.getBoundingClientRect();
     const origin = {x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0)};
@@ -481,12 +481,16 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
           <div
             ref={stage}
             className="viewer-stage"
+            onClickCapture={event => {
+              if (!isMediaElementTarget(event.target) && !isUiTarget(event.target)) return;
+              event.stopPropagation();
+            }}
             onClick={event => {
               if (ignoreClick.current) {
                 ignoreClick.current = false;
                 return;
               }
-              if (isUiTarget(event.target) || isMediaTarget(event.target)) return;
+              if (isUiTarget(event.target) || isMediaElementTarget(event.target)) return;
               onClose();
             }}
             onDoubleClick={handleDoubleClick}
@@ -583,16 +587,6 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
               {movie && (player.buffering || mediaStatus === 'loading') && <div className="viewer-buffering" />}
             </div>
 
-            {many && transform.scale <= 1.02 && (
-              <>
-                <button className="viewer-nav prev viewer-ui" type="button" aria-label="Предыдущая" onClick={() => go(-1)}>
-                  <Icon name="chevronLeft" />
-                </button>
-                <button className="viewer-nav next viewer-ui" type="button" aria-label="Следующая" onClick={() => go(1)}>
-                  <Icon name="chevronRight" />
-                </button>
-              </>
-            )}
           </div>
 
           <header className="viewer-bar top viewer-ui">
@@ -841,8 +835,8 @@ function isUiTarget(target: EventTarget): boolean {
   return Boolean((target as HTMLElement).closest?.('.viewer-ui, button, a, input, .viewer-sheet'));
 }
 
-function isMediaTarget(target: EventTarget): boolean {
-  return Boolean((target as HTMLElement).closest?.('.viewer-media-shell'));
+function isMediaElementTarget(target: EventTarget): boolean {
+  return Boolean((target as HTMLElement).closest?.('.viewer-media-shell img, .viewer-media-shell video'));
 }
 
 function withRetry(url: string, retry: number): string {
