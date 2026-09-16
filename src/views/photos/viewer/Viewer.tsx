@@ -428,6 +428,10 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
       const dx = end.x - start.x;
       const dy = end.y - start.y;
       if (shouldSwipe(dx, dy, transform.scale)) go(dx < 0 ? 1 : -1);
+      else if (Math.abs(dy) >= 60 && Math.abs(dy) > Math.abs(dx)) {
+        if (dy > 0) onClose();
+        else toggleInfo(true);
+      }
     }
     if (pointers.current.size < 2) gesture.current.pinching = false;
   };
@@ -482,9 +486,8 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
                 ignoreClick.current = false;
                 return;
               }
-              if (isUiTarget(event.target)) return;
-              if (isMediaTarget(event.target)) toggleChrome();
-              else onClose();
+              if (isUiTarget(event.target) || isMediaTarget(event.target)) return;
+              onClose();
             }}
             onDoubleClick={handleDoubleClick}
             onWheel={handleWheel}

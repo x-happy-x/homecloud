@@ -20,7 +20,6 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): {dragged: Ref
       if (event.button !== 0) return;
       drag = {x: event.clientX, left: element.scrollLeft, moved: false};
       element.classList.add('dragging');
-      element.setPointerCapture(event.pointerId);
     };
 
     const move = (event: PointerEvent) => {
@@ -35,9 +34,6 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): {dragged: Ref
       dragged.current = drag.moved;
       drag = null;
       element.classList.remove('dragging');
-      if (element.hasPointerCapture(event.pointerId)) {
-        element.releasePointerCapture(event.pointerId);
-      }
     };
 
     const wheel = (event: WheelEvent) => {
