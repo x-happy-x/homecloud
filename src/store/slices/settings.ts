@@ -8,23 +8,21 @@ export interface SettingsSlice {
     /**
      * Черновик формы настроек. Раньше состоянием была сама разметка: одна
      * функция вычитывала значения из DOM, другая соскребала их обратно.
+     * Что изменено, экран считает сравнением с ответом сервера: флаг
+     * «грязно» врал, когда значение возвращали к прежнему руками.
      */
     draft: SettingsValues;
-    dirty: boolean;
   };
   loadSettingsDraft(values: SettingsValues): void;
   setSetting(key: string, value: string | number | boolean): void;
-  markSettingsSaved(): void;
 }
 
 export const createSettingsSlice: StateCreator<Store, [], [], SettingsSlice> = set => ({
-  settings: {draft: {}, dirty: false},
+  settings: {draft: {}},
 
-  loadSettingsDraft: values => set({settings: {draft: {...values}, dirty: false}}),
+  loadSettingsDraft: values => set({settings: {draft: {...values}}}),
 
   setSetting: (key, value) => set(state => ({
-    settings: {draft: {...state.settings.draft, [key]: value}, dirty: true},
+    settings: {draft: {...state.settings.draft, [key]: value}},
   })),
-
-  markSettingsSaved: () => set(state => ({settings: {...state.settings, dirty: false}})),
 });

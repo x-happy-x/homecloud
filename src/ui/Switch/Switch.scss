@@ -1,0 +1,36 @@
+.switch {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  width: 44px;
+  height: 26px;
+  cursor: pointer;
+}
+.switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.switch-track {
+  border-radius: 999px;
+  background: var(--line);
+  transition: background .18s;
+}
+.switch-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+  transition: transform .18s;
+}
+.switch input:checked + .switch-track { background: var(--patina); }
+.switch input:checked + .switch-track::after { transform: translateX(18px); }
+.switch input:focus-visible + .switch-track { outline: 2px solid var(--patina); outline-offset: 2px; }
+.switch:has(input:disabled) { opacity: .5; cursor: default; }

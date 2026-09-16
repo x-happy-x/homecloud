@@ -1,39 +1,39 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import './SettingsView.scss';
-import {FolderPickerDialog, type PickedFolder} from '../../components/FolderPicker/FolderPickerDialog';
+import {FolderPickerDialog} from '../../components/FolderPicker/FolderPickerDialog';
 import {formatNumber, plural} from '../../lib/format';
-import {getSettings, saveSettings} from '../../services/endpoints/settings';
+import {getSettings, saveSettings, type SettingsResponse} from '../../services/endpoints/settings';
 import {qk} from '../../services/queryKeys';
 import {queryClient} from '../../services/queryClient';
 import {useStore} from '../../store';
-import type {AdultMode} from '../../types/domain';
 import type {ThemeMode} from '../../store/slices/prefs';
+import type {AdultMode} from '../../types/domain';
 import {Button} from '../../ui/Button/Button';
-import {CheckRow} from '../../ui/CheckRow/CheckRow';
-import {Field, NumberField, SelectField, TextField} from '../../ui/Field/Field';
-import {HintLine} from '../../ui/Hint/Hint';
+import {EmptyState} from '../../ui/EmptyState/EmptyState';
+import {Icon} from '../../ui/Icon/Icon';
+import {InlineSearch} from '../../ui/InlineSearch/InlineSearch';
 import {SegmentNav} from '../../ui/SegmentNav/SegmentNav';
+import {Switch} from '../../ui/Switch/Switch';
 import {ViewHeader} from '../../ui/ViewHeader/ViewHeader';
+import {SettingRow, type VisualModel} from './SettingRow';
+import {appendLines, changedKeys, isVisible, searchSections, type SettingsValues} from './settingsModel';
 import {
-  ADULT_OPTIONS, SETTINGS_GROUPS, SETTINGS_SECTIONS, THEME_OPTIONS,
-  type SettingField, type SettingsGroupId, type SettingsSection,
+  SETTINGS_GROUPS, SETTINGS_SECTIONS,
+  type SettingValue, type SettingsGroupId, type SettingsSection,
 } from './settingsSchema';
 
-interface VisualModel {
-  id: string;
-  name?: string;
-  note?: string;
-  installed?: boolean;
-}
+const GROUP_TITLE = Object.fromEntries(SETTINGS_GROUPS.map(group => [group.id, group.title]));
+
+const SECTION_BY_KEY = new Map(
+  SETTINGS_SECTIONS.flatMap(section => section.fields.map(field => [field.key, section] as const)),
+);
 
 export function SettingsView({excluded = 0}: {excluded?: number}) {
   const canEdit = useStore(state => state.session.canEdit);
   const draft = useStore(state => state.settings.draft);
-  const dirty = useStore(state => state.settings.dirty);
   const loadDraft = useStore(state => state.loadSettingsDraft);
   const setSetting = useStore(state => state.setSetting);
-  const markSaved = useStore(state => state.markSettingsSaved);
   const toast = useStore(state => state.toast);
 
   const theme = useStore(state => state.prefs.theme);
@@ -42,21 +42,27 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
   const setAdultMode = useStore(state => state.setAdultMode);
 
   const [group, setGroup] = useState<SettingsGroupId>('recognition');
-  const [pickSettingKey, setPickSettingKey] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [pickKey, setPickKey] = useState<string | null>(null);
 
   const settings = useQuery({queryKey: qk.settings(), queryFn: getSettings});
+  const saved = settings.data?.settings;
 
   // Ответ сервера — источник истины для черновика формы.
   useEffect(() => {
-    if (settings.data) loadDraft(settings.data.settings);
-  }, [settings.data, loadDraft]);
+    if (saved) loadDraft(saved);
+  }, [saved, loadDraft]);
+
+  const changed = useMemo(() => changedKeys(draft, saved), [draft, saved]);
+  const changedSet = useMemo(() => new Set(changed), [changed]);
 
   const save = useMutation({
-    // Отправляем объект целиком, как и раньше: бэкенд ждёт полный набор.
+    // Отправляем объект целиком: бэкенд ждёт полный набор.
     mutationFn: () => saveSettings(draft),
     onSuccess: data => {
-      markSaved();
       loadDraft(data.settings);
+      // Ответ на сохранение без списка моделей и умолчаний — их берём из прежнего.
+      queryClient.setQueryData<SettingsResponse>(qk.settings(), old => old && {...old, settings: data.settings});
       // Правила путей применяются сразу — каталог и галерея должны это увидеть.
       queryClient.invalidateQueries({queryKey: ['state']});
       queryClient.invalidateQueries({queryKey: ['photos']});
@@ -68,196 +74,253 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
     },
   });
 
-  const models = (settings.data?.visual_models ?? []) as VisualModel[];
+  const canSave = canEdit && changed.length > 0 && !save.isPending;
 
-  const appendPathSetting = (target: PickedFolder) => {
-    const key = pickSettingKey;
-    if (!key) return;
-    const current = String(draft[key] ?? '');
-    const rules = current.split('\n').map(rule => rule.trim()).filter(Boolean);
-    if (!rules.some(rule => rule.toLowerCase() === target.path.toLowerCase())) {
-      setSetting(key, [...rules, target.path].join('\n'));
-    }
-    setPickSettingKey(null);
-  };
-
-  const renderField = (field: SettingField) => {
-    const value = draft[field.key];
-    switch (field.kind) {
-      case 'check':
-        return (
-          <CheckRow
-            key={field.key}
-            checked={Boolean(value)}
-            disabled={!canEdit}
-            onChange={next => setSetting(field.key, next)}
-          >
-            {field.label}
-          </CheckRow>
-        );
-      case 'number':
-        return (
-          <NumberField
-            key={field.key}
-            label={field.label}
-            hint={field.hint}
-            value={Number(value ?? 0)}
-            min={field.min}
-            max={field.max}
-            step={field.step}
-            disabled={!canEdit}
-            onChange={next => setSetting(field.key, next)}
-          />
-        );
-      case 'select':
-        return (
-          <SelectField
-            key={field.key}
-            label={field.label}
-            hint={field.hint}
-            value={String(value ?? '')}
-            options={field.options}
-            disabled={!canEdit}
-            onChange={next => setSetting(field.key, next)}
-          />
-        );
-      case 'visualModel':
-        return (
-          <Field key={field.key} label={field.label} hint={field.hint}>
-            {id => (
-              <select
-                id={id}
-                value={String(value ?? '')}
-                disabled={!canEdit}
-                onChange={event => setSetting(field.key, event.target.value)}
-              >
-                {models.map(model => (
-                  // Ещё не скачанную модель выбрать нельзя — индексировать нечем.
-                  <option key={model.id} value={model.id} disabled={!model.installed}>
-                    {model.name ?? model.id} — {model.installed ? model.note : 'загружается'}
-                  </option>
-                ))}
-              </select>
-            )}
-          </Field>
-        );
-      case 'textarea':
-      case 'text': {
-        const input = (
-          <TextField
-            key={field.key}
-            label={field.label}
-            hint={field.hint}
-            placeholder={field.placeholder}
-            multiline={field.kind === 'textarea'}
-            value={String(value ?? '')}
-            disabled={!canEdit}
-            onChange={next => setSetting(field.key, next)}
-          />
-        );
-        if (field.key !== 'block_paths' && field.key !== 'allow_paths') return input;
-        return (
-          <div key={field.key} className="path-setting-field">
-            {input}
-            <Button small disabled={!canEdit} onClick={() => setPickSettingKey(field.key)}>
-              Выбрать папку…
-            </Button>
-          </div>
-        );
+  // Ctrl+S сохраняет, а не предлагает скачать страницу.
+  useEffect(() => {
+    if (!canSave) return;
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        save.mutate();
       }
-    }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [canSave, save]);
+
+  // Личные настройки браузера читаются и пишутся так же, как настройки каталога.
+  const values: SettingsValues = {...draft, theme, adultMode};
+  const setValue = (key: string, value: SettingValue) => {
+    if (key === 'theme') setTheme(value as ThemeMode);
+    else if (key === 'adultMode') setAdultMode(value as AdultMode);
+    else setSetting(key, value);
   };
 
-  const renderSection = (section: SettingsSection) => (
-    <section key={section.title} className={`settings-card${section.wide ? ' wide' : ''}`}>
-      <header>
-        <h2>{section.title}</h2>
-        <p>{section.note}</p>
-      </header>
+  const changedIn = (id: SettingsGroupId) =>
+    changed.filter(key => SECTION_BY_KEY.get(key)?.group === id).length;
 
-      {section.local === 'theme' && (
-        <SelectField
-          label="Тема"
-          value={theme}
-          options={THEME_OPTIONS}
-          onChange={next => setTheme(next as ThemeMode)}
-        />
-      )}
+  const searching = query.trim().length > 0;
+  const sections = searching
+    ? searchSections(SETTINGS_SECTIONS, query)
+    : SETTINGS_SECTIONS.filter(section => section.group === group);
 
-      {section.local === 'adult' && (
-        <SelectField
-          label="Показ в галерее и просмотрщике"
-          hint="«Скрывать совсем» убирает такие снимки и из раздела «Люди»: лица с них не показываются."
-          value={adultMode}
-          options={ADULT_OPTIONS}
-          onChange={next => setAdultMode(next as AdultMode)}
-        />
-      )}
+  const models = (settings.data?.visual_models ?? []) as VisualModel[];
+  const defaults = settings.data?.defaults ?? {};
 
-      {section.fields.map(renderField)}
-
-      {section.footer === 'excluded' && (
-        <HintLine>
-          {excluded
-            ? `Сейчас правилами исключено ${formatNumber(excluded)} ${
-                plural(excluded, 'снимок', 'снимка', 'снимков')}.`
-            : 'Сейчас правилами ничего не исключено.'}
-        </HintLine>
-      )}
-    </section>
-  );
+  const renderSection = (section: SettingsSection) => {
+    // Пока каталог не ответил, в форме пусто — трогать её нечего.
+    if (!section.browser && !saved) {
+      return settings.isError ? null : <div key={section.id} className="settings-card skeleton" />;
+    }
+    return (
+      <SettingsCard
+        key={section.id}
+        section={section}
+        values={values}
+        changed={changedSet}
+        disabled={!section.browser && !canEdit}
+        models={models}
+        defaults={defaults}
+        eyebrow={searching ? GROUP_TITLE[section.group] : undefined}
+        forceOpen={searching}
+        excluded={excluded}
+        onChange={setValue}
+        onPickFolder={setPickKey}
+      />
+    );
+  };
 
   return (
-    <section className="view active">
-      <ViewHeader eyebrow="Каталог" title="Настройки" />
-      <p className="settings-lead">
-        Настройки каталога действуют на все устройства сразу; правила пропуска применяются
-        к тем файлам, которые сканируются заново. Раздел «Вид» остаётся в этом браузере.
-      </p>
-
-      <SegmentNav
-        label="Разделы настроек"
-        active={group}
-        items={SETTINGS_GROUPS.map(item => ({
-          id: item.id,
-          icon: item.icon,
-          label: item.title,
-          note: item.note,
-        }))}
-        onSelect={next => setGroup(next)}
+    <section className="view active settings-view">
+      <ViewHeader
+        eyebrow="Каталог"
+        title="Настройки"
+        actions={(
+          <div className="settings-search">
+            <InlineSearch value={query} onChange={setQuery} label="Найти настройку" placeholder="Найти настройку" />
+          </div>
+        )}
       />
-
-      <div className="settings-grid">
-        {SETTINGS_SECTIONS.filter(section => section.group === group).map(renderSection)}
-      </div>
 
       {!canEdit && (
-        <HintLine>Менять настройки каталога может редактор или администратор.</HintLine>
+        <p className="settings-notice">
+          <Icon name="info" />
+          <span>
+            Настройки каталога может менять редактор или администратор — вам они доступны
+            для просмотра. Раздел «Вид» личный, его можно менять.
+          </span>
+        </p>
       )}
 
-      {/* Полоса сохранения появляется только когда есть что сохранять. */}
+      {searching
+        ? (
+          <div className="settings-found">
+            <span>
+              {sections.length
+                ? `Нашлось в ${sections.length} ${plural(sections.length, 'разделе', 'разделах', 'разделах')}`
+                : 'Ничего не нашлось'}
+            </span>
+            <Button small variant="ghost" onClick={() => setQuery('')}>Показать все</Button>
+          </div>
+        )
+        : (
+          <SegmentNav
+            label="Разделы настроек"
+            active={group}
+            items={SETTINGS_GROUPS.map(item => ({
+              id: item.id,
+              icon: item.icon,
+              label: item.title,
+              note: item.note,
+              // Сколько правок ждёт сохранения — чтобы не потерять их на другой вкладке.
+              count: changedIn(item.id) || undefined,
+            }))}
+            onSelect={next => setGroup(next)}
+          />
+        )}
+
+      {settings.isError && sections.some(section => !section.browser) && (
+        <div className="settings-error">
+          <EmptyState title="Настройки каталога не загрузились">
+            Бэкенд фототеки не ответил. Раздел «Вид» работает и без него.
+          </EmptyState>
+          <Button onClick={() => settings.refetch()}>Повторить</Button>
+        </div>
+      )}
+
+      {searching && !sections.length
+        ? <EmptyState title="Такой настройки нет">Попробуйте другое слово: «видео», «папка», «тема».</EmptyState>
+        : <div className="settings-stack">{sections.map(renderSection)}</div>}
+
       <FolderPickerDialog
-        open={Boolean(pickSettingKey)}
-        title="Выбрать папку для исключений"
-        note="Выберите подключенный бэк и папку. Путь будет добавлен в текущее поле настроек."
+        open={Boolean(pickKey)}
+        title="Выбрать папку"
+        note="Выберите подключённое устройство и папку — путь добавится в список."
         confirmLabel="Добавить путь"
-        onClose={() => setPickSettingKey(null)}
-        onPick={appendPathSetting}
+        onClose={() => setPickKey(null)}
+        onPick={target => {
+          if (pickKey) setSetting(pickKey, appendLines(draft[pickKey], target.path));
+          setPickKey(null);
+        }}
       />
 
-      {canEdit && (dirty || save.isPending) && (
-        <div className="settings-bar">
-          <strong>Есть несохранённые изменения</strong>
-          <Button
-            disabled={save.isPending || !settings.data}
-            onClick={() => settings.data && loadDraft(settings.data.settings)}
-          >
-            Отменить правки
+      {/* Полоса сохранения появляется только когда есть что сохранять. */}
+      {canEdit && (changed.length > 0 || save.isPending) && (
+        <div className="settings-bar" role="region" aria-label="Несохранённые изменения">
+          <strong>
+            {plural(changed.length, 'Изменена', 'Изменены', 'Изменено')} {changed.length}{' '}
+            {plural(changed.length, 'настройка', 'настройки', 'настроек')}
+            <small>Ctrl+S — сохранить</small>
+          </strong>
+          <Button disabled={save.isPending || !saved} onClick={() => saved && loadDraft(saved)}>
+            Отменить
           </Button>
           <Button variant="primary" disabled={save.isPending} onClick={() => save.mutate()}>
             {save.isPending ? 'Сохраняем…' : 'Сохранить'}
           </Button>
         </div>
+      )}
+    </section>
+  );
+}
+
+interface SettingsCardProps {
+  section: SettingsSection;
+  values: SettingsValues;
+  changed: Set<string>;
+  disabled: boolean;
+  models: VisualModel[];
+  defaults: SettingsValues;
+  /** Над заголовком — название группы: в результатах поиска разделы из разных групп. */
+  eyebrow?: string;
+  /** В поиске «тонкая настройка» раскрыта: найденная строка не должна прятаться. */
+  forceOpen: boolean;
+  excluded: number;
+  onChange(key: string, value: SettingValue): void;
+  onPickFolder(key: string): void;
+}
+
+function SettingsCard({
+  section, values, changed, disabled, models, defaults, eyebrow, forceOpen, excluded, onChange, onPickFolder,
+}: SettingsCardProps) {
+  const [open, setOpen] = useState(false);
+  const toggleKey = section.toggle;
+  const toggleField = toggleKey ? section.fields.find(field => field.key === toggleKey) : undefined;
+  // Выключатель раздела мог не попасть в результаты поиска — тогда он не рисуется.
+  const off = toggleKey !== undefined && values[toggleKey] === false;
+
+  const rows = section.fields.filter(field => field.key !== toggleKey && isVisible(field, values));
+  const basic = rows.filter(field => !field.advanced);
+  const advanced = rows.filter(field => field.advanced);
+  const advancedOpen = forceOpen || open;
+  const advancedChanged = advanced.some(field => changed.has(field.key));
+
+  const row = (field: SettingsSection['fields'][number]) => (
+    <SettingRow
+      key={field.key}
+      field={field}
+      value={values[field.key]}
+      fallback={section.browser ? field.default : defaults[field.key]}
+      disabled={disabled}
+      changed={changed.has(field.key)}
+      models={models}
+      onChange={value => onChange(field.key, value)}
+      onPickFolder={() => onPickFolder(field.key)}
+    />
+  );
+
+  return (
+    <section className={`settings-card${off ? ' off' : ''}`} aria-labelledby={`settings-${section.id}`}>
+      <header className="settings-card-head">
+        <span className="settings-card-icon"><Icon name={section.icon} /></span>
+        <div className="settings-card-title">
+          {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+          <h2 id={`settings-${section.id}`}>
+            {section.title}
+            {section.browser && <span className="settings-local">этот браузер</span>}
+            {toggleField && changed.has(toggleField.key) && <i className="setting-dot" title="Изменено, но не сохранено" />}
+          </h2>
+          <p>{off ? 'Выключено — настройки ниже пока не действуют.' : section.note}</p>
+        </div>
+        {toggleField && (
+          <Switch
+            checked={Boolean(values[toggleField.key])}
+            disabled={disabled}
+            label={toggleField.label}
+            onChange={next => onChange(toggleField.key, next)}
+          />
+        )}
+      </header>
+
+      {(basic.length > 0 || advanced.length > 0) && (
+        <div className="settings-rows">
+          {basic.map(row)}
+
+          {advanced.length > 0 && !forceOpen && (
+            <button
+              type="button"
+              className={`settings-more${advancedOpen ? ' open' : ''}`}
+              aria-expanded={advancedOpen}
+              onClick={() => setOpen(value => !value)}
+            >
+              <Icon name="chevronDown" />
+              <span>Тонкая настройка</span>
+              <small>{advanced.length}</small>
+              {advancedChanged && !advancedOpen && <i className="setting-dot" title="Здесь есть несохранённые правки" />}
+            </button>
+          )}
+          {advancedOpen && advanced.map(row)}
+        </div>
+      )}
+
+      {section.footer === 'excluded' && (
+        <footer className="settings-card-foot">
+          <Icon name="filters" />
+          {excluded
+            ? <span>Сейчас правилами исключено <b>{formatNumber(excluded)}</b> {plural(excluded, 'снимок', 'снимка', 'снимков')}.</span>
+            : <span>Сейчас правилами ничего не исключено.</span>}
+        </footer>
       )}
     </section>
   );
