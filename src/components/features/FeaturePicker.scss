@@ -1,6 +1,14 @@
 @use '../../styles/mixins' as *;
 
-.feature-picker { display: grid; gap: 14px; }
+// Снимки и ролики рядом, если помещаются; карточки внутри — по две в ряд, пока
+// каждой хватает места. Ширину считает контейнер, а не окно: тот же выбор
+// живёт и в широком окне задания, и в узкой колонке.
+.feature-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  gap: 18px;
+}
+.feature-group { min-width: 0; container-type: inline-size; }
 
 .feature-group > header {
   display: flex;
@@ -22,10 +30,10 @@
 
 .feature-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
-@include bp-md {
-    .feature-cards { grid-template-columns: 1fr; }
+@container (min-width: 380px) {
+  .feature-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

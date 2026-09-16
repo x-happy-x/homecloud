@@ -30,3 +30,28 @@
 .chip.context { background: var(--patina-soft); border-color: var(--patina); font-weight: 600; }
 .chip.context i { font-style: normal; color: var(--muted); font-size: 1.05rem; line-height: 1; }
 .chip.context:hover i { color: var(--rose); }
+
+.toggle-chip {
+  max-width: 100%;
+  padding: 0 14px 0 6px;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: .84rem;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+.toggle-chip-knob {
+  width: 24px; height: 24px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--ground);
+  color: var(--muted);
+  transition: background .15s, color .15s;
+}
+.toggle-chip-knob svg { width: 15px; height: 15px; fill: currentColor; }
+.toggle-chip.active { color: var(--ink); }
+.toggle-chip.active .toggle-chip-knob { background: var(--patina); color: var(--patina-ink); }
+.toggle-chip:focus-visible { outline: 2px solid var(--patina); outline-offset: 2px; }
+.toggle-chip:disabled { opacity: .5; cursor: default; }

@@ -3,6 +3,7 @@ import './ScanView.scss';
 import type {Device} from '../../services/endpoints/backends';
 import {useStore} from '../../store';
 import {Button} from '../../ui/Button/Button';
+import {Icon} from '../../ui/Icon/Icon';
 import {EmptyState} from '../../ui/EmptyState/EmptyState';
 import {SectionHead} from '../../ui/ViewHeader/ViewHeader';
 import {BackendDialog} from './BackendDialog';
@@ -31,15 +32,16 @@ export function ScanView({devices}: ScanViewProps) {
     <section className="analysis-panel">
       <SectionHead
         title="Сканирование"
-        note="Каждый backend — отдельное устройство: выберите на нём диски или папки и включите
-          только нужные этапы. Файлы обрабатываются на самом устройстве и не загружаются
-          в HomeCloud или облако."
+        note="Компьютеры, которые распознают снимки. Файлы обрабатываются на самом устройстве и никуда не загружаются."
         actions={canEdit && (
-          <Button variant="primary" onClick={() => setEditing({device: null})}>Добавить устройство</Button>
+          <Button small onClick={() => setEditing({device: null})}>
+            <Icon name="plus" size={16} />
+            <span>Устройство</span>
+          </Button>
         )}
       />
 
-      <div className="device-grid">
+      <div className="device-list">
         {list.map(device => (
           <DeviceCard
             key={device.id}

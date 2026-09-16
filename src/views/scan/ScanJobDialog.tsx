@@ -7,10 +7,11 @@ import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
 import {anyFeature} from '../../store/slices/scan';
 import {Button} from '../../ui/Button/Button';
-import {CheckRow} from '../../ui/CheckRow/CheckRow';
+import {ToggleChip} from '../../ui/Chip/Chip';
 import {Dialog, Sheet} from '../../ui/Dialog/Dialog';
-import {Field} from '../../ui/Field/Field';
 import {HintLine} from '../../ui/Hint/Hint';
+import {Icon} from '../../ui/Icon/Icon';
+import {IconButton} from '../../ui/IconButton/IconButton';
 import {FileTree} from './FileTree';
 import {ScanHistory} from './ScanHistory';
 import {useInventory} from './useInventory';
@@ -47,11 +48,9 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
   const force = useStore(state => state.scan.force);
   const setForce = useStore(state => state.setScanForce);
   const visualModel = useStore(state => state.scan.visualModel);
-  const setVisualModel = useStore(state => state.setScanVisualModel);
   const toast = useStore(state => state.toast);
 
   const capabilities = device.device?.capabilities ?? {};
-  const models = device.device?.visual_models ?? [];
 
   const submit = useMutation({
     mutationFn: () => startJob(device.id, {
@@ -82,8 +81,13 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
   };
 
   const addRoot = (path: string) => select('roots', [...roots, path]);
-  // Модель визуального индекса нужна, только если этот этап вообще включён.
-  const needsModel = features.photos.visual || features.videos.visual;
+  const sources = roots.size + (selectedPaths.length ? 1 : 0);
+  const stages = new Set((['photos', 'videos'] as const)
+    .flatMap(kind => Object.entries(features[kind]).filter(([, on]) => on).map(([key]) => key))).size;
+  const summary = [
+    sources ? `${formatNumber(sources)} ${plural(sources, 'источник', 'источника', 'источников')}` : 'Нет источников',
+    stages ? `${formatNumber(stages)} ${plural(stages, 'этап', 'этапа', 'этапов')}` : 'нет этапов',
+  ].join(' · ');
 
   return (
     <Sheet
@@ -91,12 +95,12 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
       bodyClassName="scan-device-body"
       eyebrow="Новое задание"
       title={`Сканирование · ${device.name}`}
-      note="Выберите источники и этапы обработки."
+      note="Три шага: откуда брать файлы, при желании — проверить список, и что с ними делать."
       onClose={onClose}
       onSubmit={onSubmit}
     >
-      <section>
-        <div className="section-label">Диски и папки</div>
+      <section className="scan-step">
+        <StepHead number={1} title="Откуда брать файлы" note="Диски и папки на устройстве" />
         <ScanHistory deviceId={device.id} />
         <BrowsePanel deviceId={device.id} onAdd={addRoot} />
         <SelectedRoots />
@@ -107,8 +111,8 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
         </div>
       </section>
 
-      <section className="tree-section">
-        <div className="section-label">Что найдено</div>
+      <section className="scan-step tree-section">
+        <StepHead number={2} title="Проверить список" note="Необязательно: исключите лишние папки" />
         <FileTree
           deviceId={device.id}
           busy={inventory.busy}
@@ -116,38 +120,35 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
         />
       </section>
 
-      <section>
-        <div className="section-label">Возможности</div>
+      <section className="scan-step">
+        <StepHead number={3} title="Что делать" note="Этапы для снимков и роликов" />
         <FeaturePicker value={features} onChange={setFeatures} capabilities={capabilities} />
-        {capabilities.visual && needsModel && (
-          <Field
-            label="Модель визуального индекса"
-            hint="Индексы моделей сохраняются отдельно; выбранная станет основной для поиска."
-          >
-            {id => (
-              <select id={id} value={visualModel} onChange={event => setVisualModel(event.target.value)}>
-                {models.map(model => (
-                  <option key={model.id} value={model.id} disabled={!model.installed}>
-                    {model.name} — {model.installed ? model.note : 'загружается'}
-                  </option>
-                ))}
-              </select>
-            )}
-          </Field>
-        )}
-        <CheckRow checked={force} onChange={setForce}>
-          Переделать заново, даже если уже посчитано
-        </CheckRow>
+        <div className="toggle-row">
+          <ToggleChip checked={force} onChange={setForce}>Переделать заново, даже если уже посчитано</ToggleChip>
+        </div>
         <HintLine>
-          Без этой галочки повторный запуск считает только новые файлы и те, что изменились с прошлого раза.
+          Пока переключатель выключен, повторный запуск считает только новые файлы и те, что изменились с прошлого раза.
         </HintLine>
       </section>
 
-      <div className="form-actions">
+      <div className="form-actions scan-submit">
+        <span className="scan-summary">{summary}</span>
         <Button onClick={onClose}>Отмена</Button>
-        <Button variant="primary" type="submit" disabled={submit.isPending}>Запустить на устройстве</Button>
+        <Button variant="primary" type="submit" disabled={submit.isPending}>Запустить</Button>
       </div>
     </Sheet>
+  );
+}
+
+function StepHead({number, title, note}: {number: number; title: string; note: string}) {
+  return (
+    <div className="scan-step-head">
+      <span className="scan-step-number">{number}</span>
+      <div>
+        <strong>{title}</strong>
+        <small>{note}</small>
+      </div>
+    </div>
   );
 }
 
@@ -168,11 +169,13 @@ function BrowsePanel({deviceId, onAdd}: {deviceId: string; onAdd(path: string): 
     <>
       <div className="path-toolbar">
         <Button small disabled={!data || data.parent === null} onClick={() => setBrowsePath(data?.parent ?? '')}>
-          ↑
+          <Icon name="chevronLeft" size={16} />
+          <span>Выше</span>
         </Button>
         <code>{data?.path || 'Диски'}</code>
         <Button small disabled={!data?.path} onClick={() => data?.path && onAdd(data.path)}>
-          Добавить эту папку
+          <Icon name="plus" size={16} />
+          <span>Эту папку</span>
         </Button>
       </div>
       <div className="folder-list">
@@ -182,9 +185,11 @@ function BrowsePanel({deviceId, onAdd}: {deviceId: string; onAdd(path: string): 
             ? entries.map(entry => (
                 <div key={entry.path} className="folder-row">
                   <button type="button" className="folder-open" onClick={() => setBrowsePath(entry.path)}>
-                    <span>📁</span><span>{entry.name || entry.path}</span>
+                    <Icon name={data.path ? 'folder' : 'drive'} size={18} />
+                    <span>{entry.name || entry.path}</span>
+                    <Icon name="chevronRight" size={16} className="folder-go" />
                   </button>
-                  <Button small onClick={() => onAdd(entry.path)}>Добавить</Button>
+                  <IconButton icon="plus" label="Добавить в задание" onClick={() => onAdd(entry.path)} />
                 </div>
               ))
             : <div className="folder-empty">Нет доступных папок</div>}
@@ -203,19 +208,21 @@ function SelectedRoots() {
   return (
     <div className="selected-roots">
       {[...roots].map(path => (
-        <button key={path} type="button" className="root-chip" onClick={() => toggle('roots', path)}>
-          {path} <span>×</span>
+        <button key={path} type="button" className="root-chip" title={`Убрать ${path}`} onClick={() => toggle('roots', path)}>
+          <Icon name="folder" size={14} />
+          <span className="root-chip-path">{path}</span>
+          <Icon name="close" size={14} />
         </button>
       ))}
       {count > 0 && (
         <button type="button" className="root-chip" onClick={() => setSelectedPaths([])}>
           {formatNumber(count)}{' '}
-          {plural(count, 'выбранная фотография', 'выбранные фотографии', 'выбранных фотографий')}{' '}
-          <span>×</span>
+          {plural(count, 'выбранная фотография', 'выбранные фотографии', 'выбранных фотографий')}
+          <Icon name="close" size={14} />
         </button>
       )}
       {!roots.size && !count && (
-        <small>Добавьте диск, папку или возьмите источник из прошлого запуска.</small>
+        <small>Пока ничего не выбрано — добавьте папку из списка выше или возьмите прошлый источник.</small>
       )}
     </div>
   );

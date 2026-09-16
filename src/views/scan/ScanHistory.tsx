@@ -1,3 +1,4 @@
+import {useState} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import {formatNumber, plural, runMoment} from '../../lib/format';
 import {FEATURE_INFO} from '../../lib/jobs';
@@ -5,6 +6,7 @@ import {forgetScanRun, getScanHistory, type ScanRun} from '../../services/endpoi
 import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
+import {Icon} from '../../ui/Icon/Icon';
 
 const STATUS_NOTES: Record<string, string> = {
   stopped: 'остановлено', error: 'ошибка', interrupted: 'прервано', running: 'идёт',
@@ -19,6 +21,8 @@ export function ScanHistory({deviceId}: {deviceId: string}) {
   const select = useStore(state => state.select);
   const setSelectedPaths = useStore(state => state.setSelectedPaths);
   const toast = useStore(state => state.toast);
+  // Свёрнут по умолчанию: это подсказка, а не главный путь выбора источника.
+  const [open, setOpen] = useState(false);
 
   const history = useQuery({
     queryKey: qk.scanHistory(deviceId),
@@ -38,11 +42,15 @@ export function ScanHistory({deviceId}: {deviceId: string}) {
   if (!runs.length) return null;
 
   return (
-    <div className="history-list">
-      <div className="history-head">
-        Уже сканировали — нажмите, чтобы взять те же источники и включить другие этапы
-      </div>
-      {runs.map(run => {
+    <div className={`history-list${open ? ' open' : ''}`}>
+      <button type="button" className="history-head" aria-expanded={open} onClick={() => setOpen(value => !value)}>
+        <Icon name="chevronDown" size={18} className="history-caret" />
+        <span>
+          <strong>Уже сканировали</strong>
+          <small>{formatNumber(runs.length)} {plural(runs.length, 'источник', 'источника', 'источников')} · взять те же папки и включить другие этапы</small>
+        </span>
+      </button>
+      {open && runs.map(run => {
         const title = runTitle(run);
         const done = run.done.map(name => FEATURE_INFO[name]?.[0] ?? name).join(', ');
         const note = STATUS_NOTES[run.status] ? ` · ${STATUS_NOTES[run.status]}` : '';

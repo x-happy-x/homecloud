@@ -5,7 +5,7 @@ import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
 import {Button} from '../../ui/Button/Button';
-import {CheckRow} from '../../ui/CheckRow/CheckRow';
+import {ToggleChip} from '../../ui/Chip/Chip';
 import {Dialog, Sheet} from '../../ui/Dialog/Dialog';
 
 export interface BackendDialogProps {
@@ -74,9 +74,15 @@ export function BackendDialog({open, device, onClose}: BackendDialogProps) {
           <input type="password" placeholder="Оставьте пустым, чтобы не менять"
             required={!device?.hasToken} value={form.token} onChange={field('token')} />
         </label>
-        <CheckRow checked={form.primary} onChange={primary => setForm(current => ({...current, primary}))}>
-          Основное устройство для галереи
-        </CheckRow>
+        <div className="toggle-row">
+          <ToggleChip
+            checked={form.primary}
+            title="Галерея показывает каталог основного устройства"
+            onChange={primary => setForm(current => ({...current, primary}))}
+          >
+            Основное устройство для галереи
+          </ToggleChip>
+        </div>
         <div className="form-actions">
           <Button onClick={onClose}>Отмена</Button>
           <Button variant="primary" type="submit" disabled={save.isPending}>Сохранить</Button>
