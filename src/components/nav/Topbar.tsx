@@ -8,9 +8,11 @@ import {useStore} from '../../store';
 import {Icon} from '../../ui/Icon/Icon';
 import {IconButton} from '../../ui/IconButton/IconButton';
 import {NotifBell} from '../notifications/NotifBell';
+import {AccountMenu} from './AccountMenu';
 
 export interface TopbarProps {
-  searchPlaceholder: string;
+  /** Подсказка поля поиска; null — на этом экране искать нечего, поля нет. */
+  searchPlaceholder: string | null;
 }
 
 export function Topbar({searchPlaceholder}: TopbarProps) {
@@ -31,26 +33,28 @@ export function Topbar({searchPlaceholder}: TopbarProps) {
 
   return (
     <header className={`topbar${stuck ? ' stuck' : ''}`}>
-      <label className="search">
-        <Icon name="search" />
-        <input
-          ref={input}
-          id="searchInput"
-          type="search"
-          value={query}
-          placeholder={searchPlaceholder}
-          autoComplete="off"
-          aria-label="Поиск"
-          onChange={event => setQuery(event.target.value)}
-        />
-        {query && (
-          <button className="clear" type="button" aria-label="Очистить поиск"
-            onClick={() => { setQuery(''); input.current?.focus(); }}>
-            <Icon name="close" />
-          </button>
-        )}
-        <kbd>Ctrl K</kbd>
-      </label>
+      {searchPlaceholder !== null && (
+        <label className="search">
+          <Icon name="search" />
+          <input
+            ref={input}
+            id="searchInput"
+            type="search"
+            value={query}
+            placeholder={searchPlaceholder}
+            autoComplete="off"
+            aria-label="Поиск"
+            onChange={event => setQuery(event.target.value)}
+          />
+          {query && (
+            <button className="clear" type="button" aria-label="Очистить поиск"
+              onClick={() => { setQuery(''); input.current?.focus(); }}>
+              <Icon name="close" />
+            </button>
+          )}
+          <kbd>Ctrl K</kbd>
+        </label>
+      )}
 
       <div className="topbar-actions">
         {canEdit && (
@@ -62,6 +66,7 @@ export function Topbar({searchPlaceholder}: TopbarProps) {
           />
         )}
         <NotifBell />
+        <AccountMenu />
       </div>
     </header>
   );

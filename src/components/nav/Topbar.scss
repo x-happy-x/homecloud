@@ -12,6 +12,8 @@
   backdrop-filter: blur(14px);
   border-bottom: 1px solid transparent;
   transition: border-color .2s;
+  // Без поля поиска шапка не должна проседать: высота держится на месте.
+  min-height: 74px;
 }
 .topbar.stuck { border-bottom-color: var(--line-soft); }
 
@@ -45,6 +47,6 @@
 .topbar-actions { display: flex; gap: 6px; margin-left: auto; }
 
 @include bp-md {
-    .topbar { padding: 10px 14px; gap: 8px; }
+    .topbar { padding: 10px 14px; gap: 8px; min-height: 66px; }
     .search kbd { display: none; }
 }

@@ -13,9 +13,8 @@ import {ActionBar} from '../../ui/ActionBar/ActionBar';
 import {Button} from '../../ui/Button/Button';
 import {CheckRow} from '../../ui/CheckRow/CheckRow';
 import {EmptyState} from '../../ui/EmptyState/EmptyState';
-import {Hint} from '../../ui/Hint/Hint';
 import {Progress} from '../../ui/Progress/Progress';
-import {ViewHeader} from '../../ui/ViewHeader/ViewHeader';
+import {SectionHead} from '../../ui/ViewHeader/ViewHeader';
 
 const PAGE = 40;
 /** Бэкенд принимает до пятисот путей за раз — удаляем партиями. */
@@ -106,12 +105,16 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
   const fraction = status?.total ? (status.done ?? 0) / status.total : null;
 
   return (
-    <section className="view active">
-      <ViewHeader
-        eyebrow={total
-          ? `${formatNumber(total)} ${plural(total, 'группа', 'группы', 'групп')}`
-          : 'Каталог'}
+    <section className="analysis-panel">
+      <SectionHead
         title="Дубликаты"
+        note={total
+          ? `Найдено ${formatNumber(total)} ${plural(total, 'группа', 'группы', 'групп')}. `
+            + 'Точные копии ищутся по содержимому файла среди файлов одного размера, похожие '
+            + '(пережатые, уменьшенные) — по перцептивному хешу.'
+          : 'Точные копии ищутся по содержимому файла среди файлов одного размера. Похожие '
+            + '(пережатые, уменьшенные) — по перцептивному хешу: для этого каждый снимок '
+            + 'приходится открыть, поэтому проход дольше.'}
         actions={
           <>
             <CheckRow checked={similar} onChange={setSimilar}>
@@ -121,12 +124,6 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
           </>
         }
       />
-
-      <Hint title="Точные копии ищутся по содержимому файла">
-        Сравниваются только файлы одинакового размера — другие совпасть не могут.
-        Похожие (пережатые, уменьшенные) ищутся по перцептивному хешу: для этого
-        каждый снимок приходится открыть, поэтому проход дольше.
-      </Hint>
 
       {running && (
         <section className="dup-progress">

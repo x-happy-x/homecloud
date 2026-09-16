@@ -13,9 +13,9 @@ import {useStore} from '../../store';
 import type {PhotoSummary} from '../../types/api';
 import {Button} from '../../ui/Button/Button';
 import {CheckRow} from '../../ui/CheckRow/CheckRow';
-import {Hint, HintLine} from '../../ui/Hint/Hint';
+import {HintLine} from '../../ui/Hint/Hint';
 import {Progress} from '../../ui/Progress/Progress';
-import {ViewHeader} from '../../ui/ViewHeader/ViewHeader';
+import {SectionHead} from '../../ui/ViewHeader/ViewHeader';
 
 /** Пока проверок меньше дюжины, обучать не на чем. */
 const MIN_REVIEWS = 12;
@@ -176,10 +176,12 @@ export function TrainingView({job}: {job?: RouterJob}) {
   ];
 
   return (
-    <section className="view active">
-      <ViewHeader
-        eyebrow="Активное обучение"
+    <section className="analysis-panel">
+      <SectionHead
         title="Обучение"
+        note="Модель раскладывает снимки по типам: портрет, документ, снимок экрана и так
+          далее. Сначала метки ставит zero-shot, потом вы правите ошибки, и на этих правках
+          обучается своя версия."
         actions={
           <div className="training-actions">
             <Button disabled={busy || !canEdit} onClick={() => start.mutate('bootstrap')}>
@@ -195,12 +197,6 @@ export function TrainingView({job}: {job?: RouterJob}) {
           </div>
         }
       />
-
-      <Hint>
-        Модель раскладывает снимки по типам: портрет, документ, снимок экрана и так
-        далее. Сначала метки ставит zero-shot, потом вы правите ошибки, и на этих
-        правках обучается своя версия.
-      </Hint>
 
       {(busy || job?.status === 'error') && (
         <section className="router-progress">

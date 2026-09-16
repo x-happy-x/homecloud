@@ -35,6 +35,7 @@ export const writeLocalJson = (key: string, value: unknown): void =>
 export const KEYS = {
   taskHistory: 'homecloud-task-history',
   sidepageTab: 'homecloud-sidepage-tab',
+  analysisTab: 'homecloud-analysis-tab',
   adultMode: 'homecloud-adult-mode',
   zoom: 'homecloud-zoom',
   etaProfiles: 'homecloud-eta-profiles',

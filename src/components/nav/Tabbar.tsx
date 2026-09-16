@@ -1,31 +1,26 @@
 import './Tabbar.scss';
-import {NAV_ITEMS} from '../../app/navItems';
+import {NAV_GROUPS, type NavGroupSpec} from '../../app/navItems';
 import type {ViewName} from '../../app/routes';
 import {NavItem} from '../../ui/NavItem/NavItem';
 
 export interface TabbarProps {
   view: ViewName;
-  counts: Partial<Record<ViewName, number | string>>;
-  onNavigate(view: ViewName): void;
+  onNavigate(group: NavGroupSpec): void;
 }
 
 /**
- * Нижняя панель на телефоне. Та же разметка, что и у боковой: на узком
- * экране CSS оставляет из счётчиков только «Проверку», остальные цифры там
- * только мешают.
+ * Нижняя панель на телефоне. Та же разметка, что и у боковой: четыре пункта
+ * ложатся в ряд без сокращений, которых раньше требовалось семь.
  */
-export const Tabbar = ({view, counts, onNavigate}: TabbarProps) => (
+export const Tabbar = ({view, onNavigate}: TabbarProps) => (
   <nav className="tabbar" aria-label="Разделы">
-    {NAV_ITEMS.map(item => (
+    {NAV_GROUPS.map(group => (
       <NavItem
-        key={item.view}
-        view={item.view}
-        icon={item.icon}
-        label={item.short}
-        count={counts[item.view]}
-        attention={item.attention}
-        active={item.view === view}
-        onClick={onNavigate}
+        key={group.id}
+        icon={group.icon}
+        label={group.short}
+        active={group.views.includes(view)}
+        onClick={() => onNavigate(group)}
       />
     ))}
   </nav>

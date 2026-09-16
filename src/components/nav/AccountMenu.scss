@@ -1,34 +1,28 @@
-@use '../../styles/mixins' as *;
-
 .account {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 10px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
   border: 1px solid var(--line-soft);
-  border-radius: var(--r-m);
+  border-radius: 50%;
   background: var(--surface-2);
-  text-align: left;
+  transition: border-color .15s, box-shadow .15s;
 }
+.account:hover { border-color: var(--patina); }
+.account[aria-expanded='true'] { border-color: var(--patina); box-shadow: 0 0 0 3px var(--patina-soft); }
 .account-avatar {
-  width: 34px; height: 34px; border-radius: 50%;
+  width: 32px; height: 32px; border-radius: 50%;
   display: grid; place-items: center;
   background: var(--patina-soft); color: var(--patina);
-  font-weight: 700; font-size: .9rem;
+  font-weight: 700; font-size: .84rem;
 }
-.account-body { min-width: 0; flex: 1; }
-.account-name { font-size: .88rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.account-role { font-size: .72rem; color: var(--muted); }
-
-@include bp-lg {
-    .account-body { display: none; }
-    .account { justify-content: center; padding: 8px; }
-}
+.account-role { color: var(--patina); }
 
 .menu {
   position: fixed;
   z-index: 50;
-  min-width: 210px;
+  min-width: 226px;
   padding: 6px;
   border: 1px solid var(--line);
   border-radius: var(--r-m);
@@ -52,6 +46,6 @@
 .menu button:hover, .menu a:hover { background: var(--ground); }
 .menu svg { width: 18px; height: 18px; color: var(--muted); }
 .menu hr { border: 0; border-top: 1px solid var(--line-soft); margin: 5px 2px; }
-.menu-head { padding: 9px 11px 7px; }
-.menu-head strong { display: block; font-size: .9rem; }
+.menu-head { display: grid; gap: 1px; padding: 9px 11px 7px; }
+.menu-head strong { font-size: .9rem; }
 .menu-head span { font-size: .74rem; color: var(--muted); }

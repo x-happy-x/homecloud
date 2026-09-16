@@ -1,5 +1,6 @@
 import type {AdultMode, ZoomLevel} from '../../types/domain';
 import type {ThemeMode} from '../../store/slices/prefs';
+import type {IconName} from '../../ui/Icon/Icon';
 
 export type SettingField =
   | {kind: 'text'; key: string; label: string; hint?: string; placeholder?: string}
@@ -10,7 +11,28 @@ export type SettingField =
   /** Модели визуального индекса приходят с бэкенда вместе с настройками. */
   | {kind: 'visualModel'; key: string; label: string; hint?: string};
 
+export type SettingsGroupId = 'recognition' | 'library' | 'view';
+
+export interface SettingsGroup {
+  id: SettingsGroupId;
+  icon: IconName;
+  title: string;
+  note: string;
+}
+
+/**
+ * Девять карточек подряд читались как свалка, и половина из них к тому же
+ * относится к разным вещам: к тому, что считают модели, к тому, что вообще
+ * попадает в каталог, и к виду на этом устройстве.
+ */
+export const SETTINGS_GROUPS: SettingsGroup[] = [
+  {id: 'recognition', icon: 'process', title: 'Распознавание', note: 'Что и как считают модели'},
+  {id: 'library', icon: 'filters', title: 'Библиотека', note: 'Что попадает в каталог'},
+  {id: 'view', icon: 'photos', title: 'Вид', note: 'Личное, только в этом браузере'},
+];
+
 export interface SettingsSection {
+  group: SettingsGroupId;
   title: string;
   note: string;
   wide?: boolean;
@@ -26,6 +48,7 @@ export interface SettingsSection {
  */
 export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
+    group: 'recognition',
     title: 'Визуальный поиск',
     note: 'Выберите модель смыслового поиска. Индексы моделей хранятся отдельно, '
       + 'переключение не стирает уже посчитанное.',
@@ -35,6 +58,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     }],
   },
   {
+    group: 'recognition',
     title: 'Видео',
     note: 'Лица ищутся по всему ролику, а не в горстке кадров: последовательные '
       + 'появления одного человека собираются в треки.',
@@ -71,6 +95,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     ],
   },
   {
+    group: 'recognition',
     title: 'Описание изображений',
     note: 'Подпись для поиска пишет модель-«зрение»: своя видеокарта или уже '
       + 'запущенный рядом LM Studio.',
@@ -93,6 +118,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     ],
   },
   {
+    group: 'recognition',
     title: 'Речь в видео',
     note: 'Сказанное в ролике расшифровывается на своей видеокарте.',
     fields: [
@@ -116,28 +142,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     ],
   },
   {
-    title: 'Оформление',
-    note: 'Настройка личная: она хранится в этом браузере, а не в каталоге.',
-    local: 'theme',
-    fields: [],
-  },
-  {
-    title: 'Содержимое 18+',
-    note: 'Как показывать снимки, которые локальный анализ пометил как откровенные.',
-    local: 'adult',
-    fields: [],
-  },
-  {
-    title: 'Скрытый альбом',
-    note: 'Снимок из скрытого альбома переносится в личную папку на устройстве и '
-      + 'пропадает у остальных. Свой альбом есть у каждого, администратор видит и чужие.',
-    fields: [{
-      kind: 'text', key: 'hidden_root', label: 'Куда переносить',
-      placeholder: 'Папка hidden внутри каталога',
-      hint: 'Оставьте пустым — файлы лягут рядом с каталогом.',
-    }],
-  },
-  {
+    group: 'library',
     title: 'Пути вне библиотеки',
     note: 'Эти пути не сканируются и не показываются в галерее: ни снимков, ни лиц, '
       + 'ни дубликатов. Строка без звёздочек — папка целиком, со звёздочками — маска.',
@@ -155,6 +160,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     ],
   },
   {
+    group: 'library',
     title: 'Что пропускать',
     note: 'Отсев мелочи и баннеров: такие файлы попадают в каталог со статусом '
       + '«пропущен», лица в них не ищутся.',
@@ -177,6 +183,31 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         hint: 'По одной маске в строке, регистр не важен.',
       },
     ],
+  },
+  {
+    group: 'library',
+    title: 'Скрытый альбом',
+    note: 'Снимок из скрытого альбома переносится в личную папку на устройстве и '
+      + 'пропадает у остальных. Свой альбом есть у каждого, администратор видит и чужие.',
+    fields: [{
+      kind: 'text', key: 'hidden_root', label: 'Куда переносить',
+      placeholder: 'Папка hidden внутри каталога',
+      hint: 'Оставьте пустым — файлы лягут рядом с каталогом.',
+    }],
+  },
+  {
+    group: 'view',
+    title: 'Оформление',
+    note: 'Настройка личная: она хранится в этом браузере, а не в каталоге.',
+    local: 'theme',
+    fields: [],
+  },
+  {
+    group: 'view',
+    title: 'Содержимое 18+',
+    note: 'Как показывать снимки, которые локальный анализ пометил как откровенные.',
+    local: 'adult',
+    fields: [],
   },
 ];
 

@@ -8,6 +8,19 @@ const VIEW_SET = new Set<string>(VIEWS);
 
 export const isView = (value: string): value is ViewName => VIEW_SET.has(value);
 
+/**
+ * Экраны раздела «Анализ». В навигации у них один пункт на всех, но каждый
+ * остаётся отдельным экраном: прежние ссылки вида #/scan продолжают работать,
+ * а опрос дубликатов и обучения по-прежнему включается только на своём экране.
+ */
+export const ANALYSIS_VIEWS = ['review', 'training', 'scan', 'duplicates'] as const;
+
+export type AnalysisView = (typeof ANALYSIS_VIEWS)[number];
+
+const ANALYSIS_SET = new Set<string>(ANALYSIS_VIEWS);
+
+export const isAnalysisView = (view: string): view is AnalysisView => ANALYSIS_SET.has(view);
+
 export const VIEW_TITLES: Record<ViewName, string> = {
   people: 'Люди',
   photos: 'Фотографии',

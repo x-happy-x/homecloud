@@ -13,6 +13,10 @@ const ROLES: Record<string, string> = {
   viewer: 'Наблюдатель',
 };
 
+/**
+ * Учётная запись стоит рядом с уведомлениями: в шапке от неё нужен только
+ * кружок с буквой, а имя, роль и выход живут во всплывашке.
+ */
 export function AccountMenu() {
   const session = useStore(state => state.session);
   const setSession = useStore(state => state.setSession);
@@ -31,6 +35,7 @@ export function AccountMenu() {
 
   const user = session.user;
   const name = user ? (user.name || user.login) : 'Гость';
+  const role = user ? (ROLES[user.role] ?? user.role) : 'вход не выполнен';
 
   return (
     <>
@@ -40,27 +45,23 @@ export function AccountMenu() {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
+        title={`${name} · ${role}`}
+        aria-label={`Учётная запись: ${name}`}
         onClick={() => setOpen(current => !current)}
       >
         <span className="account-avatar">{name.trim().charAt(0).toUpperCase() || '?'}</span>
-        <span className="account-body">
-          <span className="account-name">{name}</span>
-          <span className="account-role">
-            {user ? (ROLES[user.role] ?? user.role) : 'не выполнен вход'}
-          </span>
-        </span>
       </button>
 
       <Popover
         open={open}
         anchor={button}
-        placement="above"
         onClose={() => setOpen(false)}
         className="menu"
       >
         <div className="menu-head">
           <strong>{name}</strong>
           <span>{user ? user.login : 'вход не выполнен'}</span>
+          <span className="account-role">{role}</span>
         </div>
         <hr />
         <a href={session.bigfamUrl} target="_blank" rel="noopener" role="menuitem">

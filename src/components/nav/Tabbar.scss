@@ -1,1 +1,42 @@
+@use '../../styles/mixins' as *;
+
+/**
+ * Нижняя панель есть только на телефоне. Оба правила — «скрыта» и раскладка
+ * для узкого экрана — держатся здесь: пока «скрыта» стояло в этом файле, а
+ * раскладка в стилях пункта навигации, в собранном CSS они шли в обратном
+ * порядке, и при равной специфичности панель оставалась скрытой.
+ */
 .tabbar { display: none; }
+
+@include bp-md {
+    .tabbar {
+      position: fixed;
+      inset: auto 0 0;
+      z-index: 40;
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+      background: color-mix(in srgb, var(--surface) 94%, transparent);
+      backdrop-filter: blur(14px);
+      border-top: 1px solid var(--line-soft);
+    }
+    .tabbar .nav-item {
+      flex-direction: column;
+      gap: 2px;
+      min-height: 54px;
+      padding: 4px 0;
+      border-radius: var(--r-m);
+      font-size: .68rem;
+      justify-content: center;
+    }
+    /* Узкая боковая панель прячет подписи; в нижней они нужны. */
+    .tabbar .nav-item span {
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tabbar .nav-item svg { width: 21px; height: 21px; }
+}

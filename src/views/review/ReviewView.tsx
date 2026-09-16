@@ -2,8 +2,7 @@ import {useState} from 'react';
 import './ReviewView.scss';
 import {PersonCard, type PersonGroup} from '../../components/people/PersonCard';
 import {EmptyState} from '../../ui/EmptyState/EmptyState';
-import {Hint} from '../../ui/Hint/Hint';
-import {ViewHeader} from '../../ui/ViewHeader/ViewHeader';
+import {SectionHead} from '../../ui/ViewHeader/ViewHeader';
 import {CompareDialog} from './CompareDialog';
 import {SimilarPairs} from './SimilarPairs';
 import {useMergeGroups} from './useMergeGroups';
@@ -21,13 +20,13 @@ export function ReviewView({groups, onOpenGroup}: ReviewViewProps) {
   const merge = useMergeGroups();
 
   return (
-    <section className="view active">
-      <ViewHeader eyebrow="Разбор" title="Проверка" />
-
-      <Hint title="Сюда попадает то, в чём модель не уверена">
-        Шум — кадры, не похожие ни на одну группу; исключённые — то, что вы убрали
-        руками. Ниже — пары групп, которые могут оказаться одним человеком.
-      </Hint>
+    <section className="analysis-panel">
+      <SectionHead
+        title="Проверка"
+        note="Сюда попадает то, в чём модель не уверена: шум — кадры, не похожие ни на одну
+          группу, исключённые — убранные вами вручную. Ниже — пары групп, которые могут
+          оказаться одним человеком."
+      />
 
       <SimilarPairs onCompare={(a, b) => setComparing({a, b})} onMerge={pair => merge(pair.a, pair.b)} />
 

@@ -39,29 +39,11 @@
 
 .rail-nav { display: grid; gap: 4px; }
 
-.rail-foot { margin-top: auto; display: grid; gap: 10px; }
-
-.note {
-  padding: 12px 13px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-m);
-  display: flex;
-  gap: 10px;
-  color: var(--muted);
-  font-size: .75rem;
-}
-.note svg { width: 18px; height: 18px; color: var(--patina); }
-.note strong { display: block; color: var(--ink); font-size: .82rem; margin-bottom: 2px; }
-
 @include bp-lg {
     .rail { padding: 18px 10px; align-items: center; }
     .brand { padding: 4px 0 16px; }
     .brand-text { display: none; }
-}
-
-@include bp-lg {
-    .note div, .note strong { display: none; }
-    .note { justify-content: center; padding: 10px; }
+    .rail-nav { width: 100%; }
 }
 
 @include bp-md {

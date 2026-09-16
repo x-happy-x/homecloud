@@ -1,4 +1,5 @@
 import type {StateCreator} from 'zustand';
+import {isAnalysisView, type AnalysisView} from '../../app/routes';
 import {KEYS, readLocal, writeLocal} from '../../lib/storage';
 import type {AdultMode, ZoomLevel} from '../../types/domain';
 import type {Store} from '../index';
@@ -12,18 +13,27 @@ export interface PrefsSlice {
     zoom: ZoomLevel;
     theme: ThemeMode;
     sidepageTab: SidepageTab;
+    /** Вкладка «Анализа», на которую возвращает пункт навигации. */
+    analysisTab: AnalysisView;
     similarNamedOnly: boolean;
   };
   setAdultMode(mode: AdultMode): void;
   setZoom(zoom: ZoomLevel): void;
   setTheme(theme: ThemeMode): void;
   setSidepageTab(tab: SidepageTab): void;
+  setAnalysisTab(tab: AnalysisView): void;
   setSimilarNamedOnly(only: boolean): void;
 }
 
 const savedTheme = (): ThemeMode => {
   const value = readLocal(KEYS.theme);
   return value === 'light' || value === 'dark' ? value : 'auto';
+};
+
+// В хранилище может лежать имя экрана, которого уже нет.
+const savedAnalysisTab = (): AnalysisView => {
+  const value = readLocal(KEYS.analysisTab) ?? '';
+  return isAnalysisView(value) ? value : 'review';
 };
 
 export const createPrefsSlice: StateCreator<Store, [], [], PrefsSlice> = set => {
@@ -36,6 +46,7 @@ export const createPrefsSlice: StateCreator<Store, [], [], PrefsSlice> = set => 
       zoom: (readLocal(KEYS.zoom) as ZoomLevel) || 'medium',
       theme: savedTheme(),
       sidepageTab: (readLocal(KEYS.sidepageTab) as SidepageTab) || 'people',
+      analysisTab: savedAnalysisTab(),
       similarNamedOnly: false,
     },
 
@@ -43,6 +54,7 @@ export const createPrefsSlice: StateCreator<Store, [], [], PrefsSlice> = set => 
     setZoom: zoom => { writeLocal(KEYS.zoom, zoom); patch({zoom}); },
     setTheme: theme => { writeLocal(KEYS.theme, theme); patch({theme}); },
     setSidepageTab: tab => { writeLocal(KEYS.sidepageTab, tab); patch({sidepageTab: tab}); },
+    setAnalysisTab: tab => { writeLocal(KEYS.analysisTab, tab); patch({analysisTab: tab}); },
     setSimilarNamedOnly: only => patch({similarNamedOnly: only}),
   };
 };

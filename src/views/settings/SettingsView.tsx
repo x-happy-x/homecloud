@@ -1,4 +1,4 @@
-import {useEffect} from 'react';
+import {useEffect, useState} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import './SettingsView.scss';
 import {formatNumber, plural} from '../../lib/format';
@@ -11,10 +11,12 @@ import type {ThemeMode} from '../../store/slices/prefs';
 import {Button} from '../../ui/Button/Button';
 import {CheckRow} from '../../ui/CheckRow/CheckRow';
 import {Field, NumberField, SelectField, TextField} from '../../ui/Field/Field';
-import {Hint, HintLine} from '../../ui/Hint/Hint';
+import {HintLine} from '../../ui/Hint/Hint';
+import {SegmentNav} from '../../ui/SegmentNav/SegmentNav';
 import {ViewHeader} from '../../ui/ViewHeader/ViewHeader';
 import {
-  ADULT_OPTIONS, SETTINGS_SECTIONS, THEME_OPTIONS, type SettingField,
+  ADULT_OPTIONS, SETTINGS_GROUPS, SETTINGS_SECTIONS, THEME_OPTIONS,
+  type SettingField, type SettingsGroupId, type SettingsSection,
 } from './settingsSchema';
 
 interface VisualModel {
@@ -27,6 +29,7 @@ interface VisualModel {
 export function SettingsView({excluded = 0}: {excluded?: number}) {
   const canEdit = useStore(state => state.session.canEdit);
   const draft = useStore(state => state.settings.draft);
+  const dirty = useStore(state => state.settings.dirty);
   const loadDraft = useStore(state => state.loadSettingsDraft);
   const setSetting = useStore(state => state.setSetting);
   const markSaved = useStore(state => state.markSettingsSaved);
@@ -36,6 +39,8 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
   const setTheme = useStore(state => state.setTheme);
   const adultMode = useStore(state => state.prefs.adultMode);
   const setAdultMode = useStore(state => state.setAdultMode);
+
+  const [group, setGroup] = useState<SettingsGroupId>('recognition');
 
   const settings = useQuery({queryKey: qk.settings(), queryFn: getSettings});
 
@@ -138,63 +143,88 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
     }
   };
 
+  const renderSection = (section: SettingsSection) => (
+    <section key={section.title} className={`settings-card${section.wide ? ' wide' : ''}`}>
+      <header>
+        <h2>{section.title}</h2>
+        <p>{section.note}</p>
+      </header>
+
+      {section.local === 'theme' && (
+        <SelectField
+          label="Тема"
+          value={theme}
+          options={THEME_OPTIONS}
+          onChange={next => setTheme(next as ThemeMode)}
+        />
+      )}
+
+      {section.local === 'adult' && (
+        <SelectField
+          label="Показ в галерее и просмотрщике"
+          hint="«Скрывать совсем» убирает такие снимки и из раздела «Люди»: лица с них не показываются."
+          value={adultMode}
+          options={ADULT_OPTIONS}
+          onChange={next => setAdultMode(next as AdultMode)}
+        />
+      )}
+
+      {section.fields.map(renderField)}
+
+      {section.footer === 'excluded' && (
+        <HintLine>
+          {excluded
+            ? `Сейчас правилами исключено ${formatNumber(excluded)} ${
+                plural(excluded, 'снимок', 'снимка', 'снимков')}.`
+            : 'Сейчас правилами ничего не исключено.'}
+        </HintLine>
+      )}
+    </section>
+  );
+
   return (
     <section className="view active">
-      <ViewHeader
-        eyebrow="Каталог"
-        title="Настройки"
-        actions={canEdit && (
+      <ViewHeader eyebrow="Каталог" title="Настройки" />
+      <p className="settings-lead">
+        Настройки каталога действуют на все устройства сразу; правила пропуска применяются
+        к тем файлам, которые сканируются заново. Раздел «Вид» остаётся в этом браузере.
+      </p>
+
+      <SegmentNav
+        label="Разделы настроек"
+        active={group}
+        items={SETTINGS_GROUPS.map(item => ({
+          id: item.id,
+          icon: item.icon,
+          label: item.title,
+          note: item.note,
+        }))}
+        onSelect={next => setGroup(next)}
+      />
+
+      <div className="settings-grid">
+        {SETTINGS_SECTIONS.filter(section => section.group === group).map(renderSection)}
+      </div>
+
+      {!canEdit && (
+        <HintLine>Менять настройки каталога может редактор или администратор.</HintLine>
+      )}
+
+      {/* Полоса сохранения появляется только когда есть что сохранять. */}
+      {canEdit && (dirty || save.isPending) && (
+        <div className="settings-bar">
+          <strong>Есть несохранённые изменения</strong>
+          <Button
+            disabled={save.isPending || !settings.data}
+            onClick={() => settings.data && loadDraft(settings.data.settings)}
+          >
+            Отменить правки
+          </Button>
           <Button variant="primary" disabled={save.isPending} onClick={() => save.mutate()}>
             {save.isPending ? 'Сохраняем…' : 'Сохранить'}
           </Button>
-        )}
-      />
-      <Hint>
-        Настройки хранятся в каталоге и действуют на все устройства. Правила пропуска
-        применяются к тем файлам, которые сканируются заново.
-      </Hint>
-
-      <div className="settings-grid">
-        {SETTINGS_SECTIONS.map(section => (
-          <section
-            key={section.title}
-            className={`settings-card${section.wide ? ' wide' : ''}`}
-          >
-            <h2>{section.title}</h2>
-            <p>{section.note}</p>
-
-            {section.local === 'theme' && (
-              <SelectField
-                label="Тема"
-                value={theme}
-                options={THEME_OPTIONS}
-                onChange={next => setTheme(next as ThemeMode)}
-              />
-            )}
-
-            {section.local === 'adult' && (
-              <SelectField
-                label="Показ в галерее и просмотрщике"
-                hint="«Скрывать совсем» убирает такие снимки и из раздела «Люди»: лица с них не показываются."
-                value={adultMode}
-                options={ADULT_OPTIONS}
-                onChange={next => setAdultMode(next as AdultMode)}
-              />
-            )}
-
-            {section.fields.map(renderField)}
-
-            {section.footer === 'excluded' && (
-              <HintLine>
-                {excluded
-                  ? `Сейчас правилами исключено ${formatNumber(excluded)} ${
-                      plural(excluded, 'снимок', 'снимка', 'снимков')}.`
-                  : 'Сейчас правилами ничего не исключено.'}
-              </HintLine>
-            )}
-          </section>
-        ))}
-      </div>
+        </div>
+      )}
     </section>
   );
 }

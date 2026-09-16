@@ -34,3 +34,16 @@ main { padding: 4px var(--gap) 120px; flex: 1; }
 @include bp-sm {
     .stats { display: none; }
 }
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 14px;
+  margin-bottom: var(--gap);
+}
+.section-head > div:first-child { max-width: 82ch; }
+.section-head h2 { font-size: clamp(1.15rem, 2.4vw, 1.45rem); }
+.section-head p { margin: 5px 0 0; color: var(--muted); font-size: .84rem; line-height: 1.5; }
+.section-head .check-row { font-size: .84rem; }
