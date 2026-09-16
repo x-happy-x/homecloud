@@ -384,7 +384,7 @@
 .file-info { margin: 0; display: grid; gap: 4px; }
 .file-info > div { display: flex; justify-content: space-between; gap: 12px; font-size: .82rem; }
 .file-info dt { margin: 0; color: var(--muted); }
-.file-info dd { margin: 0; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.file-info dd { min-width: 0; margin: 0; color: var(--ink-2); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
 
 @include bp-md {
     .viewer.with-info .viewer-stage { inset: 0 0 48dvh 0; }

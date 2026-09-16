@@ -36,9 +36,32 @@ export function InfoPanel({photo, onClose, onSeek}: InfoPanelProps) {
           <div>{photo.ocr_text}</div>
         </details>
       )}
-      <h3>Файл</h3>
+      <h3>
+        Файл
+        <CopyPathButton photo={photo} />
+      </h3>
       <FileInfo photo={photo} />
     </div>
+  );
+}
+
+function CopyPathButton({photo}: {photo: PhotoCard}) {
+  const toast = useStore(state => state.toast);
+  const path = windowsPath(photo);
+  return (
+    <button
+      className="link-button"
+      type="button"
+      title={path}
+      onClick={() => {
+        void copyText(path).then(
+          () => toast('Путь скопирован'),
+          () => toast('Не удалось скопировать путь', 'error'),
+        );
+      }}
+    >
+      копировать путь
+    </button>
   );
 }
 
@@ -172,7 +195,9 @@ function AdultAnalysis({photo}: {photo: PhotoCard}) {
 /** Техническая сводка: размер, разрешение, длина. */
 function FileInfo({photo}: {photo: PhotoCard}) {
   const movie = photo.kind === 'video';
+  const path = windowsPath(photo);
   const rows: Array<[string, string]> = [
+    ['Путь', path],
     ['Размер файла', photo.size ? fileSize(photo.size) : ''],
     ['Разрешение', photo.width && photo.height ? `${photo.width}×${photo.height}` : ''],
     ...(movie ? [['Длительность', photo.duration ? timecode(photo.duration) : '']] as Array<[string, string]> : []),
@@ -185,4 +210,32 @@ function FileInfo({photo}: {photo: PhotoCard}) {
       ))}
     </dl>
   );
+}
+
+function windowsPath(photo: PhotoCard): string {
+  if (/^[a-z]:[\\/]/i.test(photo.path) || photo.path.startsWith('\\\\')) return photo.path;
+  if (!photo.folder) return photo.path || photo.filename;
+  const separator = photo.folder.includes('/') && !photo.folder.includes('\\') ? '/' : '\\';
+  return `${photo.folder.replace(/[\\/]+$/, '')}${separator}${photo.filename}`;
+}
+
+async function copyText(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // HTTP по локальной сети может запретить Clipboard API; ниже старый путь.
+    }
+  }
+  const area = document.createElement('textarea');
+  area.value = text;
+  area.style.position = 'fixed';
+  area.style.left = '-9999px';
+  area.setAttribute('readonly', '');
+  document.body.append(area);
+  area.select();
+  const ok = document.execCommand('copy');
+  area.remove();
+  if (!ok) throw new Error('copy failed');
 }
