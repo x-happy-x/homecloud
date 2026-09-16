@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef} from 'react';
+import {useCallback, useEffect, useRef, useState, type MouseEvent} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import './PhotosView.scss';
 import {useCatalogState} from '../../hooks/useCatalogState';
@@ -16,9 +16,12 @@ import {EmptyState} from '../../ui/EmptyState/EmptyState';
 import {Icon, type IconName} from '../../ui/Icon/Icon';
 import {Skeleton} from '../../ui/Skeleton/Skeleton';
 import {ViewHeader} from '../../ui/ViewHeader/ViewHeader';
-import {bigfamPersonUrl, dropFilter, galleryContext} from './gallery';
+import {baseName, bigfamPersonUrl, dropFilter, galleryContext} from './gallery';
+import {FolderContextMenu, type FolderMenuState} from './FolderContextMenu';
+import {FolderPickerDialog, type PickedFolder} from '../../components/FolderPicker/FolderPickerDialog';
 import {PhotoTile} from './PhotoTile';
 import {useGallery} from './useGallery';
+import {useFolderActions} from './useFolderActions';
 import {usePhotoActions} from './usePhotoActions';
 
 const ZOOM_STEPS: Array<[ZoomLevel, IconName, string]> = [
@@ -46,6 +49,9 @@ export function PhotosView() {
   const people = useCatalogState().data?.people;
   const albums = useQuery({queryKey: qk.albums(), queryFn: getAlbums}).data;
   const actions = usePhotoActions();
+  const folderActions = useFolderActions();
+  const [folderMenu, setFolderMenu] = useState<FolderMenuState | null>(null);
+  const [moveFolder, setMoveFolder] = useState('');
 
   const edge = useRef<HTMLDivElement>(null);
   const nearEnd = useIntersection(edge);
@@ -85,6 +91,22 @@ export function PhotosView() {
   const count = selected.size;
   const paths = [...selected];
 
+  const openFolderMenu = (event: MouseEvent, path: string) => {
+    event.preventDefault();
+    setFolderMenu({
+      path,
+      label: baseName(path),
+      x: Math.min(event.clientX, window.innerWidth - 220),
+      y: Math.min(event.clientY, window.innerHeight - 190),
+    });
+  };
+
+  const movePicked = (target: PickedFolder) => {
+    const path = moveFolder;
+    setMoveFolder('');
+    folderActions.move(path, target);
+  };
+
   return (
     <section className="view active">
       <ViewHeader eyebrow={counter} title="Фотографии">
@@ -110,11 +132,19 @@ export function PhotosView() {
           {chips.length > 0 && <span className="bar-count">{chips.length}</span>}
         </Button>
         <Chips className="context-chips">
-          {chips.map(chip => (
-            <Chip key={chip.label} context onClick={() => setFilters(dropFilter(filters, chip.drop))}>
-              {chip.label}
-            </Chip>
-          ))}
+          {chips.map(chip => {
+            const folderPath = chip.drop.kind === 'folder' ? filters.folder : '';
+            return (
+              <Chip
+                key={chip.label}
+                context
+                onClick={() => setFilters(dropFilter(filters, chip.drop))}
+                onContextMenu={folderPath ? event => openFolderMenu(event, folderPath) : undefined}
+              >
+                {chip.label}
+              </Chip>
+            );
+          })}
         </Chips>
       </div>
 
@@ -180,6 +210,25 @@ export function PhotosView() {
             ))}
       </div>
       <div ref={edge} className={`grid-more${isFetchingNextPage ? ' loading' : ''}`} aria-hidden="true" />
+
+      <FolderContextMenu
+        menu={folderMenu}
+        canEdit={canEdit}
+        busy={folderActions.busy}
+        onClose={() => setFolderMenu(null)}
+        onExclude={folderActions.excludeFromFilter}
+        onHide={folderActions.hide}
+        onMove={setMoveFolder}
+        onDelete={folderActions.remove}
+      />
+      <FolderPickerDialog
+        open={Boolean(moveFolder)}
+        title="Куда переместить папку"
+        note="Выберите подключенный бэк и папку назначения. Медиа из исходной папки будут перенесены внутрь выбранной папки."
+        confirmLabel="Переместить сюда"
+        onClose={() => setMoveFolder('')}
+        onPick={movePicked}
+      />
 
       {!isPending && photos.length === 0 && (
         <EmptyState mark="▧" title="Фотографии не найдены">

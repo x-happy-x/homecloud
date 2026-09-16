@@ -1,0 +1,14 @@
+.folder-picker-dialog .sheet { width: min(760px, calc(100vw - 24px)); }
+.folder-picker-device-row label { display: grid; gap: 6px; color: var(--muted); font-size: .82rem; }
+.folder-picker-device-row select {
+  width: 100%; min-height: 38px; padding: 8px 12px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit;
+}
+.folder-picker-list { max-height: min(48vh, 420px); overflow: auto; }
+.folder-picker-entry {
+  width: 100%; min-height: 38px; display: flex; align-items: center; gap: 10px;
+  padding: 0 10px; border: 0; border-radius: 10px; background: none; color: inherit;
+  font: inherit; text-align: left;
+}
+.folder-picker-entry:hover { background: var(--ground); }
+.folder-picker-entry span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

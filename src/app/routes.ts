@@ -42,6 +42,7 @@ export interface RouteState {
   showAdult: boolean;
   folder: string;
   folderDeep: boolean;
+  folderExclude: string;
   album: number;
   hidden: boolean;
   /** Открытый в просмотрщике снимок. */
@@ -60,6 +61,7 @@ export const emptyRoute = (): RouteState => ({
   showAdult: false,
   folder: '',
   folderDeep: true,
+  folderExclude: '',
   album: 0,
   hidden: false,
   photo: '',
@@ -86,6 +88,7 @@ export function buildHash(route: RouteState): string {
       params.set('folder', route.folder);
       if (!route.folderDeep) params.set('folder_deep', '0');
     }
+    if (route.folderExclude) params.set('exclude_folder', route.folderExclude);
     if (route.album) params.set('album', String(route.album));
     if (route.hidden) params.set('hidden', '1');
     if (route.photo) params.set('photo', route.photo);
@@ -111,6 +114,7 @@ export function parseHash(hash: string): RouteState {
     showAdult: params.get('adult') === '1',
     folder: params.get('folder') || '',
     folderDeep: params.get('folder_deep') !== '0',
+    folderExclude: params.get('exclude_folder') || '',
     album: Number(params.get('album') || 0),
     hidden: params.get('hidden') === '1',
     photo: params.get('photo') || '',

@@ -23,6 +23,7 @@ export function galleryParams(
     adult: filters.showAdult,
     folder: filters.folder || undefined,
     folderDeep: filters.folderDeep,
+    folderExclude: filters.folderExclude || undefined,
     album: filters.album || undefined,
     hidden: filters.hidden,
   };
@@ -30,7 +31,7 @@ export function galleryParams(
 
 export type ContextDrop =
   | {kind: 'person'; name: string}
-  | {kind: 'folder' | 'album' | 'type' | 'hidden' | 'kind' | 'blurry' | 'adult'};
+  | {kind: 'folder' | 'folderExclude' | 'album' | 'type' | 'hidden' | 'kind' | 'blurry' | 'adult'};
 
 export interface ContextChip {
   label: string;
@@ -44,6 +45,9 @@ export const baseName = (path: string): string =>
 export function galleryContext(filters: GalleryFilters, albums: Album[] = []): ContextChip[] {
   const chips: ContextChip[] = filters.people.map(name => ({label: name, drop: {kind: 'person', name}}));
   if (filters.folder) chips.push({label: `Папка: ${baseName(filters.folder)}`, drop: {kind: 'folder'}});
+  if (filters.folderExclude) {
+    chips.push({label: `Кроме папки: ${baseName(filters.folderExclude)}`, drop: {kind: 'folderExclude'}});
+  }
   if (filters.album) {
     const album = albums.find(item => item.id === filters.album);
     chips.push({label: `Альбом: ${album ? album.trail : filters.album}`, drop: {kind: 'album'}});
@@ -63,6 +67,7 @@ export function dropFilter(filters: GalleryFilters, drop: ContextDrop): Partial<
   switch (drop.kind) {
     case 'person': return {people: filters.people.filter(name => name !== drop.name)};
     case 'folder': return {folder: ''};
+    case 'folderExclude': return {folderExclude: ''};
     case 'album': return {album: 0};
     case 'type': return {contentType: ''};
     case 'hidden': return {hidden: false};

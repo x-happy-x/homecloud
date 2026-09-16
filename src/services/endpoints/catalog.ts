@@ -27,6 +27,7 @@ export interface PhotosParams {
   adult?: boolean;
   folder?: string;
   folderDeep?: boolean;
+  folderExclude?: string;
   album?: number;
   hidden?: boolean;
 }
@@ -44,6 +45,7 @@ export function getPhotos(params: PhotosParams): Promise<PhotosPage> {
     search.set('folder', params.folder);
     if (params.folderDeep === false) search.set('folder_deep', '0');
   }
+  if (params.folderExclude) search.set('exclude_folder', params.folderExclude);
   if (params.album) search.set('album', String(params.album));
   search.set('limit', String(params.limit));
   search.set('offset', String(params.offset));

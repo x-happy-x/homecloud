@@ -40,6 +40,11 @@ describe('buildHash', () => {
     expect(buildHash(route({view: 'photos', folder: winRoot, folderDeep: false})))
       .toBe('#/photos?folder=D%3A%5C&folder_deep=0');
   });
+
+  test('исключённая папка пишется в ссылку', () => {
+    expect(buildHash(route({view: 'photos', folderExclude: winFolder})))
+      .toBe('#/photos?exclude_folder=D%3A%5C%D0%A4%D0%BE%D1%82%D0%BE%5C2019');
+  });
 });
 
 describe('parseHash', () => {
@@ -57,6 +62,10 @@ describe('parseHash', () => {
     expect(parseHash('#/photos?folder=D%3A%5C').folderDeep).toBe(true);
     expect(parseHash('#/photos?folder=D%3A%5C&folder_deep=0').folderDeep).toBe(false);
   });
+
+  test('exclude_folder разбирается', () => {
+    expect(parseHash('#/photos?exclude_folder=D%3A%5Cskip').folderExclude).toBe(`D:${BS}skip`);
+  });
 });
 
 describe('разбор и сборка обратимы', () => {
@@ -66,7 +75,7 @@ describe('разбор и сборка обратимы', () => {
     route({
       view: 'photos', people: ['Хамис', 'Пётр'], contentType: 'portrait', kind: 'video',
       showBlurry: true, showAdult: true, folder: winFolder, folderDeep: false,
-      album: 12, hidden: true, photo: winPhoto, query: 'море',
+      folderExclude: `D:${BS}skip`, album: 12, hidden: true, photo: winPhoto, query: 'море',
     }),
     route({view: 'duplicates'}),
   ];

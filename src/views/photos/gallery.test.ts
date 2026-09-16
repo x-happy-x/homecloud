@@ -19,7 +19,7 @@ describe('galleryParams', () => {
   test('пустые фильтры не попадают в запрос', () => {
     expect(galleryParams(filters({}), '  ')).toEqual({
       q: undefined, person: [], type: undefined, kind: undefined, blurry: false, adult: false,
-      folder: undefined, folderDeep: true, album: undefined, hidden: false,
+      folder: undefined, folderDeep: true, folderExclude: undefined, album: undefined, hidden: false,
     });
   });
   test('поиск берётся без пробелов по краям', () => {
@@ -30,13 +30,13 @@ describe('galleryParams', () => {
 describe('galleryContext и dropFilter', () => {
   const albums = [{id: 4, parent_id: 0, title: 'Лето', depth: 1, trail: 'Отпуск / Лето', photos: 1, total: 1, cover: ''}];
   const current = filters({
-    people: ['Хамис', 'Анна'], folder: `D:${BS}Фото${BS}2019`, album: 4, contentType: 'screenshot',
+    people: ['Хамис', 'Анна'], folder: `D:${BS}Фото${BS}2019`, folderExclude: `D:${BS}Фото${BS}skip`, album: 4, contentType: 'screenshot',
     hidden: true, kind: 'video', showBlurry: true, showAdult: true,
   });
 
   test('каждый фильтр — отдельный чип с понятной подписью', () => {
     expect(galleryContext(current, albums).map(chip => chip.label)).toEqual([
-      'Хамис', 'Анна', 'Папка: 2019', 'Альбом: Отпуск / Лето', 'Скриншоты', 'Скрытый альбом',
+      'Хамис', 'Анна', 'Папка: 2019', 'Кроме папки: skip', 'Альбом: Отпуск / Лето', 'Скриншоты', 'Скрытый альбом',
       'Видео', 'Размытые', '18+',
     ]);
   });

@@ -131,3 +131,23 @@
     .tile { border-radius: 0; }
     .tile:hover img { transform: none; }
 }
+
+.folder-context-menu {
+  position: fixed;
+  z-index: 90;
+  min-width: 210px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-2) 96%, transparent);
+  box-shadow: var(--shadow-lift);
+  backdrop-filter: blur(16px);
+}
+.folder-context-menu button {
+  width: 100%; min-height: 36px; display: flex; align-items: center;
+  padding: 0 10px; border: 0; border-radius: 10px; background: none;
+  color: var(--ink); font: inherit; font-size: .84rem; text-align: left;
+}
+.folder-context-menu button:hover:not(:disabled) { background: var(--ground); }
+.folder-context-menu button:disabled { opacity: .55; }
+.folder-context-menu button:last-child { color: var(--rose); }

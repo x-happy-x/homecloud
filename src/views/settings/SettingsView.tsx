@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import './SettingsView.scss';
+import {FolderPickerDialog, type PickedFolder} from '../../components/FolderPicker/FolderPickerDialog';
 import {formatNumber, plural} from '../../lib/format';
 import {getSettings, saveSettings} from '../../services/endpoints/settings';
 import {qk} from '../../services/queryKeys';
@@ -41,6 +42,7 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
   const setAdultMode = useStore(state => state.setAdultMode);
 
   const [group, setGroup] = useState<SettingsGroupId>('recognition');
+  const [pickSettingKey, setPickSettingKey] = useState<string | null>(null);
 
   const settings = useQuery({queryKey: qk.settings(), queryFn: getSettings});
 
@@ -65,6 +67,17 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
   });
 
   const models = (settings.data?.visual_models ?? []) as VisualModel[];
+
+  const appendPathSetting = (target: PickedFolder) => {
+    const key = pickSettingKey;
+    if (!key) return;
+    const current = String(draft[key] ?? '');
+    const rules = current.split('\n').map(rule => rule.trim()).filter(Boolean);
+    if (!rules.some(rule => rule.toLowerCase() === target.path.toLowerCase())) {
+      setSetting(key, [...rules, target.path].join('\n'));
+    }
+    setPickSettingKey(null);
+  };
 
   const renderField = (field: SettingField) => {
     const value = draft[field.key];
@@ -127,8 +140,8 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
           </Field>
         );
       case 'textarea':
-      case 'text':
-        return (
+      case 'text': {
+        const input = (
           <TextField
             key={field.key}
             label={field.label}
@@ -140,6 +153,16 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
             onChange={next => setSetting(field.key, next)}
           />
         );
+        if (field.key !== 'block_paths' && field.key !== 'allow_paths') return input;
+        return (
+          <div key={field.key} className="path-setting-field">
+            {input}
+            <Button small disabled={!canEdit} onClick={() => setPickSettingKey(field.key)}>
+              Выбрать папку…
+            </Button>
+          </div>
+        );
+      }
     }
   };
 
@@ -211,6 +234,15 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
       )}
 
       {/* Полоса сохранения появляется только когда есть что сохранять. */}
+      <FolderPickerDialog
+        open={Boolean(pickSettingKey)}
+        title="Выбрать папку для исключений"
+        note="Выберите подключенный бэк и папку. Путь будет добавлен в текущее поле настроек."
+        confirmLabel="Добавить путь"
+        onClose={() => setPickSettingKey(null)}
+        onPick={appendPathSetting}
+      />
+
       {canEdit && (dirty || save.isPending) && (
         <div className="settings-bar">
           <strong>Есть несохранённые изменения</strong>

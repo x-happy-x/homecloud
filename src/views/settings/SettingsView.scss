@@ -76,3 +76,6 @@
     .settings-bar .button { flex: 1; }
     .settings-bar .button:first-of-type { margin-left: 0; }
 }
+
+.path-setting-field { display: grid; gap: 8px; }
+.path-setting-field .button { justify-self: start; }

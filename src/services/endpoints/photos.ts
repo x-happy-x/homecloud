@@ -12,6 +12,12 @@ export const revealPhotos = (paths: string[]) =>
 export const deletePhotos = (paths: string[]) =>
   post<{deleted: number} & BatchErrors>('/api/photos/delete', {paths});
 
+export const deleteFolderMedia = (folder: string) =>
+  post<{deleted: number; folder_removed?: boolean} & BatchErrors>('/api/photos/folder/delete', {folder});
+
+export const moveFolderMedia = (payload: {folder: string; target: string; device_id?: string}) =>
+  post<{moved: number; target: string; errors: Array<{path?: string; error?: string} | string>}>('/api/photos/folder/move', payload);
+
 export const processPhotos = (payload: {
   paths: string[];
   features: Record<string, boolean>;

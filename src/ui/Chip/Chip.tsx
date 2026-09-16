@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import type {MouseEventHandler, ReactNode} from 'react';
 
 export interface ChipProps {
   active?: boolean;
@@ -7,16 +7,17 @@ export interface ChipProps {
   verified?: boolean;
   count?: number;
   onClick?(): void;
+  onContextMenu?: MouseEventHandler<HTMLButtonElement>;
   children: ReactNode;
 }
 
-export function Chip({active, context, verified, count, onClick, children}: ChipProps) {
+export function Chip({active, context, verified, count, onClick, onContextMenu, children}: ChipProps) {
   const classes = ['chip'];
   if (active) classes.push('active');
   if (context) classes.push('context');
   if (verified) classes.push('verified');
   return (
-    <button type="button" className={classes.join(' ')} onClick={onClick}>
+    <button type="button" className={classes.join(' ')} onClick={onClick} onContextMenu={onContextMenu}>
       {children}
       {count !== undefined && <small>{count}</small>}
       {context && <i aria-hidden="true">✕</i>}
