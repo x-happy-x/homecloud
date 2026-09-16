@@ -1,19 +1,20 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
-import {useMutation} from '@tanstack/react-query';
+import {useMutation, useQuery} from '@tanstack/react-query';
 import './PeopleView.scss';
-import {PersonCard} from '../../components/people/PersonCard';
+import {PersonCard, type PersonSuggestion} from '../../components/people/PersonCard';
 import {useCatalogState} from '../../hooks/useCatalogState';
 import {useKeyboardShortcuts} from '../../hooks/useKeyboardShortcuts';
 import {useKin} from '../../hooks/useKin';
 import {formatNumber, plural} from '../../lib/format';
 import {createPeopleAlbum} from '../../services/endpoints/albums';
 import {startRecluster} from '../../services/endpoints/jobs';
-import {assignGroups} from '../../services/endpoints/people';
+import {assignGroups, getFaceSuggestions} from '../../services/endpoints/people';
 import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
 import {ActionBar} from '../../ui/ActionBar/ActionBar';
 import {Button} from '../../ui/Button/Button';
+import {Chip} from '../../ui/Chip/Chip';
 import {EmptyState} from '../../ui/EmptyState/EmptyState';
 import {InlineSearch} from '../../ui/InlineSearch/InlineSearch';
 import {PersonPicker, type PickerValue} from '../../ui/PersonPicker/PersonPicker';
@@ -39,6 +40,8 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
   const openAlbumPick = useStore(store => store.openAlbumPick);
   const resetFloating = useStore(store => store.resetFloating);
   const toast = useStore(store => store.toast);
+  const namedOnly = useStore(store => store.prefs.peopleNamedOnly);
+  const setNamedOnly = useStore(store => store.setPeopleNamedOnly);
   const [search, setSearch] = useState('');
   const [pick, setPick] = useState(EMPTY_PICK);
 
@@ -51,9 +54,16 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
     const inAlbum = album ? new Set(album.member_keys) : null;
     return (data?.groups ?? [])
       .filter(group => !REVIEW_KINDS.has(group.kind))
+      .filter(group => !namedOnly || group.kind === 'person')
       .filter(group => !inAlbum || inAlbum.has(group.key))
       .filter(group => !needle || lower(`${group.title} ${group.name ?? ''}`).includes(needle));
-  }, [data, peopleAlbum, needle]);
+  }, [data, peopleAlbum, needle, namedOnly]);
+
+  /** Сколько безымянных групп прячет фильтр — чтобы это не выглядело пропажей. */
+  const unnamed = useMemo(
+    () => (data?.groups ?? []).filter(group => !REVIEW_KINDS.has(group.kind)
+      && group.kind !== 'person').length,
+    [data]);
 
   // Выбор сняли — имя из прошлого выбора к следующему не относится.
   useEffect(() => {
@@ -65,6 +75,35 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
 
   const selectGroup = useCallback((key: string) => toggle('groups', key), [toggle]);
 
+  // Подсказки считаются по запросу и не участвуют в опросе состояния: там
+  // каждые полторы секунды, а здесь надо поднять векторы безымянных лиц.
+  const suggestions = useQuery({
+    queryKey: qk.faceSuggestions(),
+    queryFn: getFaceSuggestions,
+    enabled: canEdit,
+    staleTime: 60_000,
+  });
+  const guesses = useMemo(() => new Map(
+    (suggestions.data?.suggestions ?? []).map(item =>
+      [item.key, {name: item.name, score: item.score, bigfamId: item.bigfam_id ?? null}])),
+    [suggestions.data]);
+
+  const accept = useMutation({
+    mutationFn: ({key, name, bigfamId}: {key: string; name: string; bigfamId: string | null}) =>
+      assignGroups({group_keys: [key], name, bigfam_id: bigfamId}),
+    onSuccess: (_result, {name}) => {
+      void queryClient.invalidateQueries({queryKey: ['state']});
+      void queryClient.invalidateQueries({queryKey: qk.faceSuggestions()});
+      toast(`Группа названа: ${name}`, 'success');
+    },
+  });
+
+  const onAccept = useCallback((key: string, guess: PersonSuggestion) => {
+    const found = guesses.get(key);
+    if (!found) return;
+    accept.mutate({key, name: guess.name, bigfamId: found.bigfamId});
+  }, [accept, guesses]);
+
   const named = (data?.groups ?? []).filter(group => selected.has(group.key) && group.kind === 'person');
 
   const assign = useMutation({
@@ -72,6 +111,7 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
     onSuccess: () => {
       clear('groups');
       void queryClient.invalidateQueries({queryKey: ['state']});
+      void queryClient.invalidateQueries({queryKey: qk.faceSuggestions()});
       toast('Группы объединены и названы');
     },
   });
@@ -87,10 +127,12 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
   };
 
   const recluster = useMutation({
-    mutationFn: startRecluster,
+    mutationFn: (scope: 'all' | 'leftovers') => startRecluster(scope),
     onSuccess: () => {
       resetFloating('recluster');
       void queryClient.invalidateQueries({queryKey: qk.reclusterStatus()});
+      // Группы соберутся заново — прежние догадки к ним уже не относятся.
+      void queryClient.invalidateQueries({queryKey: qk.faceSuggestions()});
     },
   });
 
@@ -114,12 +156,25 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
           <div className="recluster">
             <Button
               small
+              title="Поискать группы среди лиц, которые не собрались ни в одну — не трогая уже собранное"
+              disabled={recluster.isPending}
+              onClick={() => {
+                if (!confirm('Разобрать остаток? Второй проход пройдёт только по лицам, которые '
+                  + 'не попали ни в одну группу, и соберёт из них новые. Уже собранные группы, '
+                  + 'имена и исключения не изменятся.')) return;
+                recluster.mutate('leftovers');
+              }}
+            >
+              Разобрать остаток
+            </Button>
+            <Button
+              small
               title="Заново разложить безымянные лица по группам"
               disabled={recluster.isPending}
               onClick={() => {
                 if (!confirm('Пересобрать автоматические группы заново? Имена и исключения останутся, '
                   + 'а безымянные группы соберутся по-новому. Можно остановить в любой момент.')) return;
-                recluster.mutate();
+                recluster.mutate('all');
               }}
             >
               Пересобрать группы
@@ -137,7 +192,13 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
         )}
       </ViewHeader>
 
-      <InlineSearch value={search} onChange={setSearch} placeholder="Поиск по людям" label="Поиск по людям" />
+      <div className="people-filters">
+        <InlineSearch value={search} onChange={setSearch} placeholder="Поиск по людям" label="Поиск по людям" />
+        <Chip active={namedOnly} onClick={() => setNamedOnly(!namedOnly)}>
+          только с именами
+          {unnamed > 0 && <small>{formatNumber(unnamed)}</small>}
+        </Chip>
+      </div>
       {canEdit && (
         <p className="grid-hint">
           Нажатие открывает человека, долгое нажатие выбирает карточки для объединения.
@@ -165,8 +226,10 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
                 key={group.key}
                 group={group}
                 kin={group.bigfam_id ? kinById.get(group.bigfam_id) ?? null : null}
+                suggestion={guesses.get(group.key) ?? null}
                 onOpen={onOpenGroup}
                 onSelect={selectGroup}
+                onAccept={onAccept}
               />
             ))
           : <Skeleton count={12} />}

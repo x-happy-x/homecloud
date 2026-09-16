@@ -60,6 +60,8 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
       // Правила путей применяются сразу — каталог и галерея должны это увидеть.
       queryClient.invalidateQueries({queryKey: ['state']});
       queryClient.invalidateQueries({queryKey: ['photos']});
+      // Порог догадок мог измениться — пересчитать их заново.
+      queryClient.invalidateQueries({queryKey: qk.faceSuggestions()});
       toast(data.excluded === undefined || data.excluded === null
         ? 'Настройки сохранены'
         : `Настройки сохранены, исключено снимков: ${formatNumber(data.excluded)}`, 'success');

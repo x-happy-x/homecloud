@@ -20,13 +20,21 @@ export interface PersonGroup {
   hidden?: boolean;
 }
 
+export interface PersonSuggestion {
+  name: string;
+  score: number;
+}
+
 export interface PersonCardProps {
   group: PersonGroup;
   kin?: KinPerson | null;
   /** На «Проверке» карточки не выбираются — там другой сценарий. */
   selectable?: boolean;
+  /** Кого напоминает безымянная группа. Догадка, решает человек. */
+  suggestion?: PersonSuggestion | null;
   onOpen(key: string): void;
   onSelect(key: string): void;
+  onAccept?(key: string, suggestion: PersonSuggestion): void;
 }
 
 /** Аватарка: закреплённый кадр → портрет из картотеки → первое лицо группы. */
@@ -38,7 +46,7 @@ function avatarSources(group: PersonGroup): string[] {
 }
 
 export const PersonCard = memo(function PersonCard({
-  group, kin, selectable = true, onOpen, onSelect,
+  group, kin, selectable = true, suggestion, onOpen, onSelect, onAccept,
 }: PersonCardProps) {
   // Подписка на свой бит выделения: иначе щелчок по одной карточке
   // перерисовывал бы всю сетку.
@@ -79,6 +87,17 @@ export const PersonCard = memo(function PersonCard({
           ? <span className="person-years">{years}</span>
           : group.kind === 'auto' ? <span className="person-years">без имени</span> : null}
       </button>
+      {suggestion && canEdit && onAccept && (
+        <button
+          className="person-guess"
+          type="button"
+          title={`Похожесть ${Math.round(suggestion.score * 100)}% — назвать группу этим именем`}
+          onClick={event => { event.stopPropagation(); onAccept(group.key, suggestion); }}
+        >
+          <span className="person-guess-name">похоже на {suggestion.name}</span>
+          <span className="person-guess-score">{Math.round(suggestion.score * 100)}%</span>
+        </button>
+      )}
     </article>
   );
 });

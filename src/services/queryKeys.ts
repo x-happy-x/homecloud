@@ -26,6 +26,7 @@ export const qk = {
 
   similar: (key: string) => ['similar', key] as const,
   similarPairs: (namedOnly: boolean) => ['similar-pairs', {namedOnly}] as const,
+  faceSuggestions: () => ['face-suggestions'] as const,
   compare: (a: string, b: string) => ['compare', a, b] as const,
 
   devices: () => ['devices'] as const,

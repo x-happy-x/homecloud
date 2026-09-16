@@ -1,3 +1,13 @@
 .grid-hint { margin: -6px 0 10px; font-size: .8rem; color: var(--muted); }
 /* Кнопка пересборки не сжимается рядом со статистикой. */
 .recluster { flex: none; }
+
+/* Поиск и фильтр в одну строку: на узком экране чип уходит под поле. */
+.people-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.people-filters .inline-search { flex: 1 1 240px; }

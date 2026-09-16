@@ -20,3 +20,23 @@ export const getSimilarPairs = <T,>(namedOnly: boolean, limit = 24) =>
   api<T>(`/api/similar-pairs${query({limit, named: namedOnly ? 1 : ''})}`);
 
 export const compareGroups = <T,>(a: string, b: string) => api<T>(`/api/compare${query({a, b})}`);
+
+export interface FaceSuggestion {
+  /** Ключ автоматической группы, например `auto:12`. */
+  key: string;
+  person_id: number;
+  name: string;
+  bigfam_id?: string | null;
+  /** Похожесть на ближайшее названное лицо, от 0 до 1. */
+  score: number;
+  faces: number;
+}
+
+export interface FaceSuggestions {
+  enabled: boolean;
+  threshold: number;
+  suggestions: FaceSuggestion[];
+}
+
+/** Кого напоминают безымянные группы. Только подсказка: ничего не меняет. */
+export const getFaceSuggestions = () => api<FaceSuggestions>('/api/suggestions');

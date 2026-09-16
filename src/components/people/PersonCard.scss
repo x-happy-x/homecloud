@@ -113,3 +113,24 @@
     .people-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; }
     .count-badge { padding: 2px 7px; font-size: .65rem; }
 }
+
+/* Догадка «похоже на …»: подсказка, а не факт, поэтому приглушённая и с
+   долей похожести на виду — по ней видно, насколько ей верить. */
+.person-guess {
+  width: 100%;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px dashed color-mix(in srgb, var(--patina) 55%, transparent);
+  border-radius: 999px;
+  background: var(--patina-soft);
+  color: var(--patina);
+  font: inherit;
+  font-size: .72rem;
+  text-align: left;
+}
+.person-guess:hover { background: color-mix(in srgb, var(--patina) 22%, transparent); }
+.person-guess-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-guess-score { margin-left: auto; font-variant-numeric: tabular-nums; opacity: .75; }

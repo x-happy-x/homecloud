@@ -26,7 +26,12 @@ export interface ReclusterStatus {
 }
 
 export const getReclusterStatus = () => api<ReclusterStatus>('/api/recluster/status');
-export const startRecluster = () => post<{job: ReclusterStatus}>('/api/recluster/start');
+/**
+ * scope='all' — пересобрать все автоматические группы заново;
+ * 'leftovers' — второй проход по одному остатку, не трогая уже собранное.
+ */
+export const startRecluster = (scope: 'all' | 'leftovers' = 'all') =>
+  post<{job: ReclusterStatus}>('/api/recluster/start', {scope});
 export const stopRecluster = () => post<{job: ReclusterStatus}>('/api/recluster/stop');
 
 export interface DuplicatesStatus {

@@ -20,6 +20,8 @@ export interface PrefsSlice {
     /** Вкладка «Анализа», на которую возвращает пункт навигации. */
     analysisTab: AnalysisView;
     similarNamedOnly: boolean;
+    /** Показывать на «Людях» только названных: безымянные группы прячутся. */
+    peopleNamedOnly: boolean;
     /** Как делить галерею на группы. */
     grouping: Grouping;
     /** Свёрнутые группы — по виду группировки. */
@@ -31,6 +33,7 @@ export interface PrefsSlice {
   setSidepageTab(tab: SidepageTab): void;
   setAnalysisTab(tab: AnalysisView): void;
   setSimilarNamedOnly(only: boolean): void;
+  setPeopleNamedOnly(only: boolean): void;
   setGroupBy(by: GroupBy): void;
   setGroupOrder(order: GroupOrder): void;
   toggleGroup(by: GroupBy, key: string): void;
@@ -80,6 +83,7 @@ export const createPrefsSlice: StateCreator<Store, [], [], PrefsSlice> = (set, g
       sidepageTab: (readLocal(KEYS.sidepageTab) as SidepageTab) || 'people',
       analysisTab: savedAnalysisTab(),
       similarNamedOnly: false,
+      peopleNamedOnly: readLocal(KEYS.peopleNamedOnly) === '1',
       grouping: parseGrouping(readLocalJson(KEYS.galleryGrouping, null)),
       collapsed: savedCollapsed(),
     },
@@ -90,6 +94,10 @@ export const createPrefsSlice: StateCreator<Store, [], [], PrefsSlice> = (set, g
     setSidepageTab: tab => { writeLocal(KEYS.sidepageTab, tab); patch({sidepageTab: tab}); },
     setAnalysisTab: tab => { writeLocal(KEYS.analysisTab, tab); patch({analysisTab: tab}); },
     setSimilarNamedOnly: only => patch({similarNamedOnly: only}),
+    setPeopleNamedOnly: only => {
+      writeLocal(KEYS.peopleNamedOnly, only ? '1' : '');
+      patch({peopleNamedOnly: only});
+    },
     // У нового вида свой естественный порядок: папки по названию, дни — свежие сверху.
     setGroupBy: by => saveGrouping(parseGrouping({by, order: defaultOrder(by)})),
     setGroupOrder: order => saveGrouping(parseGrouping({...get().prefs.grouping, order})),
