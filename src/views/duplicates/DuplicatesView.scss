@@ -241,3 +241,79 @@
   .dup-row { grid-auto-columns: 42%; margin-inline: -10px; padding-inline: 10px; scroll-padding-inline: 10px; }
   .dup-more-row .button { flex: 1; justify-content: center; }
 }
+
+/* ---------- вид списка ---------- */
+
+.dup-layout { display: flex; gap: 2px; margin-left: auto; padding: 3px; border-radius: 999px; background: var(--ground); }
+.dup-layout .zoom-step { width: 34px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 999px; background: none; color: var(--muted); cursor: pointer; }
+.dup-layout .zoom-step svg { width: 17px; height: 17px; fill: currentColor; }
+.dup-layout .zoom-step.active { background: var(--surface-2); color: var(--ink); box-shadow: var(--shadow); }
+
+// Сетки: группы плитками. Каждой плитке хватает места на свою мозаику.
+.dup-list.layout-grid4 { grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); }
+.dup-list.layout-grid6 { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+.dup-list:not(.layout-row) .dup-group { align-content: start; contain-intrinsic-size: auto 360px; }
+.dup-list:not(.layout-row) .dup-group-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title gain' 'kind toggle'; gap: 6px 8px; }
+.dup-list:not(.layout-row) .dup-group-title { grid-area: title; }
+.dup-list:not(.layout-row) .dup-gain { grid-area: gain; }
+.dup-list:not(.layout-row) .dup-kind { grid-area: kind; justify-self: start; }
+.dup-list:not(.layout-row) .dup-group-head .toggle-chip { grid-area: toggle; }
+
+.dup-mosaic { display: grid; gap: 4px; border-radius: var(--r-m); overflow: hidden; }
+.dup-mosaic.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dup-mosaic.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.dup-tile {
+  position: relative;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  background: var(--ground);
+  overflow: hidden;
+  cursor: pointer;
+}
+.dup-tile:disabled { cursor: default; }
+.dup-tile img { display: block; width: 100%; height: 100%; object-fit: cover; transition: opacity .15s, filter .15s; }
+.dup-tile:not(.keep) img { filter: saturate(.7); opacity: .8; }
+.dup-tile:not(.keep):hover:not(:disabled) img { filter: none; opacity: 1; }
+.dup-tile.keep { box-shadow: 0 0 0 2px var(--patina) inset; }
+.dup-tile.keep img { outline: 2px solid var(--patina); outline-offset: -2px; }
+.dup-tile:focus-visible { outline: 2px solid var(--patina); outline-offset: -2px; }
+.dup-tile .dup-mark { z-index: 1; }
+.dup-video {
+  position: absolute;
+  right: 6px; top: 6px;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: rgb(15 21 20 / 65%);
+  color: #fff;
+}
+.dup-video svg { fill: currentColor; }
+.dup-tile-size {
+  position: absolute;
+  left: 6px; bottom: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgb(15 21 20 / 65%);
+  color: #fff;
+  font-size: .66rem;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(4px);
+}
+.dup-tile-rest {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(15 21 20 / 62%);
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 650;
+  backdrop-filter: blur(2px);
+}
+
+@include bp-md {
+  .dup-layout { margin-left: 0; }
+  .dup-list:not(.layout-row) { gap: 8px; }
+}

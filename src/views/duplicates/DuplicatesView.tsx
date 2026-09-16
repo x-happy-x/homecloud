@@ -11,7 +11,7 @@ import {photoMediaUrl} from '../../services/media';
 import {qk} from '../../services/queryKeys';
 import {queryClient} from '../../services/queryClient';
 import {useStore} from '../../store';
-import type {DupKind, DupSort} from '../../store/slices/duplicates';
+import type {DupKind, DupLayout, DupSort} from '../../store/slices/duplicates';
 import type {AdultMode} from '../../types/domain';
 import {ActionBar} from '../../ui/ActionBar/ActionBar';
 import {Button} from '../../ui/Button/Button';
@@ -24,6 +24,13 @@ import {SectionHead} from '../../ui/ViewHeader/ViewHeader';
 const PAGE = 30;
 /** Бэкенд принимает до пятисот путей за раз — удаляем партиями. */
 const DELETE_BATCH = 200;
+
+const LAYOUTS: Array<[DupLayout, 'rowView' | 'zoomLarge' | 'gridSix', string]> = [
+  ['row', 'rowView', 'Лентой: все снимки группы в строку'],
+  ['grid4', 'zoomLarge', 'Сеткой по 4 снимка'],
+  ['grid6', 'gridSix', 'Сеткой по 6 снимков'],
+];
+const MOSAIC: Record<DupLayout, number> = {row: 0, grid4: 4, grid6: 6};
 
 const files = (count: number) => `${formatNumber(count)} ${plural(count, 'файл', 'файла', 'файлов')}`;
 const groupsText = (count: number) => `${formatNumber(count)} ${plural(count, 'группа', 'группы', 'групп')}`;
@@ -48,6 +55,8 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
   const selectSkipped = useStore(state => state.select);
   const clearSelection = useStore(state => state.clear);
   const toast = useStore(state => state.toast);
+  const layout = useStore(state => state.duplicates.layout);
+  const setLayout = useStore(state => state.setDupLayout);
   const setKeep = useStore(state => state.setDupKeep);
   const openPhoto = useStore(state => state.setRoutePhoto);
   const [menu, setMenu] = useState<MediaMenuState | null>(null);
@@ -207,6 +216,21 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
           >
             Скрыть мелкие файлы{summary?.small_groups ? ` · ${formatNumber(summary.small_groups)}` : ''}
           </ToggleChip>
+          <div className="dup-layout" role="group" aria-label="Вид списка">
+            {LAYOUTS.map(([id, icon, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={`zoom-step${layout === id ? ' active' : ''}`}
+                aria-pressed={layout === id}
+                title={label}
+                aria-label={label}
+                onClick={() => setLayout(id)}
+              >
+                <Icon name={icon} />
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -230,7 +254,7 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
         />
       )}
 
-      <div className="dup-list">
+      <div className={`dup-list layout-${layout}`}>
         {list.map(group => (
           <GroupCard
             key={group.key}
@@ -239,6 +263,7 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
             off={skipped.has(group.key)}
             canEdit={canEdit}
             adultMode={adultMode}
+            layout={layout}
             onMenu={onCardMenu}
           />
         ))}
@@ -362,10 +387,11 @@ interface GroupCardProps {
   off: boolean;
   canEdit: boolean;
   adultMode: AdultMode;
+  layout: DupLayout;
   onMenu(event: MouseEvent, photo: DuplicatePhoto): void;
 }
 
-const GroupCard = memo(function GroupCard({group, keep, off, canEdit, adultMode, onMenu}: GroupCardProps) {
+const GroupCard = memo(function GroupCard({group, keep, off, canEdit, adultMode, layout, onMenu}: GroupCardProps) {
   const toggle = useStore(state => state.toggle);
   const setKeep = useStore(state => state.setDupKeep);
   const hidden = group.count - group.photos.length;
@@ -394,7 +420,18 @@ const GroupCard = memo(function GroupCard({group, keep, off, canEdit, adultMode,
         )}
       </header>
 
-      <div className="dup-row">
+      {MOSAIC[layout] > 0 && (
+        <Mosaic
+          group={group}
+          keep={keep}
+          size={MOSAIC[layout]}
+          canEdit={canEdit && !off}
+          adultMode={adultMode}
+          onKeep={path => setKeep(group.key, path)}
+          onMenu={onMenu}
+        />
+      )}
+      {MOSAIC[layout] === 0 && <div className="dup-row">
         {group.photos.map(photo => (
           <DupCard
             key={photo.path}
@@ -412,10 +449,65 @@ const GroupCard = memo(function GroupCard({group, keep, off, canEdit, adultMode,
             <span>не показаны, тоже удалятся</span>
           </div>
         )}
-      </div>
+      </div>}
     </article>
   );
 });
+
+interface MosaicProps {
+  group: DuplicateGroup;
+  keep: string;
+  size: number;
+  canEdit: boolean;
+  adultMode: AdultMode;
+  onKeep(path: string): void;
+  onMenu(event: MouseEvent, photo: DuplicatePhoto): void;
+}
+
+/**
+ * Группа плиткой: оставляемый кадр первым, дальше копии. Подробности каждого
+ * файла — в подсказке и в меню по правой кнопке; на последней плитке —
+ * сколько копий не поместилось.
+ */
+function Mosaic({group, keep, size, canEdit, adultMode, onKeep, onMenu}: MosaicProps) {
+  const ordered = [
+    ...group.photos.filter(photo => photo.path === keep),
+    ...group.photos.filter(photo => photo.path !== keep),
+  ];
+  const shown = ordered.slice(0, size);
+  const rest = group.count - shown.length;
+  return (
+    <div className={`dup-mosaic cols-${size === 6 ? 3 : 2}`}>
+      {shown.map((photo, index) => {
+        const kept = photo.path === keep;
+        const last = index === shown.length - 1 && rest > 0;
+        const details = [
+          photo.filename || baseName(photo.path),
+          fileSize(photo.size),
+          photo.width ? `${photo.width}×${photo.height}` : '',
+          photo.folder ?? '',
+        ].filter(Boolean).join(' · ');
+        return (
+          <button
+            key={photo.path}
+            type="button"
+            className={`dup-tile${kept ? ' keep' : ''}`}
+            disabled={!canEdit || kept}
+            title={kept ? `Останется: ${details}` : `Оставить этот: ${details}`}
+            onClick={() => onKeep(photo.path)}
+            onContextMenu={event => onMenu(event, photo)}
+          >
+            <img src={photoMediaUrl(photo, adultMode, 360)} alt="" loading="lazy" decoding="async" />
+            {kept && <span className="dup-mark"><Icon name="check" size={13} />Оставим</span>}
+            {photo.kind === 'video' && <span className="dup-video"><Icon name="play" size={13} /></span>}
+            <span className="dup-tile-size">{fileSize(photo.size)}</span>
+            {last && <span className="dup-tile-rest">+{formatNumber(rest)}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 interface DupCardProps {
   photo: DuplicatePhoto;
