@@ -35,7 +35,7 @@ export const qk = {
     path === undefined ? (['tree', deviceId] as const) : (['tree', deviceId, path] as const),
   scanHistory: (deviceId: string) => ['scan-history', deviceId] as const,
 
-  duplicates: (similar: boolean) => ['duplicates', {similar}] as const,
+  duplicates: (similar: boolean, filters: Record<string, unknown>) => ['duplicates', {similar, ...filters}] as const,
   duplicatesStatus: () => ['duplicates-status'] as const,
   reclusterStatus: () => ['recluster-status'] as const,
 

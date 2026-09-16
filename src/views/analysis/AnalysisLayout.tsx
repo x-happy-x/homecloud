@@ -25,9 +25,11 @@ export function AnalysisLayout({view, devices, children}: AnalysisLayoutProps) {
   const setView = useStore(state => state.setView);
   const setAnalysisTab = useStore(state => state.setAnalysisTab);
   const similar = useStore(state => state.duplicates.similar);
+  const dupFilters = useStore(state => state.duplicates.filters);
   const stats = useCatalogState().data?.stats;
   const routerSummary = useCachedData<{pending?: number}>(qk.routerSummary());
-  const duplicatePages = useCachedData<{pages: Array<{total: number}>}>(qk.duplicates(similar));
+  const duplicatePages = useCachedData<{pages: Array<{total: number; summary?: {groups: number}}>}>(
+    qk.duplicates(similar, {...dupFilters}));
 
   // Возврат в «Анализ» открывает ту вкладку, с которой ушли, — в том числе
   // после перезагрузки страницы.
@@ -37,7 +39,7 @@ export function AnalysisLayout({view, devices, children}: AnalysisLayoutProps) {
     review: stats?.review,
     pending: routerSummary?.pending,
     devices,
-    duplicates: duplicatePages?.pages[0]?.total,
+    duplicates: duplicatePages?.pages[0]?.summary?.groups ?? duplicatePages?.pages[0]?.total,
   });
 
   return (
