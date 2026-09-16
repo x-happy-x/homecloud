@@ -273,9 +273,11 @@ export function PhotosView() {
                     />
                   ))}
             </div>
-            <div ref={edge} className={`grid-more${isFetchingNextPage ? ' loading' : ''}`} aria-hidden="true" />
           </>
         )}
+      {/* Датчик конца сетки живёт вне условия: наблюдатель вешается один раз при
+          монтировании, и после выключения группировки новый узел никто бы не видел. */}
+      <div ref={edge} className={`grid-more${isFetchingNextPage ? ' loading' : ''}`} aria-hidden="true" />
 
       <FolderContextMenu
         menu={folderMenu}

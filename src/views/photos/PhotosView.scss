@@ -104,12 +104,24 @@
 
 .gallery-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px 10px;
   padding: 2px 0 16px;
   min-width: 0;
 }
 .gallery-bar .button { flex: 0 0 auto; gap: 7px; }
+/* Фильтры идут в общем потоке с кнопками и переносятся на следующую строку,
+   а не прячутся в горизонтальную прокрутку. */
+.gallery-bar .context-chips { display: contents; }
+.gallery-bar .chip.context {
+  max-width: 100%;
+  min-height: 34px;
+  padding-block: 5px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
 .bar-count {
   display: inline-grid;
   place-items: center;

@@ -148,5 +148,8 @@
 
 @include bp-sm {
   .group-covers img:nth-child(n + 3) { display: none; }
+}
+
+@media (max-width: 350px) {
   .grouping-label { display: none; }
 }
