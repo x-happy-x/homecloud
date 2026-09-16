@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import {useCatalogState} from '../../../hooks/useCatalogState';
 import {useKin} from '../../../hooks/useKin';
@@ -30,6 +30,13 @@ export function SpeechPanel({photo, onSeek}: SpeechPanelProps) {
   const kin = useKin().data;
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [pick, setPick] = useState(EMPTY_PICK);
+
+  // Ключа на компоненте нет (он ломал соседние разделы), поэтому выбранного
+  // говорящего сбрасываем сами при переходе к другому ролику.
+  useEffect(() => {
+    setSpeaker(null);
+    setPick(EMPTY_PICK);
+  }, [photo.path]);
 
   const speech = useQuery({
     queryKey: qk.speech(photo.path),

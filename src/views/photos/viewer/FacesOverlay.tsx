@@ -62,6 +62,14 @@ export function FacesOverlay({photo, onClose, onSeek}: FacesOverlayProps) {
   };
   useEffect(() => cancelHold, []);
 
+  // Пролистнули на другой снимок — выбор и всплывашка к нему не относятся.
+  useEffect(() => {
+    setChosen(new Set());
+    setPick(EMPTY_PICK);
+    setHeld(null);
+    cancelHold();
+  }, [photo.path]);
+
   const assign = useMutation({
     mutationFn: ({faceIds: ids, name, bigfamId}: Assignment) =>
       assignFaces({face_ids: ids, name, bigfam_id: bigfamId}),

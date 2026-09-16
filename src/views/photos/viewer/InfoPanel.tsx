@@ -25,13 +25,20 @@ export interface InfoPanelProps {
 export function InfoPanel({photo, onClose, onSeek}: InfoPanelProps) {
   return (
     <div className="viewer-sheet-body">
+      {/*
+        Ключей здесь быть не должно. Соседние разделы появляются и пропадают
+        (роутер, 18+, речь), и единственный ключ среди соседей без ключей сбивал
+        React: он добавлял новый блок «Кто на фото», не убрав прежний, и при
+        листании они копились. Своё состояние панели сбрасывают сами, по смене
+        пути снимка.
+      */}
       <PlacesPanel photo={photo} onClose={onClose} />
-      <FacesOverlay key={photo.path} photo={photo} onClose={onClose} onSeek={onSeek} />
+      <FacesOverlay photo={photo} onClose={onClose} onSeek={onSeek} />
       <Description photo={photo} />
       <RouterLabels photo={photo} />
       <AdultAnalysis photo={photo} />
       {photo.kind === 'video' && photo.speech_text && (
-        <SpeechPanel key={photo.path} photo={photo} onSeek={onSeek} />
+        <SpeechPanel photo={photo} onSeek={onSeek} />
       )}
       {photo.ocr_text && (
         <details className="lightbox-ocr">
