@@ -70,15 +70,30 @@
 }
 .dup-folders h4 { margin: 0 0 8px; color: var(--muted); font-size: .7rem; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
 .dup-folders ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
-.dup-folders li {
+.dup-folders li { display: grid; min-width: 0; }
+/* Строка сводки — кнопка: щелчок сужает список до копий в этой папке. */
+.dup-folder {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 8px;
   row-gap: 4px;
+  min-width: 0;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--r-s);
+  background: none;
+  color: inherit;
+  font: inherit;
   font-size: .8rem;
+  text-align: left;
+  cursor: pointer;
 }
-.dup-folders li > svg { fill: currentColor; color: var(--muted); }
+.dup-folder:hover { background: var(--ground); }
+.dup-folder.active { background: var(--ground); box-shadow: inset 0 0 0 1px var(--patina); }
+.dup-folder.active .dup-folder-count { color: var(--patina); }
+.dup-folder > svg { fill: currentColor; color: var(--muted); }
 .dup-folder-name { display: grid; min-width: 0; }
 .dup-folder-name b, .dup-folder-name small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dup-folder-name b { font-weight: 600; }

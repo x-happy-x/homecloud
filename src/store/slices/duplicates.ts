@@ -19,6 +19,11 @@ export interface DupFilters {
   sort: DupSort;
   /** Прятать группы мелких файлов: иконки и картинки интерфейса. */
   hideSmall: boolean;
+  /**
+   * Одна папка из сводки, без вложенных: показываем группы с копией в ней и
+   * удаляем только её копии. Пусто — вся библиотека.
+   */
+  folder: string;
 }
 
 export interface DuplicatesSlice {
@@ -38,7 +43,7 @@ export interface DuplicatesSlice {
 }
 
 export const createDuplicatesSlice: StateCreator<Store, [], [], DuplicatesSlice> = set => ({
-  duplicates: {similar: false, keep: {}, filters: {kind: 'all', sort: 'size', hideSmall: true}, layout: savedLayout()},
+  duplicates: {similar: false, keep: {}, filters: {kind: 'all', sort: 'size', hideSmall: true, folder: ''}, layout: savedLayout()},
 
   setDupSimilar: similar => set(state => ({duplicates: {...state.duplicates, similar}})),
 

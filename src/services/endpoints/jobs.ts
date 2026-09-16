@@ -72,6 +72,10 @@ export interface DuplicateGroup {
   paths: string[];
   /** Карточки первых путей — не больше дюжины. */
   photos: DuplicatePhoto[];
+  /** Только при фильтре по папке: лишние копии, лежащие прямо в ней. */
+  folder_paths?: string[];
+  /** Сколько байт освободят эти копии. */
+  folder_extra?: number;
 }
 
 export interface DuplicatesSummary {
@@ -97,10 +101,10 @@ export interface DuplicatesPage {
 
 export const getDuplicates = (
   similar: boolean,
-  filters: {kind: string; sort: string; hideSmall: boolean},
+  filters: {kind: string; sort: string; hideSmall: boolean; folder: string},
   limit: number,
   offset: number,
 ) => api<DuplicatesPage>(`/api/duplicates${query({
-  similar: similar ? 1 : 0, kind: filters.kind, sort: filters.sort,
+  similar: similar ? 1 : 0, kind: filters.kind, sort: filters.sort, folder: filters.folder,
   hide_small: filters.hideSmall ? 1 : 0, limit, offset,
 })}`);

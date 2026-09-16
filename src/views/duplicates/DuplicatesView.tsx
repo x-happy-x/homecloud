@@ -9,6 +9,7 @@ import {
 import {deletePhotos} from '../../services/endpoints/photos';
 import {photoMediaUrl} from '../../services/media';
 import {qk} from '../../services/queryKeys';
+import {doomedPaths, gainOf} from './scope';
 import {queryClient} from '../../services/queryClient';
 import {useStore} from '../../store';
 import type {DupKind, DupLayout, DupSort} from '../../store/slices/duplicates';
@@ -111,12 +112,11 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
     const chosen = keepChoice[group.key];
     return chosen && group.paths.includes(chosen) ? chosen : group.keep;
   };
-  /** Лишние в группе — все пути, кроме выбранного. */
-  const extrasOf = (group: DuplicateGroup) => group.paths.filter(path => path !== keepOf(group));
+  const extrasOf = (group: DuplicateGroup) => doomedPaths(group, keepOf(group), filters.folder);
 
   const active = list.filter(group => !skipped.has(group.key));
   const extras = active.flatMap(extrasOf);
-  const bytes = active.reduce((sum, group) => sum + gainOf(group, keepOf(group)), 0);
+  const bytes = active.reduce((sum, group) => sum + gainOf(group, keepOf(group), filters.folder), 0);
 
   const remove = useMutation({
     mutationFn: async () => {
@@ -143,7 +143,10 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
 
   const confirmRemove = () => {
     const text = `Удалить ${files(extras.length)} (${fileSize(bytes)}) из ${groupsText(active.length)}?\n`
-      + 'В каждой группе останется отмеченный снимок. Файлы удаляются с диска устройства.';
+      + (filters.folder
+        ? `Только копии из папки ${filters.folder}; файлы группы в других папках останутся.\n`
+        : 'В каждой группе останется отмеченный снимок.\n')
+      + 'Файлы удаляются с диска устройства.';
     if (confirm(text)) remove.mutate();
   };
 
@@ -188,7 +191,14 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
 
       {running && <ScanProgress status={status!} canStop={canEdit} onStop={onStop} />}
 
-      {summary && summary.groups > 0 && <Summary summary={summary} similar={similar} />}
+      {summary && summary.groups > 0 && (
+        <Summary
+          summary={summary}
+          similar={similar}
+          folder={filters.folder}
+          onFolder={folder => setFilters({folder})}
+        />
+      )}
 
       {(summary?.groups ?? total) > 0 && (
         <div className="dup-toolbar">
@@ -209,6 +219,11 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
               </Chip>
             ))}
           </div>
+          {filters.folder && (
+            <Chip context title={filters.folder} onClick={() => setFilters({folder: ''})}>
+              Только в папке {baseName(filters.folder)}
+            </Chip>
+          )}
           <ToggleChip
             checked={filters.hideSmall}
             title="Файлы меньше 100 КБ — обычно иконки и картинки программ"
@@ -238,7 +253,8 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
         <ActionBar
           variant="sticky"
           count={active.length}
-          countLabel={`${groupsText(active.length)} · удалим ${files(extras.length)} · ${fileSize(bytes)}`}
+          countLabel={`${groupsText(active.length)} · удалим ${files(extras.length)}`
+            + `${filters.folder ? ` в папке ${baseName(filters.folder)}` : ''} · ${fileSize(bytes)}`}
           actions={
             <>
               {skipped.size > 0
@@ -266,6 +282,7 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
             layout={layout}
             onMenu={onCardMenu}
             onOpen={openPhoto}
+            folder={filters.folder}
           />
         ))}
         {groups.isPending && <div className="dup-loading">Считаю группы…</div>}
@@ -284,20 +301,15 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
 
       {list.length === 0 && !groups.isPending && !running && (
         <EmptyState mark="✓" title={summary?.groups ? 'Под фильтр ничего не попало' : 'Дубликатов не найдено'}>
-          {summary?.groups
-            ? 'Снимите «Скрыть мелкие файлы» или выберите другой вид групп.'
-            : 'Запустите поиск — он посчитает хеши файлов и покажет повторы.'}
+          {!summary?.groups
+            ? 'Запустите поиск — он посчитает хеши файлов и покажет повторы.'
+            : filters.folder
+              ? 'В этой папке копии не попали под остальные условия: снимите «Скрыть мелкие файлы» или выберите другой вид групп.'
+              : 'Снимите «Скрыть мелкие файлы» или выберите другой вид групп.'}
         </EmptyState>
       )}
     </section>
   );
-}
-
-/** Сколько освободит группа, если оставить keep: сервер считал для своего выбора. */
-function gainOf(group: DuplicateGroup, keep: string): number {
-  if (keep === group.keep) return group.extra;
-  const size = (path: string) => group.photos.find(photo => photo.path === path)?.size ?? 0;
-  return Math.max(0, group.extra + size(group.keep) - size(keep));
 }
 
 function ScanProgress({status, canStop, onStop}: {status: DuplicatesStatus; canStop: boolean; onStop(): void}) {
@@ -330,7 +342,15 @@ function ScanProgress({status, canStop, onStop}: {status: DuplicatesStatus; canS
   );
 }
 
-function Summary({summary, similar}: {summary: DuplicatesSummary; similar: boolean}) {
+interface SummaryProps {
+  summary: DuplicatesSummary;
+  similar: boolean;
+  /** Папка, копиями которой сейчас ограничен список. */
+  folder: string;
+  onFolder(folder: string): void;
+}
+
+function Summary({summary, similar, folder, onFolder}: SummaryProps) {
   const top = summary.top_folders[0]?.copies || 1;
   const share = summary.files ? summary.extra_files / summary.files : 0;
   return (
@@ -364,17 +384,30 @@ function Summary({summary, similar}: {summary: DuplicatesSummary; similar: boole
         <div className="dup-folders">
           <h4>Где больше всего лишних копий</h4>
           <ul>
-            {summary.top_folders.map(item => (
-              <li key={item.folder} title={item.folder}>
-                <Icon name="folder" size={16} />
-                <span className="dup-folder-name">
-                  <b>{baseName(item.folder)}</b>
-                  <small>{item.folder}</small>
-                </span>
-                <span className="dup-folder-count">{formatNumber(item.copies)}</span>
-                <span className="dup-folder-bar"><span style={{width: `${(item.copies / top) * 100}%`}} /></span>
-              </li>
-            ))}
+            {summary.top_folders.map(item => {
+              const picked = item.folder === folder;
+              return (
+                <li key={item.folder}>
+                  <button
+                    type="button"
+                    className={`dup-folder${picked ? ' active' : ''}`}
+                    aria-pressed={picked}
+                    title={picked
+                      ? 'Показать группы во всей библиотеке'
+                      : `Оставить только копии в этой папке: ${item.folder}`}
+                    onClick={() => onFolder(picked ? '' : item.folder)}
+                  >
+                    <Icon name="folder" size={16} />
+                    <span className="dup-folder-name">
+                      <b>{baseName(item.folder)}</b>
+                      <small>{item.folder}</small>
+                    </span>
+                    <span className="dup-folder-count">{formatNumber(item.copies)}</span>
+                    <span className="dup-folder-bar"><span style={{width: `${(item.copies / top) * 100}%`}} /></span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -392,16 +425,20 @@ interface GroupCardProps {
   onMenu(event: MouseEvent, photo: DuplicatePhoto): void;
   /** Открыть снимок в просмотрщике: двойной щелчок или щелчок по уже оставляемому. */
   onOpen(path: string): void;
+  /** Папка фильтра: тогда карточки и счёт — только по её копиям. */
+  folder: string;
 }
 
 const GroupCard = memo(function GroupCard({
-  group, keep, off, canEdit, adultMode, layout, onMenu, onOpen,
+  group, keep, off, canEdit, adultMode, layout, onMenu, onOpen, folder,
 }: GroupCardProps) {
   const toggle = useStore(state => state.toggle);
   const setKeep = useStore(state => state.setDupKeep);
-  const hidden = group.count - group.photos.length;
+  // В папке удаляются только её копии, и карточками сервер прислал их же.
+  const doomed = doomedPaths(group, keep, folder).length;
+  const hidden = doomed - group.photos.filter(photo => photo.path !== keep).length;
   const kept = group.photos.find(photo => photo.path === keep) ?? group.photos[0];
-  const gain = gainOf(group, keep);
+  const gain = gainOf(group, keep, folder);
 
   return (
     <article className={`dup-group${off ? ' off' : ''}`}>
@@ -409,7 +446,10 @@ const GroupCard = memo(function GroupCard({
         <span className={`dup-kind ${group.kind}`}>{group.kind === 'exact' ? 'Точные копии' : 'Похожие'}</span>
         <div className="dup-group-title">
           <strong title={kept?.path}>{kept?.filename || baseName(keep)}</strong>
-          <small>{files(group.count)} · удалим {formatNumber(group.count - 1)}</small>
+          <small>
+            {files(group.count)} · удалим {formatNumber(doomed)}
+            {folder ? ' в этой папке' : ''}
+          </small>
         </div>
         <span className="dup-gain" title="Освободится при удалении лишних">
           {gain ? `−${fileSize(gain)}` : 'пустые файлы'}
@@ -417,7 +457,11 @@ const GroupCard = memo(function GroupCard({
         {canEdit && (
           <ToggleChip
             checked={!off}
-            title={off ? 'Группа не будет очищена' : 'Лишние файлы этой группы будут удалены'}
+            title={off
+              ? 'Группа не будет очищена'
+              : folder
+                ? 'Копии этой группы в выбранной папке будут удалены'
+                : 'Лишние файлы этой группы будут удалены'}
             onChange={() => toggle('dupSkip', group.key)}
           >
             {off ? 'Пропустить' : 'Очистить'}
@@ -435,6 +479,7 @@ const GroupCard = memo(function GroupCard({
           onKeep={path => setKeep(group.key, path)}
           onMenu={onMenu}
           onOpen={onOpen}
+          rest={hidden}
         />
       )}
       {MOSAIC[layout] === 0 && <div className="dup-row">
@@ -470,6 +515,8 @@ interface MosaicProps {
   onKeep(path: string): void;
   onMenu(event: MouseEvent, photo: DuplicatePhoto): void;
   onOpen(path: string): void;
+  /** Сколько копий не поместилось на плитки. */
+  rest: number;
 }
 
 /**
@@ -477,17 +524,17 @@ interface MosaicProps {
  * файла — в подсказке и в меню по правой кнопке; на последней плитке —
  * сколько копий не поместилось.
  */
-function Mosaic({group, keep, size, canEdit, adultMode, onKeep, onMenu, onOpen}: MosaicProps) {
+function Mosaic({group, keep, size, canEdit, adultMode, onKeep, onMenu, onOpen, rest}: MosaicProps) {
   // Порядок постоянный — совет сервера первым, как пришло. Если ставить первым
   // выбранный кадр, после щелчка плитки просто менялись местами, а отметка
   // «Оставим» оставалась на прежнем месте.
   const shown = group.photos.slice(0, size);
-  const rest = group.count - shown.length;
+  const left = rest + group.photos.length - shown.length;
   return (
     <div className={`dup-mosaic cols-${size === 6 ? 3 : 2}`}>
       {shown.map((photo, index) => {
         const kept = photo.path === keep;
-        const last = index === shown.length - 1 && rest > 0;
+        const last = index === shown.length - 1 && left > 0;
         const details = [
           photo.filename || baseName(photo.path),
           fileSize(photo.size),
@@ -510,7 +557,7 @@ function Mosaic({group, keep, size, canEdit, adultMode, onKeep, onMenu, onOpen}:
             {kept && <span className="dup-mark"><Icon name="check" size={13} />Оставим</span>}
             {photo.kind === 'video' && <span className="dup-video"><Icon name="play" size={13} /></span>}
             <span className="dup-tile-size">{fileSize(photo.size)}</span>
-            {last && <span className="dup-tile-rest">+{formatNumber(rest)}</span>}
+            {last && <span className="dup-tile-rest">+{formatNumber(left)}</span>}
           </button>
         );
       })}

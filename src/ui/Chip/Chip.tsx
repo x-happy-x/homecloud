@@ -10,11 +10,13 @@ export interface ChipProps {
   onClick?(): void;
   onContextMenu?: MouseEventHandler<HTMLButtonElement>;
   className?: string;
+  /** Подсказка при наведении: длинное значение, не влезшее в надпись. */
+  title?: string;
   children: ReactNode;
 }
 
 export function Chip({
-  active, context, verified, count, onClick, onContextMenu, className, children,
+  active, context, verified, count, onClick, onContextMenu, className, title, children,
 }: ChipProps) {
   const classes = ['chip'];
   if (active) classes.push('active');
@@ -22,7 +24,13 @@ export function Chip({
   if (verified) classes.push('verified');
   if (className) classes.push(className);
   return (
-    <button type="button" className={classes.join(' ')} onClick={onClick} onContextMenu={onContextMenu}>
+    <button
+      type="button"
+      className={classes.join(' ')}
+      title={title}
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+    >
       {children}
       {count !== undefined && <small>{count}</small>}
       {context && <i aria-hidden="true">✕</i>}
