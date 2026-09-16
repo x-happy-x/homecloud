@@ -465,16 +465,15 @@ interface MosaicProps {
 }
 
 /**
- * Группа плиткой: оставляемый кадр первым, дальше копии. Подробности каждого
+ * Группа плиткой: совет сервера первым, дальше копии. Подробности каждого
  * файла — в подсказке и в меню по правой кнопке; на последней плитке —
  * сколько копий не поместилось.
  */
 function Mosaic({group, keep, size, canEdit, adultMode, onKeep, onMenu}: MosaicProps) {
-  const ordered = [
-    ...group.photos.filter(photo => photo.path === keep),
-    ...group.photos.filter(photo => photo.path !== keep),
-  ];
-  const shown = ordered.slice(0, size);
+  // Порядок постоянный — совет сервера первым, как пришло. Если ставить первым
+  // выбранный кадр, после щелчка плитки просто менялись местами, а отметка
+  // «Оставим» оставалась на прежнем месте.
+  const shown = group.photos.slice(0, size);
   const rest = group.count - shown.length;
   return (
     <div className={`dup-mosaic cols-${size === 6 ? 3 : 2}`}>
