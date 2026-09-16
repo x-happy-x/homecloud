@@ -769,7 +769,7 @@ interface ViewerStripProps {
 function ViewerStrip({list, index, adultMode, onGo}: ViewerStripProps) {
   const strip = useRef<HTMLDivElement>(null);
   const active = useRef<HTMLButtonElement>(null);
-  useDragScroll(strip);
+  const {dragged} = useDragScroll(strip);
 
   useEffect(() => {
     active.current?.scrollIntoView({block: 'nearest', inline: 'center', behavior: 'instant'});
@@ -788,11 +788,26 @@ function ViewerStrip({list, index, adultMode, onGo}: ViewerStripProps) {
             key={`${item.path}-${position}`}
             ref={position === index ? active : undefined}
             type="button"
-            className={`strip-item${position === index ? ' active' : ''}`}
+            className={[
+              'strip-item',
+              position === index ? 'active' : '',
+              item.kind === 'video' ? 'is-video' : '',
+            ].filter(Boolean).join(' ')}
             aria-label={item.filename}
-            onClick={() => onGo(position)}
+            onClick={() => {
+              if (dragged.current) {
+                dragged.current = false;
+                return;
+              }
+              onGo(position);
+            }}
           >
             <img src={photoMediaUrl(item, adultMode, size)} alt="" loading="lazy" decoding="async" />
+            {item.kind === 'video' && (
+              <span className="strip-video-mark" aria-hidden="true">
+                <Icon name="play" />
+              </span>
+            )}
           </button>
         );
       })}

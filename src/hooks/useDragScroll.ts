@@ -40,13 +40,6 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): {dragged: Ref
       }
     };
 
-    const click = (event: MouseEvent) => {
-      if (!dragged.current) return;
-      dragged.current = false;
-      event.stopPropagation();
-      event.preventDefault();
-    };
-
     const wheel = (event: WheelEvent) => {
       if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
       event.preventDefault();
@@ -57,14 +50,12 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): {dragged: Ref
     element.addEventListener('pointermove', move);
     element.addEventListener('pointerup', release);
     element.addEventListener('pointercancel', release);
-    element.addEventListener('click', click, true);
     element.addEventListener('wheel', wheel, {passive: false});
     return () => {
       element.removeEventListener('pointerdown', down);
       element.removeEventListener('pointermove', move);
       element.removeEventListener('pointerup', release);
       element.removeEventListener('pointercancel', release);
-      element.removeEventListener('click', click, true);
       element.removeEventListener('wheel', wheel);
     };
   }, [ref]);

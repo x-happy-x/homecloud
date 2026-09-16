@@ -262,6 +262,7 @@
 .viewer-strip::-webkit-scrollbar-track { background: transparent; }
 .viewer-strip::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 30%); border-radius: 999px; }
 .strip-item {
+  position: relative;
   flex: none;
   width: 48px; height: 48px;
   padding: 0; border: 0;
@@ -272,6 +273,35 @@
   transition: opacity .15s, transform .15s, box-shadow .15s;
 }
 .strip-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.strip-item.is-video::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 45%;
+  background: linear-gradient(rgb(0 0 0 / 0%), rgb(0 0 0 / 58%));
+  pointer-events: none;
+}
+.strip-video-mark {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  z-index: 1;
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 88%);
+  color: #111;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 35%);
+  pointer-events: none;
+}
+.strip-video-mark svg {
+  width: 10px;
+  height: 10px;
+  margin-left: 1px;
+  fill: currentColor;
+}
 .strip-item:hover { opacity: .85; }
 .strip-item.active { opacity: 1; transform: scale(1.08); box-shadow: 0 0 0 2px #fff; }
 
