@@ -28,6 +28,11 @@ export const ICON_PATHS = {
   trash: 'M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6Zm12-15h-3l-1-1h-4l-1 1H5v2h14Z',
   logout: 'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5-5-5ZM4 5h8V3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8v-2H4V5Z',
   play: 'M8 5v14l11-7Z',
+  pause: 'M6 5h4v14H6Zm8 0h4v14h-4Z',
+  volume: 'M3 9v6h4l5 5V4L7 9H3Zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4Zm0-7.5v2.1A7 7 0 0 1 20 12a7 7 0 0 1-3.5 5.4v2.1A9 9 0 0 0 22 12a9 9 0 0 0-5.5-7.5Z',
+  volumeOff: 'M3 9v6h4l5 5v-6.6L7.6 9H3Zm16.8 3 2.1-2.1-1.4-1.4-2.1 2.1-2.1-2.1-1.4 1.4L17 12l-2.1 2.1 1.4 1.4 2.1-2.1 2.1 2.1 1.4-1.4L19.8 12ZM12 4 9.7 6.3 12 8.6V4Z',
+  fullscreen: 'M5 5h5V3H3v7h2V5Zm9-2v2h5v5h2V3h-7ZM5 14H3v7h7v-2H5v-5Zm14 5h-5v2h7v-7h-2v5Z',
+  more: 'M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z',
   analysis: 'M3 19h18v2H3Zm2-8h3v7H5Zm5-5h3v12h-3Zm5 3h3v9h-3Z',
 } as const;
 

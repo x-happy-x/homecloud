@@ -26,10 +26,12 @@ export function AccountMenu() {
   const leave = useMutation({
     mutationFn: logout,
     // Даже если выход не удался, сессию на своей стороне считаем закрытой.
-    onSettled: () => {
+    onSettled: result => {
       setOpen(false);
-      setSession(null);
       queryClient.clear();
+      // Выход заканчивается и на странице account — иначе вход сразу случился бы снова.
+      if (result?.redirect) window.location.assign(result.redirect);
+      else setSession(null);
     },
   });
 
@@ -64,6 +66,12 @@ export function AccountMenu() {
           <span className="account-role">{role}</span>
         </div>
         <hr />
+        {session.accountUrl && (
+          <a href={session.accountUrl} target="_blank" rel="noopener" role="menuitem">
+            <Icon name="people" />
+            Учётная запись
+          </a>
+        )}
         <a href={session.bigfamUrl} target="_blank" rel="noopener" role="menuitem">
           <Icon name="openExternal" />
           Открыть картотеку

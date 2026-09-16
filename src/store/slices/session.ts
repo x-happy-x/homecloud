@@ -9,6 +9,8 @@ export interface SessionSlice {
     canEdit: boolean;
     isAdmin: boolean;
     bigfamUrl: string;
+    /** Страница учётной записи в account. */
+    accountUrl: string;
     /** Сессия истекла: поднять окно входа. */
     needsLogin: boolean;
   };
@@ -18,7 +20,7 @@ export interface SessionSlice {
 }
 
 export const createSessionSlice: StateCreator<Store, [], [], SessionSlice> = set => ({
-  session: {user: null, canEdit: false, isAdmin: false, bigfamUrl: '#', needsLogin: false},
+  session: {user: null, canEdit: false, isAdmin: false, bigfamUrl: '#', accountUrl: '', needsLogin: false},
 
   setSession: response => set(state => {
     const user = response?.user ?? null;
@@ -29,6 +31,7 @@ export const createSessionSlice: StateCreator<Store, [], [], SessionSlice> = set
         canEdit: Boolean(user) && (response?.canEdit ?? user?.role !== 'viewer'),
         isAdmin: user?.role === 'admin',
         bigfamUrl: response?.bigfamUrl ?? state.session.bigfamUrl,
+        accountUrl: response?.accountUrl ?? state.session.accountUrl,
         needsLogin: !user,
       },
     };

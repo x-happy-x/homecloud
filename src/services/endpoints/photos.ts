@@ -31,5 +31,11 @@ export const assignSpeaker = (payload: {
  * Заливает уменьшенную копию во временное хранилище и возвращает прямую
  * ссылку — по ней строится поиск по картинке во внешних поисковиках.
  */
-export const uploadForSearch = (path: string) =>
-  post<{url: string}>('/api/photos/search-upload', {path});
+export interface SearchUploadPayload {
+  path: string;
+  frame_jpeg?: string;
+}
+
+export const uploadForSearch = (payload: string | SearchUploadPayload) =>
+  post<{url: string}>('/api/photos/search-upload',
+    typeof payload === 'string' ? {path: payload} : payload);

@@ -1,4 +1,4 @@
-// HomeCloud: статика интерфейса, вход через bigfam и прокси на бэкенд Windows.
+// HomeCloud: статика интерфейса, вход через сервис account и прокси на бэкенд Windows.
 import { createServer, request as httpRequest } from 'node:http';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -14,7 +14,10 @@ const BACKEND_TOKEN = process.env.PHOTO_TOKEN || '';
 const BACKENDS_FILE = process.env.BACKENDS_FILE || '/var/lib/homecloud/backends.json';
 // Картотека bigfam на этом же хосте: она же выдаёт учётные записи и людей.
 const BIGFAM = (process.env.BIGFAM_URL || 'http://127.0.0.1:4173').replace(/\/+$/, '');
-const BIGFAM_PORT = Number(process.env.BIGFAM_PORT || new URL(BIGFAM).port || 4173);
+// Логин, пароль и роль в HomeCloud (access.homecloud.role) проверяет сервис account.
+const ACCOUNT = (process.env.ACCOUNT_URL || 'http://127.0.0.1:4160').replace(/\/+$/, '');
+const SERVICE_TOKEN = process.env.ACCOUNT_SERVICE_TOKEN || '';
+const STATE_COOKIE = 'homecloud_auth';
 const SESSION_COOKIE = 'kartoteka_session';
 // Браузер получает собственный токен этого процесса; настоящий токен бэкенда
 // подставляется только здесь и наружу не уходит.
@@ -60,6 +63,8 @@ function sendJson(response, status, value, extra = {}) {
 function allowedHost(request) {
   const host = String(request.headers.host || '').split(':')[0].toLowerCase();
   if (host === 'localhost' || host === '127.0.0.1') return true;
+  // cloud.<домен> — адрес фототеки по соглашению о префиксах (см. appOrigin)
+  if (host.startsWith(`${HOST_PREFIXES.homecloud}.`)) return true;
   const parts = host.split('.');
   if (parts.length === 4 && parts.every(part => /^\d{1,3}$/.test(part) && Number(part) < 256)) {
     const [a, b] = parts.map(Number);
@@ -81,12 +86,162 @@ function tokenMatches(supplied) {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-/* ---------- сессии bigfam ---------- */
+/* ---------- вход через страницу account ---------- */
 
-const RANK = {viewer: 1, editor: 2, admin: 3};
+/*
+ * Адреса соседних приложений выводятся из адреса, по которому пришёл браузер,
+ * чтобы вход вёл туда же, откуда начался:
+ *   домен  cloud.crubs.crazedns.ru -> account.crubs.crazedns.ru, bigfam.crubs.crazedns.ru
+ *          cloud.local             -> account.local
+ *   IP     192.168.99.20:4180      -> 192.168.99.20:4161, 192.168.99.20:4173
+ * За обратным прокси берутся X-Forwarded-Host / -Proto / -Port.
+ */
+const envOr = (key, fallback) => String(process.env[key] || '').trim() || fallback;
+const HOST_PREFIXES = {
+  account: envOr('ACCOUNT_HOST_PREFIX', 'account').toLowerCase(),
+  bigfam: envOr('BIGFAM_HOST_PREFIX', 'bigfam').toLowerCase(),
+  homecloud: envOr('HOMECLOUD_HOST_PREFIX', 'cloud').toLowerCase(),
+};
+const APP_PORTS = {
+  account: Number(envOr('ACCOUNT_LOCAL_PORT', '4161')),
+  bigfam: Number(envOr('BIGFAM_LOCAL_PORT', '4173')),
+  homecloud: Number(envOr('HOMECLOUD_LOCAL_PORT', '4180')),
+};
+
+const firstHeader = value => String(Array.isArray(value) ? value[0] : value || '').split(',')[0].trim();
+const byAddress = hostname =>
+  hostname.startsWith('[') || /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || !hostname.includes('.');
+
+function browserOf(request) {
+  const raw = (firstHeader(request.headers['x-forwarded-host']) || firstHeader(request.headers.host)).toLowerCase();
+  const match = /^(\[[^\]]+\]|[^:]+)(?::(\d+))?$/.exec(raw);
+  const hostname = match?.[1] || '';
+  let port = match?.[2] || '';
+  const address = byAddress(hostname);
+  let proto = firstHeader(request.headers['x-forwarded-proto']).toLowerCase();
+  if (proto !== 'http' && proto !== 'https') {
+    const direct = address || /\.(local|lan|home\.arpa)$/.test(hostname) || Object.values(APP_PORTS).includes(Number(port));
+    proto = direct ? 'http' : 'https';
+  }
+  const forwardedPort = firstHeader(request.headers['x-forwarded-port']);
+  if (!port && request.headers['x-forwarded-host'] && /^\d+$/.test(forwardedPort)) port = forwardedPort;
+  if ((proto === 'https' && port === '443') || (proto === 'http' && port === '80')) port = '';
+  const host = port ? `${hostname}:${port}` : hostname;
+  return {hostname, port, proto, address, host, origin: `${proto}://${host}`};
+}
+
+function appOrigin(request, app) {
+  const browser = browserOf(request);
+  if (browser.address) return `http://${browser.hostname}:${APP_PORTS[app]}`;
+  const labels = browser.hostname.split('.');
+  const rest = Object.values(HOST_PREFIXES).includes(labels[0]) ? labels.slice(1) : labels;
+  const port = !browser.port ? '' : Object.values(APP_PORTS).includes(Number(browser.port)) ? String(APP_PORTS[app]) : browser.port;
+  return `${browser.proto}://${[HOST_PREFIXES[app], ...rest].join('.')}${port ? `:${port}` : ''}`;
+}
+
+const accountUrl = request => `${appOrigin(request, 'account')}/`;
+const selfOrigin = request => browserOf(request).origin;
+
+const authCookie = (request, name, value, extra) =>
+  `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; ${extra}${browserOf(request).proto === 'https' ? '; Secure' : ''}`;
+const safeReturn = raw => (/^\/(?![/\\])/.test(String(raw || '')) ? String(raw) : '/');
+
+function authPage(response, status, title, text) {
+  const esc = value => String(value).replace(/[&<>"]/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[ch]);
+  const body = Buffer.from(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)}</title><body><main><h1>${esc(title)}</h1><p>${esc(text)}</p>
+<p><a href="/auth/start">Попробовать ещё раз</a></p></main></body>`, 'utf-8');
+  response.writeHead(status, {...baseHeaders('text/html; charset=utf-8'), 'Content-Length': body.length});
+  response.end(body);
+}
+
+async function authRoute(request, response, pathname) {
+  const query = new URLSearchParams(request.url.split('?')[1] || '');
+  if (pathname === '/auth/start') {
+    const account = accountUrl(request);
+    const state = randomBytes(18).toString('base64url');
+    const back = Buffer.from(safeReturn(query.get('return'))).toString('base64url');
+    const target = new URL('authorize', account);
+    target.searchParams.set('app', 'homecloud');
+    target.searchParams.set('redirect_uri', `${selfOrigin(request)}/auth/callback`);
+    target.searchParams.set('state', state);
+    console.log(`вход: ${selfOrigin(request)} -> ${target.origin}`);
+    response.writeHead(302, {
+      Location: target.href, 'Cache-Control': 'no-store',
+      'Set-Cookie': authCookie(request, STATE_COOKIE, `${state}.${back}`, 'Max-Age=600'),
+    });
+    return response.end();
+  }
+
+  const saved = String(request.headers.cookie || '').split(';').map(part => part.trim().split('='))
+    .find(([name]) => name === STATE_COOKIE)?.[1] || '';
+  const [state, back64] = saved.split('.');
+  const code = query.get('code');
+  if (!state || state !== query.get('state') || !code) {
+    return authPage(response, 400, 'Не получилось войти', 'Ссылка входа устарела или открыта в другом браузере.');
+  }
+  const back = safeReturn(Buffer.from(back64 || '', 'base64url').toString('utf-8'));
+  const clearState = authCookie(request, STATE_COOKIE, '', 'Max-Age=0');
+  const redirectUri = `${selfOrigin(request)}/auth/callback`;
+
+  let exchanged;
+  try {
+    const result = await fetch(`${ACCOUNT}/api/service/exchange`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Service-Token': SERVICE_TOKEN},
+      body: JSON.stringify({code, app: 'homecloud', redirectUri}),
+      signal: AbortSignal.timeout(10000),
+    });
+    exchanged = await result.json().catch(() => ({}));
+    if (!result.ok) throw Object.assign(new Error(exchanged.error || `account ответил ${result.status}`), {status: result.status});
+  } catch (error) {
+    if (error.status !== 400) console.error('Вход через account:', error.message);
+    response.setHeader('Set-Cookie', clearState);
+    return authPage(response, error.status === 400 ? 400 : 503, 'Не получилось войти', error.message);
+  }
+
+  const user = appUser(exchanged.user);
+  if (!atLeast(user, 'viewer')) {
+    await accountJson('/api/auth/logout', {method: 'POST', token: exchanged.token}).catch(() => {});
+    response.writeHead(302, {Location: `${accountUrl(request)}denied?app=homecloud`, 'Set-Cookie': clearState, 'Cache-Control': 'no-store'});
+    return response.end();
+  }
+  response.writeHead(302, {
+    Location: back, 'Cache-Control': 'no-store',
+    'Set-Cookie': [clearState, authCookie(request, SESSION_COOKIE, exchanged.token, `Expires=${new Date(exchanged.expires).toUTCString()}`)],
+  });
+  return response.end();
+}
+
+/* ---------- сессии account ---------- */
+
+const RANK = {none: 0, viewer: 1, editor: 2, admin: 3};
 const atLeast = (user, role) => !!user && (RANK[user.role] || 0) >= RANK[role];
-// Короткий кэш: сессия проверяется у bigfam, но не на каждую миниатюру.
+// Короткий кэш: сессия проверяется у account, но не на каждую миниатюру.
 const sessions = new Map();
+const FORBIDDEN = 'Нет доступа к HomeCloud — попросите администратора выдать роль';
+const CLEAR_COOKIE = `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+
+async function accountJson(path, {token = '', method = 'GET', body = null} = {}) {
+  const response = await fetch(`${ACCOUNT}${path}`, {
+    method,
+    headers: {
+      ...(token ? {Authorization: `Bearer ${token}`} : {}),
+      ...(body ? {'Content-Type': 'application/json'} : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(10000),
+  });
+  const payload = await response.json().catch(() => ({}));
+  return {status: response.status, payload, setCookie: response.headers.getSetCookie?.() || []};
+}
+
+/** Учётная запись account в виде, который ждёт интерфейс: role — роль в HomeCloud. */
+const appUser = user => user && ({
+  id: user.id, login: user.login, name: user.name,
+  role: user.access?.homecloud?.role || 'none',
+  access: user.access,
+});
 
 async function bigfamJson(path, {token = '', method = 'GET', body = null} = {}) {
   const response = await fetch(`${BIGFAM}/api${path}`, {
@@ -108,14 +263,15 @@ async function userOf(request) {
   const cached = sessions.get(token);
   if (cached && cached.until > Date.now()) return cached.user;
   try {
-    const {payload} = await bigfamJson('/auth/me', {token});
-    const user = payload.user || null;
+    const {status, payload} = await accountJson('/api/auth/me', {token});
+    if (status >= 500) throw new Error(payload.error || `account ответил ${status}`);
+    const user = status === 200 ? appUser(payload.user) : null;
     sessions.set(token, {user, until: Date.now() + 15000});
     if (sessions.size > 200) sessions.delete(sessions.keys().next().value);
     return user;
   } catch (error) {
-    console.error('bigfam недоступен:', error.message);
-    return null;
+    console.error('account недоступен:', error.message);
+    throw error;
   }
 }
 
@@ -300,7 +456,12 @@ async function handle(request, response) {
   const isApi = pathname.startsWith('/api/') || pathname.startsWith('/media/');
 
   if (pathname === '/healthz') {
-    return sendJson(response, 200, {ok: true, backend: BACKEND.origin, bigfam: BIGFAM});
+    return sendJson(response, 200, {ok: true, backend: BACKEND.origin, bigfam: BIGFAM, account: ACCOUNT});
+  }
+
+  if (pathname === '/auth/start' || pathname === '/auth/callback') {
+    if (method !== 'GET') return sendJson(response, 405, {error: 'Метод не поддерживается'});
+    return authRoute(request, response, pathname);
   }
 
   if (!isApi) {
@@ -314,7 +475,7 @@ async function handle(request, response) {
   // Изменяющие запросы: свой Origin и токен страницы — до любой работы.
   if (method === 'POST') {
     const origin = request.headers.origin;
-    if (origin && origin !== `http://${request.headers.host}`) {
+    if (origin && origin !== `http://${request.headers.host}` && origin !== selfOrigin(request)) {
       return sendJson(response, 403, {error: 'Недопустимый Origin'});
     }
     if (!tokenMatches(request.headers['x-local-token'])) {
@@ -324,25 +485,47 @@ async function handle(request, response) {
 
   if (method === 'POST' && pathname === '/api/auth/login') {
     const body = await readBody(request);
-    const {status, payload, setCookie} = await bigfamJson('/auth/login', {method: 'POST', body});
-    return sendJson(response, status, payload, setCookie.length ? {'Set-Cookie': setCookie} : {});
+    const {status, payload, setCookie} = await accountJson('/api/auth/login', {
+      method: 'POST', body: {login: body.login, password: body.password},
+    });
+    if (status !== 200) return sendJson(response, status, {error: payload.error || 'Вход не удался'});
+    const user = appUser(payload.user);
+    if (!atLeast(user, 'viewer')) {
+      // Пароль верный, но роли в HomeCloud нет: сессию сразу закрываем.
+      const token = /^kartoteka_session=([^;]*)/.exec(setCookie[0] || '')?.[1];
+      if (token) await accountJson('/api/auth/logout', {method: 'POST', token}).catch(() => {});
+      return sendJson(response, 403, {error: FORBIDDEN, auth: 'forbidden'});
+    }
+    return sendJson(response, 200, {user}, setCookie.length ? {'Set-Cookie': setCookie} : {});
   }
 
   if (method === 'POST' && pathname === '/api/auth/logout') {
-    sessions.delete(cookieOf(request));
-    const {status, payload, setCookie} = await bigfamJson(
-      '/auth/logout', {method: 'POST', token: cookieOf(request)});
-    return sendJson(response, status, payload, setCookie.length ? {'Set-Cookie': setCookie} : {});
+    const token = cookieOf(request);
+    sessions.delete(token);
+    if (token) await accountJson('/api/auth/logout', {method: 'POST', token}).catch(() => {});
+    const redirect = `${accountUrl(request)}logout?return=${encodeURIComponent(`${selfOrigin(request)}/`)}`;
+    return sendJson(response, 200, {ok: true, redirect}, {'Set-Cookie': CLEAR_COOKIE});
   }
 
-  const user = await userOf(request);
+  let user;
+  try {
+    user = await userOf(request);
+  } catch {
+    return sendJson(response, 503, {error: 'Сервис учётных записей недоступен — попробуйте чуть позже'});
+  }
+  const bigfamUrl = `${appOrigin(request, 'bigfam')}/`;
+
+  // Cookie не трогаем: на одном хосте он общий с картотекой, а там роль может быть.
+  if (user && !atLeast(user, 'viewer')) {
+    return sendJson(response, 403, {error: FORBIDDEN, auth: 'forbidden', user: null, bigfamUrl, accountUrl: accountUrl(request)});
+  }
 
   if (method === 'GET' && pathname === '/api/session') {
-    const host = String(request.headers.host || '').split(':')[0];
     return sendJson(response, 200, {
       user,
       canEdit: atLeast(user, 'editor'),
-      bigfamUrl: `http://${host}:${BIGFAM_PORT}/`,
+      bigfamUrl,
+      accountUrl: accountUrl(request),
     });
   }
 

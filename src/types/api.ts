@@ -8,7 +8,9 @@ export interface SessionUser {
   id?: string;
   login: string;
   name?: string;
-  role: 'admin' | 'editor' | 'viewer' | string;
+  /** Роль в HomeCloud: access.homecloud.role из сервиса account. */
+  role: 'admin' | 'editor' | 'viewer' | 'none' | string;
+  access?: Record<string, {role: string}>;
 }
 
 /** Ответ server.js: права и адрес картотеки считает он, а не бэкенд. */
@@ -16,6 +18,8 @@ export interface SessionResponse {
   user: SessionUser | null;
   canEdit?: boolean;
   bigfamUrl?: string;
+  /** Страница account: имя, пароль, роли. */
+  accountUrl?: string;
 }
 
 export interface KinPerson {

@@ -33,6 +33,10 @@ export async function api<T = unknown>(path: string, options: RequestInit = {}):
   const data = await response.json().catch(() => ({})) as Record<string, unknown>;
 
   if (response.status === 401 && data.auth === 'required') throw new AuthRequiredError();
+  // Вошёл, но роли в HomeCloud нет — снова окно входа: можно зайти другой учётной записью.
+  if (response.status === 403 && data.auth === 'forbidden' && path !== '/api/auth/login') {
+    throw new AuthRequiredError();
+  }
   if (!response.ok) {
     throw new ApiError(String(data.error || `Ошибка ${response.status}`), response.status);
   }

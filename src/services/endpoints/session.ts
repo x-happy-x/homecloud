@@ -7,7 +7,7 @@ export const getSession = () => api<SessionResponse>('/api/session');
 export const login = (loginName: string, password: string) =>
   post<{user: SessionUser}>('/api/auth/login', {login: loginName, password});
 
-export const logout = () => post('/api/auth/logout');
+export const logout = () => post<{ok: boolean; redirect?: string}>('/api/auth/logout');
 
 /** Люди картотеки bigfam — из них выбирается имя для группы лиц. */
 export const getKin = () =>

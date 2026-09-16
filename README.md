@@ -1,16 +1,16 @@
 # HomeCloud — домашняя фототека
 
 Это исходники фронтенда и Node-прокси. Интерфейс собирается через React TS +
-Rsbuild, публикуем на Proxmox скриптом `deploy.ps1` или через Docker Compose.
+Rsbuild, публикуем в VM `family-apps` скриптом `deploy.ps1`.
 
 ## Как разложено
 
 | Где | Что | Почему |
 | --- | --- | --- |
-| Proxmox `s1` 192.168.99.10, `/opt/homecloud` | Node-прокси: собранная статика `dist/`, вход через bigfam, реестр устройств и обратный прокси на `/api` и `/media`. Служба `homecloud.service` или контейнер, порт **4180**, рядом с bigfam (4173). | Ни моделей, ни обработки фото: только UI, сессии и прокси. |
+| VM `family-apps` 192.168.99.20, `/opt/homeapps/homecloud` | Node-прокси в Docker Compose: собранная статика `dist/`, вход через bigfam, реестр устройств и обратный прокси на `/api` и `/media`. Порт **4180**, рядом с bigfam (4173) и LLDAP (17170). | Ни моделей, ни обработки фото: только UI, сессии и прокси. |
 | Windows `PC-X` 192.168.1.10, `F:\services\homecloud-core` | `web_server.py` в режиме API+медиа и агента сканирования, порт **18311**, плюс окружения, модели, каталоги и оригиналы. | GPU, ONNX Runtime, InsightFace, SigLIP, PaddleOCR и Qwen3-VL остаются у железа. |
 
-Открывать: **http://192.168.99.10:4180/**
+Открывать: **http://192.168.99.20:4180/**
 
 Данные на Proxmox не копируются. Миниатюры и оригиналы прокси тянет с Windows
 на лету, поэтому при выключенной винде интерфейс откроется, но покажет ошибку
@@ -18,14 +18,20 @@ Rsbuild, публикуем на Proxmox скриптом `deploy.ps1` или ч
 
 ## Вход: общий с картотекой
 
-Отдельных учётных записей у фототеки нет — она пускает по сессии bigfam.
+Учётные записи общие с картотекой и живут в LLDAP; вход, имена, пароли и роли —
+на странице сервиса `account`: `cloud.<домен>` ведёт на `account.<домен>`, `<IP>:4180` — на `<IP>:4161`.
+Своего окна входа у фототеки нет: без сессии интерфейс уходит на `/auth/start`, сервер
+отправляет браузер на `/authorize` account, а тот возвращает его на `/auth/callback` с
+одноразовым кодом. Код меняется на сессию по внутреннему `ACCOUNT_URL` со служебным
+`ACCOUNT_SERVICE_TOKEN`, и фототека ставит cookie `kartoteka_session` на свой хост. Дома и
+снаружи адреса выбираются по `Host` / `X-Forwarded-Host` запроса.
 
-Это работает потому, что cookie в браузере привязаны к **хосту, а не к порту**:
-`kartoteka_session`, выданный bigfam на 4173, браузер отправляет и на 4180.
-Фототека не читает базу картотеки напрямую — она спрашивает `GET /api/auth/me`
-у bigfam и кэширует ответ на 15 секунд. Вход и выход тоже проксируются
-(`/api/auth/login`, `/api/auth/logout`), `Set-Cookie` передаётся браузеру как
-есть, поэтому вход из любого приложения логинит сразу в оба.
+Роль в фототеке — `access.homecloud.role`, то есть группа LLDAP `homecloud_admin` /
+`homecloud_editor` / `homecloud_viewer`; от роли в BiGFaM она не зависит. Без группы account
+показывает страницу «Нет доступа», а `/api/session` отвечает 403 `{auth: "forbidden"}`.
+Сессию фототека проверяет у account (`GET /api/auth/me`, кэш 15 секунд). Выход
+(`POST /api/auth/logout`) возвращает `redirect` на `/logout` account, чтобы закрылась и его
+сессия. `bigfamUrl` в `/api/session` выводится так же: `bigfam.<домен>` или `<IP>:4173`.
 
 Роли берутся из bigfam:
 
@@ -165,7 +171,7 @@ OCR использует визуальный индекс как подгото
 Адрес фототеки для bigfam задаётся переменной `HOMECLOUD_URL`
 (по умолчанию `http://127.0.0.1:4180`). Размер импорта ограничен 24 МБ.
 
-Правки картотеки живут в `/opt/bigfam` на pve (в этом репозитории их нет);
+Картотека живёт в той же VM в `/opt/homeapps/bigfam`;
 резервные копии до правки — `/root/bigfam-server.js.bak` и
 `/root/bigfam-index.html.bak`.
 
@@ -221,14 +227,15 @@ npm run build
 npm start
 ```
 
-Docker-вариант:
+На VM сервис управляется общим Docker Compose:
 
 ```bash
-docker compose up --build -d
+cd /opt/homeapps
+sudo docker compose up -d --build homecloud
 ```
 
-Compose использует `network_mode: host`, читает `/etc/homecloud.env` и хранит
-реестр устройств в `/var/lib/homecloud/backends.json`.
+Compose читает `/opt/homeapps/.env` и хранит реестр устройств в
+`/srv/homeapps/homecloud/backends.json`.
 
 ## Запуск бэкенда на Windows
 
@@ -380,11 +387,11 @@ cd F:\services\homecloud-core
 ## Диагностика
 
 ```bash
-ssh -i ~/.ssh/id_ed25519_pve root@192.168.99.10 'systemctl status homecloud --no-pager; journalctl -u homecloud -n 30 --no-pager'
+ssh -i ~/.ssh/id_ed25519_pve amagomedsharipov@192.168.99.20 'cd /opt/homeapps && sudo docker compose ps && sudo docker compose logs --tail=80 homecloud'
 ```
 
-- `curl http://192.168.99.10:4180/healthz` — жив ли фронт, какой у него бэкенд и картотека.
-- `curl http://192.168.99.10:4180/api/session` — видит ли фронт вашу сессию.
+- `curl http://192.168.99.20:4180/healthz` — жив ли фронт, какой у него бэкенд и картотека.
+- `curl http://192.168.99.20:4180/api/session` — видит ли фронт вашу сессию.
 - `curl http://192.168.1.10:18311/api/state` — жив ли бэкенд на винде.
 - 401 в интерфейсе — истекла или отозвана сессия картотеки.
 - 502 — бэкенд не запущен, ещё греется или его режет брандмауэр.
