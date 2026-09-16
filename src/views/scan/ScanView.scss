@@ -68,7 +68,7 @@
 .device-card { display: flex; flex-direction: column; gap: 15px; min-width: 0; padding: clamp(16px, 2.4vw, 22px); border: 1px solid var(--line-soft); border-radius: var(--r-l); background: var(--surface-2); box-shadow: var(--shadow); }
 .device-card.offline { background: var(--surface); }
 .device-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.device-title { display: flex; align-items: center; gap: 9px; font: 600 1.08rem var(--serif); }
+.device-title { display: flex; align-items: center; gap: 9px; font: 600 1.08rem var(--sans); }
 .status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--patina); box-shadow: 0 0 0 4px var(--patina-soft); }
 .offline .status-dot { background: var(--muted); box-shadow: none; }
 .device-address { margin: 4px 0 0 18px; color: var(--muted); font: .75rem var(--mono); overflow-wrap: anywhere; }
