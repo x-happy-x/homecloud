@@ -42,4 +42,5 @@ export const qk = {
   routerSummary: () => ['router-summary'] as const,
   routerStatus: () => ['router-status'] as const,
   routerReview: (hideAdult: boolean) => ['router-review', {hideAdult}] as const,
+  routerBatches: () => ['router-batches'] as const,
 } as const;

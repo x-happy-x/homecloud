@@ -1,3 +1,4 @@
+import {copyText} from '../../../lib/clipboard';
 import {Fragment, useState, type MouseEvent} from 'react';
 import {fileSize, timecode} from '../../../lib/format';
 import {useStore} from '../../../store';
@@ -269,23 +270,3 @@ function windowsPath(photo: PhotoCard): string {
   return `${photo.folder.replace(/[\\/]+$/, '')}${separator}${photo.filename}`;
 }
 
-async function copyText(text: string): Promise<void> {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return;
-    } catch {
-      // HTTP по локальной сети может запретить Clipboard API; ниже старый путь.
-    }
-  }
-  const area = document.createElement('textarea');
-  area.value = text;
-  area.style.position = 'fixed';
-  area.style.left = '-9999px';
-  area.setAttribute('readonly', '');
-  document.body.append(area);
-  area.select();
-  const ok = document.execCommand('copy');
-  area.remove();
-  if (!ok) throw new Error('copy failed');
-}

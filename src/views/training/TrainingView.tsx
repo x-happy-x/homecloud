@@ -1,71 +1,138 @@
-import {useMemo} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import './TrainingView.scss';
-import {formatNumber} from '../../lib/format';
+import {useKeyboardShortcuts} from '../../hooks/useKeyboardShortcuts';
+import {copyText} from '../../lib/clipboard';
+import {formatNumber, plural, runMoment} from '../../lib/format';
 import {saveSettings} from '../../services/endpoints/settings';
 import {
-  activateRouterModel, getRouterReview, getRouterSummary, runRouter, saveRouterLabel,
+  activateRouterModel, cancelRouterBatch, clearRouterSkips, getRouterBatches, getRouterReview,
+  getRouterSummary, importRouterAnswer, routerExportUrl, runRouter, saveRouterLabel, skipRouterPhoto,
+  type RouterBatch, type RouterJob, type RouterLabel, type RouterQueueItem, type RouterSummary,
 } from '../../services/endpoints/training';
 import {photoMediaUrl, viewerSize} from '../../services/media';
 import {qk} from '../../services/queryKeys';
 import {queryClient} from '../../services/queryClient';
 import {useStore} from '../../store';
-import type {PhotoSummary} from '../../types/api';
+import type {TrainingTab} from '../../store/slices/training';
 import {Button} from '../../ui/Button/Button';
-import {CheckRow} from '../../ui/CheckRow/CheckRow';
-import {HintLine} from '../../ui/Hint/Hint';
+import {Chip, ToggleChip} from '../../ui/Chip/Chip';
+import {EmptyState} from '../../ui/EmptyState/EmptyState';
+import {Icon} from '../../ui/Icon/Icon';
 import {Progress} from '../../ui/Progress/Progress';
 import {SectionHead} from '../../ui/ViewHeader/ViewHeader';
 
 /** Пока проверок меньше дюжины, обучать не на чем. */
 const MIN_REVIEWS = 12;
-/** Метка засчитывается предсказанной, если модель уверена сильнее этого. */
-const PREDICTION_THRESHOLD = 0.6;
+const BATCH_SIZES = [1, 3, 5, 10, 15, 20];
+const QUEUE_PAGE = 30;
 
-interface RouterLabel {
-  id: string;
-  title: string;
-  group?: string;
-}
+const refreshRouter = () => {
+  void queryClient.invalidateQueries({queryKey: ['router-summary']});
+  void queryClient.invalidateQueries({queryKey: ['router-review']});
+  void queryClient.invalidateQueries({queryKey: ['router-batches']});
+};
 
-interface RouterModel {
-  version: string;
-  status: string;
-  dataset_size: number;
-  embedding_model: string;
-  metrics?: {macro_f1?: number};
-}
-
-interface RouterSummary {
-  pending?: number;
-  embedded?: number;
-  predicted?: number;
-  reviewed?: number;
-  human_reviewed?: number;
-  propagated?: number;
-  auto_train?: boolean;
-  auto_train_every?: number;
-  labels?: RouterLabel[];
-  models?: RouterModel[];
-}
-
-interface QueueItem extends PhotoSummary {
-  filename: string;
-  folder: string;
-  router_scores?: Record<string, number>;
-}
-
-interface RouterJob {
-  active?: boolean;
-  status?: string;
-  action?: 'train' | 'bootstrap';
-  completed?: number;
-  total?: number;
-  loss?: number;
-  error?: string;
-}
+const photos = (count: number) => `${formatNumber(count)} ${plural(count, 'снимок', 'снимка', 'снимков')}`;
 
 export function TrainingView({job}: {job?: RouterJob}) {
+  const tab = useStore(state => state.training.tab);
+  const setTab = useStore(state => state.setTrainingTab);
+  const summaryQuery = useQuery({queryKey: qk.routerSummary(), queryFn: getRouterSummary});
+  const summary = summaryQuery.data ?? {};
+
+  const tabs: Array<[TrainingTab, string, number | undefined]> = [
+    ['review', 'Разметка', summary.pending],
+    ['batch', 'Через нейросеть', summary.pending_batches],
+    ['models', 'Модели', summary.models?.length],
+  ];
+
+  return (
+    <section className="analysis-panel training-view">
+      <SectionHead
+        title="Обучение"
+        note="Модель раскладывает снимки по темам: люди, пейзаж, документ, скриншот… Отметьте, что на снимке на самом деле, — на этих ответах обучается своя, более точная версия."
+      />
+
+      {summaryQuery.data ? <Overview summary={summary} job={job} /> : <div className="training-overview loading" />}
+
+      <div className="training-tabs" role="tablist" aria-label="Разделы обучения">
+        {tabs.map(([id, label, count]) => (
+          <Chip key={id} active={tab === id} onClick={() => setTab(id)}>
+            {label}
+            {count ? <small>{formatNumber(count)}</small> : null}
+          </Chip>
+        ))}
+      </div>
+
+      {tab === 'review' && <ReviewPanel summary={summary} />}
+      {tab === 'batch' && <BatchPanel summary={summary} />}
+      {tab === 'models' && <ModelsPanel summary={summary} job={job} />}
+    </section>
+  );
+}
+
+/** Что сейчас ставит метки и сколько осталось до следующей версии. */
+function Overview({summary, job}: {summary: RouterSummary; job?: RouterJob}) {
+  const reviewed = summary.reviewed ?? 0;
+  const active = summary.models?.find(model => model.version === summary.active_version);
+  const f1 = active?.metrics?.macro_f1;
+  const toTrain = Math.max(0, MIN_REVIEWS - reviewed);
+  const toAuto = summary.auto_train ? Math.max(0, (summary.auto_train_every ?? 50) - (summary.new_since_training ?? 0)) : null;
+  const running = Boolean(job?.active);
+  const fraction = job?.total ? (job.completed ?? 0) / job.total : null;
+
+  return (
+    <div className="training-overview">
+      <div className="training-card source">
+        <span className="training-label">Сейчас метки ставит</span>
+        <b>{summary.source === 'trained' ? `Своя модель ${summary.active_version}` : 'Общая модель (zero-shot)'}</b>
+        <small>
+          {summary.source === 'trained' && f1 != null
+            ? `Точность F1 ${Math.round(f1 * 100)}% · ${summary.embedding_model ?? ''}`
+            : `${summary.embedding_model ?? ''} · без обучения на ваших снимках`}
+        </small>
+      </div>
+      <div className="training-card">
+        <span className="training-label">Проверено</span>
+        <b>{formatNumber(reviewed)}</b>
+        <small>
+          вручную {formatNumber(summary.human_reviewed ?? 0)} · похожих {formatNumber(summary.propagated ?? 0)}
+          {' · '}нейросетью {formatNumber(summary.ai_reviewed ?? 0)}
+        </small>
+        <Progress value={toTrain ? reviewed / MIN_REVIEWS : toAuto === null ? 1
+          : 1 - toAuto / (summary.auto_train_every ?? 50)} />
+        <small className="training-next">
+          {toTrain
+            ? `Ещё ${photos(toTrain)} — и можно обучить первую версию`
+            : toAuto === null ? 'Можно обучить новую версию во вкладке «Модели»'
+            : toAuto === 0 ? 'Новая версия обучится после следующей проверки'
+            : `До автообучения ещё ${photos(toAuto)}`}
+        </small>
+      </div>
+      <div className="training-card">
+        <span className="training-label">В очереди</span>
+        <b>{formatNumber(summary.pending ?? 0)}</b>
+        <small>
+          из {formatNumber(summary.predicted ?? 0)} с метками
+          {summary.skipped ? ` · пропущено ${formatNumber(summary.skipped)}` : ''}
+        </small>
+      </div>
+      {(running || job?.status === 'error') && (
+        <div className={`training-card job${job?.status === 'error' ? ' error' : ''}`}>
+          <span className="training-label">{job?.action === 'train' ? 'Обучение новой версии' : 'Пересчёт меток'}</span>
+          <b>{job?.status === 'error' ? 'Ошибка' : fraction === null ? '…' : `${Math.floor(fraction * 100)}%`}</b>
+          <small>{job?.error || (job?.loss != null ? `ошибка модели (loss) ${job.loss}` : 'идёт в фоне')}</small>
+          {running && <Progress value={fraction} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- ручная разметка ---------- */
+
+function ReviewPanel({summary}: {summary: RouterSummary}) {
   const canEdit = useStore(state => state.session.canEdit);
   const adultMode = useStore(state => state.prefs.adultMode);
   const index = useStore(state => state.training.index);
@@ -73,289 +140,502 @@ export function TrainingView({job}: {job?: RouterJob}) {
   const drafts = useStore(state => state.training.drafts);
   const setDraft = useStore(state => state.setDraft);
   const dropDraft = useStore(state => state.dropDraft);
+  const propagate = useStore(state => state.training.propagate);
+  const setPropagate = useStore(state => state.setPropagate);
   const toast = useStore(state => state.toast);
-
-  const summaryQuery = useQuery({queryKey: qk.routerSummary(), queryFn: getRouterSummary});
-  const summary = (summaryQuery.data ?? {}) as RouterSummary;
+  const [search, setSearch] = useState('');
+  /** Сохранённые и пропущенные — прячем сразу, не дожидаясь перезапроса очереди. */
+  const [done, setDone] = useState<Set<string>>(() => new Set());
 
   const reviewQuery = useQuery({
     queryKey: qk.routerReview(adultMode === 'hide'),
-    queryFn: () => getRouterReview(adultMode === 'hide'),
+    queryFn: () => getRouterReview(adultMode === 'hide', QUEUE_PAGE),
   });
-  const queue = ((reviewQuery.data as {photos?: QueueItem[]})?.photos ?? []);
-  const item = queue[index];
+  const queue = useMemo(
+    () => (reviewQuery.data?.photos ?? []).filter(photo => !done.has(photo.path)),
+    [reviewQuery.data, done],
+  );
+  const position = Math.min(index, Math.max(0, queue.length - 1));
+  const item: RouterQueueItem | undefined = queue[position];
+  const labels = summary.labels ?? [];
 
-  const start = useMutation({
-    mutationFn: (action: 'bootstrap' | 'train') => runRouter(action),
-    onSuccess: (_data, action) => {
-      queryClient.invalidateQueries({queryKey: ['router-status']});
-      toast(action === 'train' ? 'Обучение запущено' : 'Zero-shot расчёт запущен', 'success');
-    },
-  });
+  // Очередь подходит к концу — подтягиваем свежую.
+  useEffect(() => {
+    // Только если прошлая страница пришла полной: иначе на сервере больше нечего взять.
+    const full = (reviewQuery.data?.photos.length ?? 0) >= QUEUE_PAGE;
+    if (full && queue.length < 5 && !reviewQuery.isFetching) void reviewQuery.refetch();
+  }, [queue.length, reviewQuery]);
+
+  const selected = useMemo(() => {
+    if (!item) return new Set<string>();
+    // Подсказки общей модели заранее не отмечаем: она чаще ошибается, чем угадывает.
+    return new Set(drafts.get(item.path) ?? (item.router_trained ? item.router_suggested ?? [] : []));
+  }, [item, drafts]);
+
+  const finish = (path: string) => {
+    setDone(current => new Set(current).add(path));
+    dropDraft(path);
+    void queryClient.invalidateQueries({queryKey: ['router-summary']});
+  };
 
   const save = useMutation({
-    mutationFn: ({propagate}: {propagate: boolean}) => {
-      const labels = labelValues;
-      return saveRouterLabel({path: item!.path, labels, propagate}) as
-        Promise<{similar?: string[]; auto_started?: boolean}>;
-    },
-    onSuccess: result => {
-      dropDraft(item!.path);
-      const propagated = result.similar?.length ?? 0;
-      if (result.auto_started) toast('Разметка сохранена · автоматическое обучение запущено', 'success');
-      else if (propagated) {
-        toast(`Разметка применена ещё к ${formatNumber(propagated)} похожим кадрам`, 'success');
-      }
-      setIndex(0);
-      queryClient.invalidateQueries({queryKey: ['router-review']});
-      queryClient.invalidateQueries({queryKey: ['router-summary']});
+    mutationFn: (path: string) => saveRouterLabel({
+      path,
+      labels: Object.fromEntries(labels.map(label => [label.id, selected.has(label.id)])),
+      propagate,
+    }),
+    onSuccess: (result, path) => {
+      finish(path);
+      const similar = result.similar?.length ?? 0;
+      if (result.auto_started) toast('Сохранено · запущено обучение новой версии', 'success');
+      else if (similar) toast(`Сохранено и применено ещё к ${formatNumber(similar)} похожим`, 'success');
     },
   });
 
-  const activate = useMutation({
-    mutationFn: (version: string) => activateRouterModel({version}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: ['router-summary']});
-      toast('Новая версия роутера активирована', 'success');
-    },
+  const skip = useMutation({
+    mutationFn: (path: string) => skipRouterPhoto(path),
+    onSuccess: (_data, path) => finish(path),
   });
 
-  const automation = useMutation({
-    mutationFn: (settings: {router_auto_train: boolean; router_auto_train_every: number}) =>
-      saveSettings(settings),
-    onSuccess: (_data, settings) => {
-      queryClient.invalidateQueries({queryKey: ['router-summary']});
-      toast(settings.router_auto_train
-        ? 'Автоматическое обучение включено'
-        : 'Автоматическое обучение выключено', 'success');
-    },
-  });
+  const toggle = (id: string) => {
+    if (!item) return;
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setDraft(item.path, [...next]);
+  };
 
-  /**
-   * Что сейчас отмечено: черновик пользователя, а если его нет — предсказание
-   * модели. Черновик обязан пережить опрос состояния раз в полторы секунды.
-   */
-  const labelValues = useMemo(() => {
-    if (!item) return {};
-    const draft = drafts.get(item.path);
-    const values: Record<string, boolean> = {};
-    for (const label of summary.labels ?? []) {
-      values[label.id] = draft
-        ? Boolean(draft.includes(label.id))
-        : Number(item.router_scores?.[label.id] ?? 0) >= PREDICTION_THRESHOLD;
-    }
-    return values;
-  }, [item, drafts, summary.labels]);
+  const busy = save.isPending || skip.isPending;
+  const go = useCallback((step: number) => {
+    if (queue.length) setIndex((position + step + queue.length) % queue.length);
+  }, [position, queue.length, setIndex]);
 
-  const grouped = useMemo(() => {
+  const shortcuts = useMemo(() => ({
+    ArrowRight: () => go(1),
+    ArrowLeft: () => go(-1),
+    ...(canEdit && item && !busy ? {
+      // На кнопке Enter нажимает саму кнопку — сохранять тогда не надо.
+      Enter: (event: KeyboardEvent) => {
+        if ((event.target as HTMLElement | null)?.tagName !== 'BUTTON') save.mutate(item.path);
+      },
+      Delete: () => skip.mutate(item.path),
+    } : {}),
+  }), [go, canEdit, item, busy, save, skip]);
+  useKeyboardShortcuts(shortcuts);
+
+  const groups = useMemo(() => {
+    const needle = search.trim().toLowerCase();
     const result = new Map<string, RouterLabel[]>();
-    for (const label of summary.labels ?? []) {
+    for (const label of labels) {
+      if (needle && !label.title.toLowerCase().includes(needle)) continue;
       const group = label.group || 'Другое';
       if (!result.has(group)) result.set(group, []);
       result.get(group)!.push(label);
     }
     return [...result];
-  }, [summary.labels]);
+  }, [labels, search]);
 
-  const toggleLabel = (id: string) => {
-    if (!item) return;
-    const next = {...labelValues, [id]: !labelValues[id]};
-    setDraft(item.path, Object.keys(next).filter(key => next[key]));
-  };
+  if (!item && reviewQuery.isPending) return <div className="review-loading">Загружаю очередь…</div>;
+  if (!item) {
+    return (
+      <EmptyState mark="✓" title={summary.predicted ? 'Очередь разобрана' : 'Меток ещё нет'}>
+        {summary.predicted
+          ? 'Все снимки с метками проверены или пропущены. Обновите предсказания во вкладке «Модели», когда появятся новые.'
+          : 'Сначала посчитайте метки: вкладка «Модели» → «Обновить предсказания».'}
+      </EmptyState>
+    );
+  }
 
-  const busy = Boolean(job?.active);
-  const fraction = job?.total ? (job.completed ?? 0) / job.total : null;
-  const reviewed = summary.human_reviewed ?? summary.reviewed ?? 0;
-
-  const stats: Array<[string, number]> = [
-    ['Визуальный индекс', summary.embedded ?? 0],
-    ['Предсказания', summary.predicted ?? 0],
-    ['Проверено вручную', reviewed],
-    ['По похожим кадрам', summary.propagated ?? 0],
-    ['В очереди', summary.pending ?? 0],
-  ];
+  const suggested = new Set(item.router_suggested ?? []);
+  const title = (id: string) => labels.find(label => label.id === id)?.title ?? id;
 
   return (
-    <section className="analysis-panel">
-      <SectionHead
-        title="Обучение"
-        note="Модель раскладывает снимки по типам: портрет, документ, снимок экрана и так
-          далее. Сначала метки ставит zero-shot, потом вы правите ошибки, и на этих правках
-          обучается своя версия."
-        actions={
-          <div className="training-actions">
-            <Button disabled={busy || !canEdit} onClick={() => start.mutate('bootstrap')}>
-              Обновить предсказания
-            </Button>
-            <Button
-              variant="primary"
-              disabled={busy || !canEdit || reviewed < MIN_REVIEWS}
-              onClick={() => start.mutate('train')}
-            >
-              Обучить новую версию
-            </Button>
+    <div className="review">
+      <figure className="review-photo">
+        <img src={photoMediaUrl(item, adultMode, Math.min(1600, viewerSize()))} alt="Снимок для разметки" />
+        <figcaption>
+          <b title={item.path}>{item.filename}</b>
+          <span>{position + 1} из {formatNumber(queue.length)} в очереди</span>
+        </figcaption>
+      </figure>
+
+      <div className="review-side">
+        <section className="review-block">
+          <div className="review-block-head">
+            <h3>На снимке</h3>
+            <small>{selected.size ? `${selected.size} ${plural(selected.size, 'метка', 'метки', 'меток')}` : 'ничего не отмечено'}</small>
           </div>
-        }
-      />
-
-      {(busy || job?.status === 'error') && (
-        <section className="router-progress">
-          <div className="processing-head">
-            <div>
-              <strong>
-                {job?.action === 'train' ? 'Обучение новой версии' : 'Расчёт zero-shot меток'}
-              </strong>
-              <span>{job?.error || (job?.loss != null ? `loss ${job.loss}` : '')}</span>
-            </div>
-            <b>
-              {job?.status === 'error'
-                ? 'Ошибка'
-                : fraction === null ? '' : `${Math.round(fraction * 100)}%`}
-            </b>
-          </div>
-          <Progress value={fraction} />
-        </section>
-      )}
-
-      <div className="router-stats">
-        {stats.map(([title, value]) => (
-          <div key={title} className="router-stat">
-            <b>{formatNumber(value)}</b>
-            <small>{title}</small>
-          </div>
-        ))}
-      </div>
-
-      <section className="router-automation">
-        <CheckRow
-          checked={Boolean(summary.auto_train)}
-          disabled={!canEdit}
-          onChange={next => automation.mutate({
-            router_auto_train: next,
-            router_auto_train_every: summary.auto_train_every ?? 50,
-          })}
-        >
-          Автоматически создавать новую candidate-версию
-        </CheckRow>
-        <label>
-          каждые
-          <select
-            value={String(summary.auto_train_every ?? 50)}
-            disabled={!canEdit}
-            onChange={event => automation.mutate({
-              router_auto_train: Boolean(summary.auto_train),
-              router_auto_train_every: Number(event.target.value),
-            })}
-          >
-            {[25, 50, 100, 200].map(value => (
-              <option key={value} value={value}>{value}</option>
-            ))}
-          </select>
-          новых проверенных или распространённых снимков
-        </label>
-        <small>Модель обучится в фоне, но основной станет только после ручной активации.</small>
-      </section>
-
-      <div className="router-layout">
-        <section className="router-review-card">
-          <div className="router-photo">
-            {item && (
-              <img
-                src={photoMediaUrl(item, adultMode, Math.min(1600, viewerSize()))}
-                alt="Фотография для проверки"
-              />
+          <div className="review-chosen">
+            {selected.size === 0 && (
+              <span className="review-empty">Отметьте подходящие метки ниже. Если не подходит ничего — пропустите снимок.</span>
             )}
+            {[...selected].map(id => (
+              <button key={id} type="button" className="label-chip on" disabled={!canEdit} onClick={() => toggle(id)}>
+                {title(id)}
+                <Icon name="close" size={14} />
+              </button>
+            ))}
           </div>
-          <div className="router-review-body">
-            <div>
-              <p className="eyebrow">
-                {item ? `${index + 1} из ${queue.length} · ${item.folder}` : 'Очередь проверки'}
-              </p>
-              <h2>
-                {item
-                  ? item.filename
-                  : summary.predicted
-                    ? 'Очередь разобрана'
-                    : 'Сначала создайте zero-shot очередь'}
-              </h2>
-            </div>
-
-            <div className="router-labels">
-              {item && grouped.map(([group, labels]) => (
-                <div key={group} className="router-label-group">
-                  <b>{group}</b>
-                  <div>
-                    {labels.map(label => (
-                      <label key={label.id} className="router-label">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(labelValues[label.id])}
-                          onChange={() => toggleLabel(label.id)}
-                        />
-                        <span>
-                          {label.title}{' '}
-                          <em>{Math.round(Number(item.router_scores?.[label.id] ?? 0) * 100)}%</em>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+          {[...suggested].some(id => !selected.has(id)) && (
+            <div className="review-suggest">
+              <span className="review-hint"><Icon name="process" size={14} />Модель предлагает</span>
+              {[...suggested].filter(id => !selected.has(id)).map(id => (
+                <button key={id} type="button" className="label-chip suggested" disabled={!canEdit} onClick={() => toggle(id)}>
+                  <Icon name="plus" size={14} />
+                  {title(id)}
+                </button>
               ))}
             </div>
-
-            <div className="router-review-actions">
-              <Button
-                disabled={!queue.length}
-                onClick={() => setIndex((index + 1) % queue.length)}
-              >
-                Пропустить
-              </Button>
-              <Button
-                disabled={!item || !canEdit || save.isPending}
-                onClick={() => save.mutate({propagate: false})}
-              >
-                Только этот
-              </Button>
-              <Button
-                variant="primary"
-                disabled={!item || !canEdit || save.isPending}
-                title="Применить к ещё не проверенным кадрам с визуальным сходством не ниже 98,5%"
-                onClick={() => save.mutate({propagate: true})}
-              >
-                Этот и почти одинаковые
-              </Button>
-            </div>
-          </div>
+          )}
         </section>
 
-        <section className="router-versions">
-          <h2>Версии модели</h2>
-          {(summary.models ?? []).length === 0
-            ? <HintLine>Обученных версий пока нет.</HintLine>
-            : summary.models!.map(model => {
-                const f1 = model.metrics?.macro_f1;
-                return (
-                  <div key={model.version} className="router-version">
-                    <div className="router-version-head">
-                      <strong>{model.version}</strong>
-                      {model.status === 'active' && <span className="active-pill">активна</span>}
-                    </div>
-                    <p>
-                      {formatNumber(model.dataset_size)} проверок · F1{' '}
-                      {f1 == null ? '—' : Math.round(f1 * 1000) / 1000}
-                      <br />
-                      {model.embedding_model}
-                    </p>
-                    {model.status !== 'active' && (
-                      <Button small onClick={() => activate.mutate(model.version)}>
-                        Сделать основной
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
+        <section className="review-block">
+          <div className="review-block-head">
+            <h3>Все метки</h3>
+            <label className="review-search">
+              <Icon name="search" size={16} />
+              <input
+                type="search"
+                placeholder="Найти метку"
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+              />
+            </label>
+          </div>
+          {groups.map(([group, items]) => (
+            <div key={group} className="label-group">
+              <span className="label-group-title">{group}</span>
+              <div className="label-group-chips">
+                {items.map(label => {
+                  const on = selected.has(label.id);
+                  return (
+                    <button
+                      key={label.id}
+                      type="button"
+                      className={`label-chip${on ? ' on' : ''}${suggested.has(label.id) ? ' suggested' : ''}`}
+                      aria-pressed={on}
+                      disabled={!canEdit}
+                      onClick={() => toggle(label.id)}
+                    >
+                      {on && <Icon name="check" size={14} />}
+                      {label.title}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {groups.length === 0 && <p className="review-empty">Метки с таким названием нет.</p>}
         </section>
       </div>
-    </section>
+
+      {canEdit && (
+        <div className="review-actions">
+          <div className="review-nav">
+            <button type="button" className="icon-button" aria-label="Предыдущий" title="Предыдущий (←)" onClick={() => go(-1)}>
+              <Icon name="chevronLeft" />
+            </button>
+            <button type="button" className="icon-button" aria-label="Следующий" title="Следующий (→)" onClick={() => go(1)}>
+              <Icon name="chevronRight" />
+            </button>
+          </div>
+          <Button
+            small
+            disabled={busy}
+            title="Сложно описать метками — убрать из очереди и не использовать для обучения (Delete)"
+            onClick={() => skip.mutate(item.path)}
+          >
+            Не размечать
+          </Button>
+          <ToggleChip
+            checked={propagate}
+            title="Та же разметка ляжет на непроверенные кадры с визуальным сходством от 98,5%"
+            onChange={setPropagate}
+          >
+            и почти такие же
+          </ToggleChip>
+          <Button variant="primary" disabled={busy} onClick={() => save.mutate(item.path)}>
+            <Icon name="check" size={16} />
+            <span>Сохранить</span>
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- пакеты для нейросети ---------- */
+
+function BatchPanel({summary}: {summary: RouterSummary}) {
+  const canEdit = useStore(state => state.session.canEdit);
+  const adultMode = useStore(state => state.prefs.adultMode);
+  const size = useStore(state => state.training.batchSize);
+  const setSize = useStore(state => state.setBatchSize);
+  const toast = useStore(state => state.toast);
+  const batches = useQuery({queryKey: qk.routerBatches(), queryFn: getRouterBatches});
+  const [downloading, setDownloading] = useState(false);
+
+  const download = async () => {
+    setDownloading(true);
+    try {
+      const response = await fetch(routerExportUrl(size, adultMode === 'hide'));
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({})) as {error?: string};
+        throw new Error(data.error || `Сервер ответил ${response.status}`);
+      }
+      const blob = await response.blob();
+      const name = /filename="([^"]+)"/.exec(response.headers.get('content-disposition') ?? '')?.[1]
+        ?? 'homecloud-review.zip';
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+      toast('Архив скачан — отправьте его нейросети вместе с промптом', 'success');
+      refreshRouter();
+    } catch (error) {
+      toast(`Не удалось собрать архив: ${(error as Error).message}`, 'error');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const list = batches.data?.batches ?? [];
+
+  return (
+    <div className="batch-panel">
+      <section className="batch-steps">
+        <div className="batch-step">
+          <span className="batch-step-number">1</span>
+          <div>
+            <b>Скачайте архив</b>
+            <small>Снимки из очереди, список меток и готовый промпт. Эти снимки не попадут в ручную разметку, пока пакет ждёт ответа.</small>
+            <div className="batch-size" role="group" aria-label="Снимков в архиве">
+              {BATCH_SIZES.map(value => (
+                <Chip key={value} active={size === value} onClick={() => setSize(value)}>{value}</Chip>
+              ))}
+            </div>
+            <Button variant="primary" disabled={!canEdit || downloading || !(summary.pending ?? 0)} onClick={() => void download()}>
+              <Icon name="duplicates" size={16} />
+              <span>{downloading ? 'Собираю архив…' : `Скачать архив на ${photos(size)}`}</span>
+            </Button>
+          </div>
+        </div>
+        <div className="batch-step">
+          <span className="batch-step-number">2</span>
+          <div>
+            <b>Отдайте его нейросети</b>
+            <small>ChatGPT, Claude, Gemini — любой, что принимает архив или картинки. Вставьте промпт из карточки пакета ниже (или prompt.txt из архива).</small>
+          </div>
+        </div>
+        <div className="batch-step">
+          <span className="batch-step-number">3</span>
+          <div>
+            <b>Вставьте ответ в карточку пакета</b>
+            <small>JSON из ответа целиком — можно вместе с ```json. Метки лягут как проверенные, и на них будет учиться модель.</small>
+          </div>
+        </div>
+      </section>
+
+      {list.length === 0
+        ? <p className="batch-empty">Ожидающих пакетов нет. Скачайте архив — его карточка появится здесь.</p>
+        : list.map(batch => <BatchCard key={batch.batch_id} batch={batch} canEdit={canEdit} />)}
+    </div>
+  );
+}
+
+function BatchCard({batch, canEdit}: {batch: RouterBatch; canEdit: boolean}) {
+  const adultMode = useStore(state => state.prefs.adultMode);
+  const toast = useStore(state => state.toast);
+  const [answer, setAnswer] = useState('');
+
+  const upload = useMutation({
+    mutationFn: () => importRouterAnswer(answer),
+    onSuccess: result => {
+      setAnswer('');
+      toast(`Загружено ${photos(result.imported)}${result.skipped.length
+        ? `, уже размечены вручную: ${result.skipped.length}` : ''}${result.auto_started ? ' · запущено обучение' : ''}`,
+        'success');
+      refreshRouter();
+    },
+    onError: (error: Error) => toast(error.message, 'error'),
+  });
+
+  const cancel = useMutation({
+    mutationFn: () => cancelRouterBatch(batch.batch_id),
+    onSuccess: () => { toast('Пакет отменён, снимки вернулись в очередь'); refreshRouter(); },
+  });
+
+  const copy = async () => {
+    try {
+      await copyText(batch.prompt);
+      toast('Промпт скопирован', 'success');
+    } catch {
+      toast('Не удалось скопировать — возьмите prompt.txt из архива', 'error');
+    }
+  };
+
+  return (
+    <article className="batch-card">
+      <header className="batch-card-head">
+        <div>
+          <b>Пакет на {photos(batch.items.length)}</b>
+          <small>выдан {runMoment(batch.created_at)} · {batch.batch_id.slice(0, 8)}</small>
+        </div>
+        <Button small onClick={() => void copy()}>
+          <Icon name="duplicates" size={15} />
+          <span>Промпт</span>
+        </Button>
+        {canEdit && (
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Отменить пакет"
+            title="Отменить пакет — снимки вернутся в очередь"
+            disabled={cancel.isPending}
+            onClick={() => cancel.mutate()}
+          >
+            <Icon name="close" />
+          </button>
+        )}
+      </header>
+      <div className="batch-thumbs">
+        {batch.items.map(item => (
+          <figure key={item.file} title={item.photo?.filename ?? item.file}>
+            {item.photo && <img src={photoMediaUrl(item.photo, adultMode, 160)} alt="" loading="lazy" />}
+            <figcaption>{item.file}</figcaption>
+          </figure>
+        ))}
+      </div>
+      {canEdit && (
+        <div className="batch-answer">
+          <textarea
+            rows={4}
+            placeholder={`Вставьте ответ нейросети: {"batch_id": "${batch.batch_id.slice(0, 8)}…", "items": [...]}`}
+            value={answer}
+            onChange={event => setAnswer(event.target.value)}
+          />
+          <Button variant="primary" small disabled={!answer.trim() || upload.isPending} onClick={() => upload.mutate()}>
+            Загрузить ответ
+          </Button>
+        </div>
+      )}
+    </article>
+  );
+}
+
+/* ---------- модели ---------- */
+
+function ModelsPanel({summary, job}: {summary: RouterSummary; job?: RouterJob}) {
+  const canEdit = useStore(state => state.session.canEdit);
+  const toast = useStore(state => state.toast);
+  const reviewed = summary.reviewed ?? 0;
+  const busy = Boolean(job?.active);
+
+  const start = useMutation({
+    mutationFn: (action: 'bootstrap' | 'train') => runRouter(action),
+    onSuccess: (_data, action) => {
+      void queryClient.invalidateQueries({queryKey: ['router-status']});
+      toast(action === 'train' ? 'Обучение запущено' : 'Пересчёт меток запущен', 'success');
+    },
+  });
+  const activate = useMutation({
+    mutationFn: (version: string) => activateRouterModel({version}),
+    onSuccess: () => { refreshRouter(); toast('Версия стала основной', 'success'); },
+  });
+  const automation = useMutation({
+    mutationFn: (settings: {router_auto_train: boolean; router_auto_train_every: number}) => saveSettings(settings),
+    onSuccess: () => void queryClient.invalidateQueries({queryKey: ['router-summary']}),
+  });
+  const restore = useMutation({
+    mutationFn: clearRouterSkips,
+    onSuccess: result => { refreshRouter(); toast(`Вернули в очередь: ${formatNumber(result.restored)}`); },
+  });
+
+  return (
+    <div className="models-panel">
+      <section className="models-actions">
+        <div>
+          <b>Пересчитать метки</b>
+          <small>Общая модель или активная версия заново оценит все снимки из визуального индекса.</small>
+          <Button disabled={busy || !canEdit} onClick={() => start.mutate('bootstrap')}>Обновить предсказания</Button>
+        </div>
+        <div>
+          <b>Обучить новую версию</b>
+          <small>
+            {reviewed < MIN_REVIEWS
+              ? `Нужно минимум ${MIN_REVIEWS} проверенных снимков, сейчас ${formatNumber(reviewed)}.`
+              : `На ${photos(reviewed)}. Основной версия станет только после вашей проверки.`}
+          </small>
+          <Button variant="primary" disabled={busy || !canEdit || reviewed < MIN_REVIEWS} onClick={() => start.mutate('train')}>
+            Обучить
+          </Button>
+        </div>
+        <div>
+          <b>Автообучение</b>
+          <small>Новая версия-кандидат сама обучится после каждых N проверок.</small>
+          <div className="models-auto">
+            <ToggleChip
+              checked={Boolean(summary.auto_train)}
+              disabled={!canEdit}
+              onChange={next => automation.mutate({
+                router_auto_train: next, router_auto_train_every: summary.auto_train_every ?? 50,
+              })}
+            >
+              Включено
+            </ToggleChip>
+            {[25, 50, 100, 200].map(value => (
+              <Chip
+                key={value}
+                active={(summary.auto_train_every ?? 50) === value}
+                onClick={() => canEdit && automation.mutate({
+                  router_auto_train: Boolean(summary.auto_train), router_auto_train_every: value,
+                })}
+              >
+                {value}
+              </Chip>
+            ))}
+          </div>
+        </div>
+        {(summary.skipped ?? 0) > 0 && (
+          <div>
+            <b>Пропущенные снимки</b>
+            <small>{photos(summary.skipped ?? 0)} помечено «не размечать».</small>
+            <Button disabled={!canEdit || restore.isPending} onClick={() => restore.mutate()}>Вернуть в очередь</Button>
+          </div>
+        )}
+      </section>
+
+      <section className="models-list">
+        <h3>Версии</h3>
+        {(summary.models ?? []).length === 0
+          ? <p className="batch-empty">Обученных версий пока нет — метки ставит общая модель.</p>
+          : summary.models!.map(model => {
+              const f1 = model.metrics?.macro_f1;
+              const activeModel = model.status === 'active';
+              return (
+                <article key={model.version} className={`model-row${activeModel ? ' active' : ''}`}>
+                  <div className="model-main">
+                    <b>{model.version}{activeModel && <span className="model-badge">основная</span>}</b>
+                    <small>
+                      {photos(model.dataset_size)} · {model.embedding_model}
+                      {model.trained_at ? ` · ${runMoment(model.trained_at)}` : ''}
+                    </small>
+                  </div>
+                  <div className="model-score" title="Средний F1 по меткам на отложенных снимках: 100% — без ошибок">
+                    <span>F1</span>
+                    <b>{f1 == null ? '—' : `${Math.round(f1 * 100)}%`}</b>
+                    <Progress value={f1 ?? 0} className={f1 != null && f1 < .5 ? 'weak' : ''} />
+                  </div>
+                  {!activeModel && canEdit && (
+                    <Button small disabled={activate.isPending} onClick={() => activate.mutate(model.version)}>
+                      Сделать основной
+                    </Button>
+                  )}
+                </article>
+              );
+            })}
+      </section>
+    </div>
   );
 }
