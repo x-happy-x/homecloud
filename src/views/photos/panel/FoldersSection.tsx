@@ -50,7 +50,7 @@ export function FoldersSection() {
       <Crumbs items={trail.map(item => ({label: item.name, onClick: () => setCursor(item.path)}))} />
       <div className="folder-tree">
         {cursor && (
-          <div className={`folder-row here${folder === cursor ? ' active' : ''}`} onContextMenu={event => openMenu(event, cursor, 'Эта папка')}>
+          <div className={`folder-row here has-context-menu${folder === cursor ? ' active' : ''}`} onContextMenu={event => openMenu(event, cursor, 'Эта папка')}>
             <button className="folder-pick" type="button" onClick={() => pick(cursor)}>
               <span className="folder-name">Показать всё в этой папке</span>
             </button>
@@ -58,7 +58,7 @@ export function FoldersSection() {
         )}
         {data && (data.folders.length
           ? data.folders.map(item => (
-              <div key={item.path} className={`folder-row${folder === item.path ? ' active' : ''}`} onContextMenu={event => openMenu(event, item.path, item.name)}>
+              <div key={item.path} className={`folder-row has-context-menu${folder === item.path ? ' active' : ''}`} onContextMenu={event => openMenu(event, item.path, item.name)}>
                 <button
                   className="folder-open"
                   type="button"

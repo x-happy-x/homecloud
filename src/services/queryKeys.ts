@@ -11,6 +11,8 @@ export const qk = {
   group: (key: string, hideAdult: boolean) => ['group', key, {hideAdult}] as const,
   photos: (params: Record<string, unknown>) => ['photos', params] as const,
   photo: (path: string) => ['photo', path] as const,
+  /** Под «photos», чтобы сбрасывался вместе со снимками после любой правки. */
+  photoGroups: (params: Record<string, unknown>) => ['photos', 'groups', params] as const,
   /**
    * Снимок кадра лица. Отдельный ключ: пропавший с диска снимок здесь
    * подменяется заглушкой из кадра, и в общую карточку снимка ей не место.

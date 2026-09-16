@@ -48,10 +48,10 @@ describe('buildHash', () => {
 });
 
 describe('parseHash', () => {
-  test('неизвестный экран — люди', () => {
-    expect(parseHash('#/nonsense').view).toBe('people');
-    expect(parseHash('').view).toBe('people');
-    expect(parseHash('#').view).toBe('people');
+  test('неизвестный экран — фотографии', () => {
+    expect(parseHash('#/nonsense').view).toBe('photos');
+    expect(parseHash('').view).toBe('photos');
+    expect(parseHash('#').view).toBe('photos');
   });
 
   test('несколько людей', () => {

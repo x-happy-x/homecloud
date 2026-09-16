@@ -482,15 +482,15 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
           <div
             ref={stage}
             className="viewer-stage"
-            onClickCapture={event => {
-              if (!isMediaElementTarget(event.target) && !isUiTarget(event.target)) return;
-              event.stopPropagation();
-            }}
             onClick={event => {
               if (ignoreClick.current) {
                 ignoreClick.current = false;
                 return;
               }
+              // Щелчок по самому кадру и по кнопкам поверх него закрывать
+              // просмотрщик не должен — закрывают только поля вокруг.
+              // Проверка обязана быть на всплытии: если гасить событие на
+              // перехвате, до кнопки под курсором оно уже не дойдёт.
               if (isUiTarget(event.target) || isMediaElementTarget(event.target)) return;
               onClose();
             }}

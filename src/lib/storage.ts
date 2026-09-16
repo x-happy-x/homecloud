@@ -40,4 +40,6 @@ export const KEYS = {
   zoom: 'homecloud-zoom',
   etaProfiles: 'homecloud-eta-profiles',
   theme: 'theme',
+  galleryGrouping: 'homecloud-gallery-grouping',
+  galleryCollapsed: 'homecloud-gallery-collapsed',
 } as const;

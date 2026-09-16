@@ -1,5 +1,6 @@
 // HomeCloud: статика интерфейса, вход через сервис account и прокси на бэкенд Windows.
 import { createServer, request as httpRequest } from 'node:http';
+import { createGzip } from 'node:zlib';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { dirname, extname, join, normalize, relative as pathRelative, resolve } from 'node:path';
@@ -389,6 +390,19 @@ async function proxy(request, response, pathname, user = null) {
     const out = {...backendResponse.headers};
     delete out.connection;
     delete out['transfer-encoding'];
+    // JSON галереи (страницы снимков, группы папок) сжимается в разы; медиа не трогаем.
+    const gzip = /gzip/.test(String(request.headers['accept-encoding'] || ''))
+      && String(out['content-type'] || '').startsWith('application/json')
+      && !out['content-encoding']
+      && Number(out['content-length'] || 0) > 4096;
+    if (gzip) {
+      delete out['content-length'];
+      out['content-encoding'] = 'gzip';
+      out.vary = 'Accept-Encoding';
+      response.writeHead(backendResponse.statusCode || 502, out);
+      backendResponse.pipe(createGzip()).pipe(response);
+      return;
+    }
     response.writeHead(backendResponse.statusCode || 502, out);
     backendResponse.pipe(response);
   });

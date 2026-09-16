@@ -1,8 +1,11 @@
-import {Fragment} from 'react';
+import {Fragment, useState, type MouseEvent} from 'react';
 import {fileSize, timecode} from '../../../lib/format';
 import {useStore} from '../../../store';
 import type {PhotoCard, RouterLabel} from '../../../types/api';
+import {FolderPickerDialog, type PickedFolder} from '../../../components/FolderPicker/FolderPickerDialog';
 import {folderCrumbs} from '../gallery';
+import {FolderContextMenu, type FolderMenuState} from '../FolderContextMenu';
+import {useFolderActions} from '../useFolderActions';
 import {FacesOverlay} from './FacesOverlay';
 import {SpeechPanel} from './SpeechPanel';
 
@@ -73,10 +76,23 @@ function PlacesPanel({photo, onClose}: {photo: PhotoCard; onClose(): void}) {
   const openAlbumPick = useStore(state => state.openAlbumPick);
   const crumbs = folderCrumbs(photo.folder);
 
+  const folderActions = useFolderActions();
+  const [folderMenu, setFolderMenu] = useState<FolderMenuState | null>(null);
+  const [moveFolder, setMoveFolder] = useState('');
+
+  const openMenu = (event: MouseEvent, path: string, label: string) => {
+    event.preventDefault();
+    setFolderMenu({
+      path, label,
+      x: Math.min(event.clientX, window.innerWidth - 220),
+      y: Math.min(event.clientY, window.innerHeight - 210),
+    });
+  };
+
   return (
     <>
       <h3>Папка</h3>
-      <div className="sheet-trail">
+      <div className="sheet-trail has-context-menu">
         {crumbs.length
           ? crumbs.map((crumb, index) => (
               <Fragment key={crumb.path}>
@@ -85,6 +101,7 @@ function PlacesPanel({photo, onClose}: {photo: PhotoCard; onClose(): void}) {
                   className="crumb"
                   type="button"
                   onClick={() => { onClose(); setFilters({folder: crumb.path, album: 0}); }}
+                  onContextMenu={event => openMenu(event, crumb.path, crumb.name)}
                 >
                   {crumb.name}
                 </button>
@@ -92,6 +109,32 @@ function PlacesPanel({photo, onClose}: {photo: PhotoCard; onClose(): void}) {
             ))
           : <span className="photo-unknown">Путь неизвестен</span>}
       </div>
+
+      <FolderContextMenu
+        menu={folderMenu}
+        canEdit={canEdit}
+        busy={folderActions.busy}
+        onClose={() => setFolderMenu(null)}
+        // Фильтр меняем и уходим в галерею — как по щелчку на самой крошке.
+        onExclude={path => { onClose(); folderActions.excludeFromFilter(path); }}
+        // Остальное делаем не закрывая просмотрщик: эти действия идут запросом,
+        // и снимать компонент, пока он не ответил, — терять и ответ, и сообщение.
+        onHide={folderActions.hide}
+        onMove={setMoveFolder}
+        onDelete={folderActions.remove}
+      />
+      <FolderPickerDialog
+        open={Boolean(moveFolder)}
+        title="Куда переместить папку"
+        note="Выберите подключенный бэк и папку назначения. Медиа из исходной папки будут перенесены внутрь выбранной папки."
+        confirmLabel="Переместить сюда"
+        onClose={() => setMoveFolder('')}
+        onPick={target => {
+          const path = moveFolder;
+          setMoveFolder('');
+          folderActions.move(path, target);
+        }}
+      />
 
       <h3>
         Альбомы

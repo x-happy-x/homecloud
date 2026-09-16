@@ -52,7 +52,7 @@ export interface RouteState {
 }
 
 export const emptyRoute = (): RouteState => ({
-  view: 'people',
+  view: 'photos',
   query: '',
   people: [],
   contentType: '',
@@ -105,7 +105,7 @@ export function parseHash(hash: string): RouteState {
   const name = match?.[1] ?? '';
   const params = new URLSearchParams(match?.[2] || '');
   return {
-    view: isView(name) ? name : 'people',
+    view: isView(name) ? name : 'photos',
     query: params.get('q') || '',
     people: params.getAll('person').filter(Boolean),
     contentType: params.get('type') || '',

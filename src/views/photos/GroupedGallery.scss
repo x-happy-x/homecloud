@@ -1,0 +1,152 @@
+@use '../../styles/mixins' as *;
+
+.gallery-groups { display: grid; gap: 4px; min-width: 0; }
+
+.gallery-group { min-width: 0; }
+// Свёрнутых групп бывают тысячи: пусть браузер не раскладывает те, что вне экрана.
+.gallery-group.collapsed { content-visibility: auto; contain-intrinsic-size: auto 68px; }
+.gallery-group + .gallery-group:not(.collapsed) { margin-top: 10px; }
+
+.gallery-group-head {
+  position: sticky;
+  top: 74px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 6px 4px 6px 0;
+  background: color-mix(in srgb, var(--paper) 90%, transparent);
+  backdrop-filter: blur(12px);
+}
+.gallery-group.collapsed .gallery-group-head { position: static; background: none; backdrop-filter: none; }
+
+.group-toggle {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 2px;
+  border: 0;
+  border-radius: var(--r-m);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.group-toggle:hover .group-caret { color: var(--ink); background: var(--ground); }
+.group-toggle:focus-visible { outline: 2px solid var(--patina); outline-offset: 1px; }
+
+.group-caret {
+  flex: none;
+  width: 28px; height: 28px;
+  padding: 3px;
+  border-radius: 50%;
+  fill: currentColor;
+  color: var(--muted);
+  transition: transform .2s ease, background .15s, color .15s;
+}
+.gallery-group.collapsed .group-caret { transform: rotate(-90deg); }
+
+.group-text { display: grid; gap: 1px; min-width: 0; }
+.group-text strong {
+  font-size: 1.02rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.group-text small {
+  color: var(--muted);
+  font-size: .76rem;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.group-covers {
+  flex: none;
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.group-covers img {
+  width: 44px; height: 44px;
+  object-fit: cover;
+  border-radius: 9px;
+  border: 2px solid var(--paper);
+  background: var(--ground);
+}
+.group-covers img + img { margin-left: -14px; }
+
+.group-select {
+  flex: none;
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  padding: 0;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: transparent;
+  opacity: 0;
+  transition: opacity .15s, background .15s, border-color .15s;
+}
+.group-select svg { width: 15px; height: 15px; fill: currentColor; }
+.gallery-group-head:hover .group-select, .group-select.visible, .group-select:focus-visible { opacity: 1; }
+.group-select:hover { border-color: var(--patina); color: var(--patina); }
+.group-select.checked { border-color: var(--patina); background: var(--patina); color: var(--patina-ink); }
+
+.group-placeholder {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ground) 60%, transparent);
+}
+.group-placeholder.loading {
+  background: linear-gradient(90deg, transparent, var(--patina-soft), transparent) var(--ground);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer-bg 1.4s linear infinite;
+}
+
+.skeleton-head .skeleton-line {
+  width: 180px; height: 18px;
+  margin-left: 36px;
+  border-radius: 999px;
+  background: var(--ground);
+  animation: pulse 1.3s infinite ease-in-out;
+}
+
+.grouping-button { gap: 6px; }
+.grouping-button.active { border-color: color-mix(in srgb, var(--patina) 45%, var(--line)); }
+.grouping-caret { opacity: .6; }
+.grouping-menu { min-width: 230px; max-height: calc(100vh - 120px); overflow-y: auto; }
+.grouping-menu .menu-title {
+  padding: 8px 11px 4px;
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 650;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.grouping-menu button { justify-content: space-between; }
+.grouping-menu button[aria-checked='true'] { color: var(--patina); font-weight: 600; }
+.grouping-menu button[aria-checked='true'] svg { color: var(--patina); }
+.grouping-menu button:not([role]) { justify-content: flex-start; }
+
+@include reduced-motion {
+  .group-caret { transition: none; }
+  .group-placeholder.loading { animation: none; }
+}
+
+@include bp-md {
+  .gallery-group-head { top: 66px; padding-right: 0; }
+  .gallery-group-head .group-select { opacity: 1; }
+  .group-covers img { width: 38px; height: 38px; }
+  .group-text strong { font-size: .96rem; }
+}
+
+@include bp-sm {
+  .group-covers img:nth-child(n + 3) { display: none; }
+  .grouping-label { display: none; }
+}

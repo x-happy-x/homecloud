@@ -1,13 +1,17 @@
-import {useCallback, useEffect, useRef, useState, type MouseEvent} from 'react';
-import {useQuery} from '@tanstack/react-query';
+import {useCallback, useEffect, useMemo, useRef, useState, type MouseEvent} from 'react';
+import {useQuery, type InfiniteData} from '@tanstack/react-query';
 import './PhotosView.scss';
 import {useCatalogState} from '../../hooks/useCatalogState';
 import {useIntersection} from '../../hooks/useIntersection';
 import {formatNumber, plural} from '../../lib/format';
+import {adultFlag} from '../../lib/adult';
 import {getAlbums} from '../../services/endpoints/albums';
+import {getPhotoGroups} from '../../services/endpoints/catalog';
+import {queryClient} from '../../services/queryClient';
 import {tileSize} from '../../services/media';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
+import type {PhotosPage} from '../../types/api';
 import type {ZoomLevel} from '../../types/domain';
 import {ActionBar} from '../../ui/ActionBar/ActionBar';
 import {Button} from '../../ui/Button/Button';
@@ -19,8 +23,11 @@ import {ViewHeader} from '../../ui/ViewHeader/ViewHeader';
 import {baseName, bigfamPersonUrl, dropFilter, galleryContext} from './gallery';
 import {FolderContextMenu, type FolderMenuState} from './FolderContextMenu';
 import {FolderPickerDialog, type PickedFolder} from '../../components/FolderPicker/FolderPickerDialog';
+import {GroupedGallery} from './GroupedGallery';
+import {isCollapsed} from './grouping';
+import {GroupingMenu} from './GroupingMenu';
 import {PhotoTile} from './PhotoTile';
-import {useGallery} from './useGallery';
+import {scopedParams, useGalleryParams, usePhotoPages} from './useGallery';
 import {useFolderActions} from './useFolderActions';
 import {usePhotoActions} from './usePhotoActions';
 
@@ -31,7 +38,22 @@ const ZOOM_STEPS: Array<[ZoomLevel, IconName, string]> = [
 ];
 
 export function PhotosView() {
-  const {photos, total, isPending, hasNextPage, isFetchingNextPage, fetchNextPage} = useGallery();
+  const params = useGalleryParams();
+  const grouping = useStore(state => state.prefs.grouping);
+  const rules = useStore(state => state.prefs.collapsed);
+  const grouped = grouping.by !== 'none';
+  const active = useStore(state => state.view === 'photos' && Boolean(state.session.user));
+  // Сплошная сетка — без группы, даже если просмотрщик открывали из группы.
+  const flat = usePhotoPages(params, active && !grouped);
+  const groupsQuery = useQuery({
+    queryKey: qk.photoGroups({...params, by: grouping.by, order: grouping.order}),
+    queryFn: () => getPhotoGroups(params, grouping.by, grouping.order),
+    enabled: active && grouped,
+  });
+  const groups = useMemo(() => groupsQuery.data?.groups ?? [], [groupsQuery.data]);
+  const {photos, hasNextPage, isFetchingNextPage, fetchNextPage} = flat;
+  const isPending = grouped ? groupsQuery.isPending : flat.isPending;
+  const total = grouped ? groupsQuery.data?.total ?? 0 : flat.total;
   const filters = useStore(state => state.filters);
   const setFilters = useStore(state => state.setFilters);
   const zoom = useStore(state => state.prefs.zoom);
@@ -45,7 +67,7 @@ export function PhotosView() {
   const openSidepage = useStore(state => state.openSidepage);
   const openAlbumPick = useStore(state => state.openAlbumPick);
   const openProcess = useStore(state => state.openProcess);
-  const setRoutePhoto = useStore(state => state.setRoutePhoto);
+  const openPhoto = useStore(state => state.openPhoto);
   const people = useCatalogState().data?.people;
   const albums = useQuery({queryKey: qk.albums(), queryFn: getAlbums}).data;
   const actions = usePhotoActions();
@@ -64,19 +86,43 @@ export function PhotosView() {
   }, [nearEnd, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // Выбор живёт только среди показанного: после смены фильтров чужие пути выбывают.
+  // В группах показанное разбросано по десяткам запросов — там выбор просто
+  // сбрасывается при смене фильтров или группировки.
+  const selectionScope = grouped ? JSON.stringify([params, grouping]) : '';
+  const lastScope = useRef(selectionScope);
   useEffect(() => {
-    if (isPending || !selected.size) return;
+    if (lastScope.current === selectionScope) return;
+    lastScope.current = selectionScope;
+    if (grouped) clear('photos');
+  }, [selectionScope, grouped, clear]);
+
+  useEffect(() => {
+    if (grouped || isPending || !selected.size) return;
     const shown = new Set(photos.map(photo => photo.path));
     const kept = [...selected].filter(path => shown.has(path));
     if (kept.length !== selected.size) select('photos', kept);
-  }, [isPending, photos, selected, select]);
+  }, [grouped, isPending, photos, selected, select]);
 
   const list = useRef(photos);
   list.current = photos;
   const open = useCallback((index: number) => {
     const photo = list.current[index];
-    if (photo) setRoutePhoto(photo.path);
-  }, [setRoutePhoto]);
+    if (photo) openPhoto(photo.path, null);
+  }, [openPhoto]);
+
+  /** Загруженные снимки раскрытых групп — для «выбрать все показанные». */
+  const shownPhotos = () => {
+    if (!grouped) return photos;
+    return groups
+      .filter(group => !isCollapsed(rules, grouping.by, group.key))
+      .flatMap(group => {
+        const scope = {groupBy: grouping.by, group: group.key, order: grouping.order};
+        const data = queryClient.getQueryData<InfiniteData<PhotosPage>>(
+          qk.photos(scopedParams(params, scope) as Record<string, unknown>));
+        return data?.pages.flatMap(page => page.photos) ?? [];
+      })
+      .filter(photo => !(adultMode === 'hide' && adultFlag(photo)));
+  };
 
   const size = tileSize(zoom);
   const chips = galleryContext(filters, albums);
@@ -84,8 +130,9 @@ export function PhotosView() {
     ? people?.find(item => item.name === filters.people[0])
     : undefined;
   const shown = photos.length;
-  const all = Math.max(total, shown);
+  const all = grouped ? total : Math.max(total, shown);
   const counter = !all ? 'Галерея'
+    : grouped ? `${formatNumber(all)} ${plural(all, 'снимок', 'снимка', 'снимков')} · ${formatNumber(groups.length)} ${plural(groups.length, 'группа', 'группы', 'групп')}`
     : shown < all ? `Показано ${formatNumber(shown)} из ${formatNumber(all)}`
     : `${formatNumber(all)} ${plural(all, 'снимок', 'снимка', 'снимков')}`;
   const count = selected.size;
@@ -131,6 +178,7 @@ export function PhotosView() {
           Подборки и фильтры
           {chips.length > 0 && <span className="bar-count">{chips.length}</span>}
         </Button>
+        <GroupingMenu />
         <Chips className="context-chips">
           {chips.map(chip => {
             const folderPath = chip.drop.kind === 'folder' ? filters.folder : '';
@@ -138,6 +186,7 @@ export function PhotosView() {
               <Chip
                 key={chip.label}
                 context
+                className={folderPath ? 'has-context-menu' : undefined}
                 onClick={() => setFilters(dropFilter(filters, chip.drop))}
                 onContextMenu={folderPath ? event => openFolderMenu(event, folderPath) : undefined}
               >
@@ -174,7 +223,7 @@ export function PhotosView() {
           onClear={() => clear('photos')}
           actions={
             <>
-              <Button small onClick={() => select('photos', photos.map(photo => photo.path))}>
+              <Button small onClick={() => select('photos', shownPhotos().map(photo => photo.path))}>
                 Выбрать все показанные
               </Button>
               <span className="toolbar-spacer" />
@@ -195,21 +244,38 @@ export function PhotosView() {
         />
       )}
 
-      <div className={`photo-grid${count > 0 && canEdit ? ' selecting' : ''}`} data-zoom={zoom}>
-        {isPending
-          ? <Skeleton count={18} variant="photo" />
-          : photos.map((photo, index) => (
-              <PhotoTile
-                key={photo.path}
-                photo={photo}
-                index={index}
-                size={size}
-                adultMode={adultMode}
-                onOpen={open}
-              />
-            ))}
-      </div>
-      <div ref={edge} className={`grid-more${isFetchingNextPage ? ' loading' : ''}`} aria-hidden="true" />
+      {grouped
+        ? (
+          <GroupedGallery
+            groups={groups}
+            isPending={isPending}
+            grouping={grouping}
+            params={params}
+            zoom={zoom}
+            size={size}
+            adultMode={adultMode}
+            onFolderMenu={openFolderMenu}
+          />
+        )
+        : (
+          <>
+            <div className={`photo-grid${count > 0 && canEdit ? ' selecting' : ''}`} data-zoom={zoom}>
+              {isPending
+                ? <Skeleton count={18} variant="photo" />
+                : photos.map((photo, index) => (
+                    <PhotoTile
+                      key={photo.path}
+                      photo={photo}
+                      index={index}
+                      size={size}
+                      adultMode={adultMode}
+                      onOpen={open}
+                    />
+                  ))}
+            </div>
+            <div ref={edge} className={`grid-more${isFetchingNextPage ? ' loading' : ''}`} aria-hidden="true" />
+          </>
+        )}
 
       <FolderContextMenu
         menu={folderMenu}
@@ -230,7 +296,7 @@ export function PhotosView() {
         onPick={movePicked}
       />
 
-      {!isPending && photos.length === 0 && (
+      {!isPending && (grouped ? groups.length === 0 : photos.length === 0) && (
         <EmptyState mark="▧" title="Фотографии не найдены">
           Для совместного поиска сначала назначьте людям имена.
         </EmptyState>

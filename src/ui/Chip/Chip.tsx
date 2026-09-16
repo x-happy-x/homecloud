@@ -8,14 +8,18 @@ export interface ChipProps {
   count?: number;
   onClick?(): void;
   onContextMenu?: MouseEventHandler<HTMLButtonElement>;
+  className?: string;
   children: ReactNode;
 }
 
-export function Chip({active, context, verified, count, onClick, onContextMenu, children}: ChipProps) {
+export function Chip({
+  active, context, verified, count, onClick, onContextMenu, className, children,
+}: ChipProps) {
   const classes = ['chip'];
   if (active) classes.push('active');
   if (context) classes.push('context');
   if (verified) classes.push('verified');
+  if (className) classes.push(className);
   return (
     <button type="button" className={classes.join(' ')} onClick={onClick} onContextMenu={onContextMenu}>
       {children}

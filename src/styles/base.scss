@@ -35,11 +35,24 @@ img { -webkit-user-drag: none; user-drag: none; }
 input, textarea, select, [contenteditable],
 p, code, pre, h1, h2, h3, summary,
 .viewer-title, .lightbox-description, .lightbox-ocr,
-.adult-description, .sheet-trail,
-.person-name, .person-years, .face-name, .album-body, .folder-name,
+.adult-description,
+.person-name, .person-years, .face-name, .album-body,
 .caption, .hint-line, .grid-hint, .person-meta {
   -webkit-user-select: text;
   user-select: text;
+}
+
+/**
+ * Элемент с меню по долгому нажатию. На телефоне удержание сначала цепляет
+ * текст, и вместо меню получается выделение, поэтому выделять тут нечего —
+ * заодно гасим системную всплывашку iOS. Путь к папке по-прежнему можно
+ * забрать кнопкой «копировать путь» в сведениях о снимке.
+ */
+.has-context-menu,
+.has-context-menu * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 @include reduced-motion {

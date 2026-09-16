@@ -204,3 +204,25 @@ export interface PhotosPage {
   photos: PhotoCard[];
   total: number;
 }
+
+/** Группа галереи: день, папка, альбом, человек… */
+export interface PhotoGroup {
+  /** «2024-09», путь папки, id альбома, имя; «~none» — снимки без признака. */
+  key: string;
+  /** Подпись от сервера: путь альбома, имя человека. */
+  label: string;
+  count: number;
+  /** Самый свежий и самый старый снимок группы, миллисекунды. */
+  newest: number | null;
+  oldest: number | null;
+  /** Несколько первых снимков — обложка свёрнутой группы. */
+  covers: Array<{path: string; v: number; adult_rating: AdultRating}>;
+}
+
+export interface PhotoGroupsPage {
+  by: string;
+  order: string;
+  groups: PhotoGroup[];
+  /** Снимков всего; в группах их может быть больше — снимок бывает в нескольких. */
+  total: number;
+}

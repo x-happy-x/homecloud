@@ -6,12 +6,20 @@ import type {Store} from '../index';
 /** Фильтры галереи — они же содержимое ссылки, поэтому лежат одним объектом. */
 export type GalleryFilters = Omit<RouteState, 'view' | 'photo' | 'group'>;
 
+/** Группа, из которой открыт снимок: просмотрщик листает внутри неё. */
+export interface PhotoScope {
+  groupBy: string;
+  group: string;
+  order: string;
+}
+
 export interface GallerySlice {
   view: ViewName;
   filters: GalleryFilters;
   /** Снимок и группа, открытые по ссылке. */
   routePhoto: string;
   routeGroup: string;
+  photoScope: PhotoScope | null;
   /** Панель «Подборки и фильтры». */
   sidepageOpen: boolean;
   /** Снимки, для которых открыто окно обработки; null — окно закрыто. */
@@ -25,6 +33,8 @@ export interface GallerySlice {
   /** Галерея одного человека: остальные фильтры остаются, поиск сбрасывается. */
   showPersonPhotos(name: string): void;
   setRoutePhoto(path: string): void;
+  /** Открыть снимок из группы (scope) или из сплошной сетки (null). */
+  openPhoto(path: string, scope: PhotoScope | null): void;
   setRouteGroup(key: string): void;
   openSidepage(): void;
   closeSidepage(): void;
@@ -40,10 +50,11 @@ const filtersOf = (route: RouteState): GalleryFilters => {
 };
 
 export const createGallerySlice: StateCreator<Store, [], [], GallerySlice> = set => ({
-  view: 'people',
+  view: 'photos',
   filters: filtersOf(emptyRoute()),
   routePhoto: '',
   routeGroup: '',
+  photoScope: null,
   sidepageOpen: false,
   processPaths: null,
 
@@ -75,6 +86,7 @@ export const createGallerySlice: StateCreator<Store, [], [], GallerySlice> = set
   })),
 
   setRoutePhoto: routePhoto => set({routePhoto}),
+  openPhoto: (routePhoto, photoScope) => set({routePhoto, photoScope}),
   setRouteGroup: routeGroup => set({routeGroup}),
 
   // Панель подборок и уведомления выезжают с одного края — открыта одна.
@@ -90,10 +102,12 @@ export const createGallerySlice: StateCreator<Store, [], [], GallerySlice> = set
   },
   closeProcess: () => set({processPaths: null}),
 
-  applyRoute: route => set({
+  // Снимок из ссылки открывается без группы: просмотрщик листает всю галерею.
+  applyRoute: route => set(state => ({
     view: route.view,
     filters: filtersOf(route),
     routePhoto: route.photo,
     routeGroup: route.group,
-  }),
+    photoScope: route.photo && route.photo === state.routePhoto ? state.photoScope : null,
+  })),
 });
