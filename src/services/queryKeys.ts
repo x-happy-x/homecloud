@@ -43,4 +43,5 @@ export const qk = {
   routerStatus: () => ['router-status'] as const,
   routerReview: (hideAdult: boolean) => ['router-review', {hideAdult}] as const,
   routerBatches: () => ['router-batches'] as const,
+  routerTaggers: () => ['router-taggers'] as const,
 } as const;

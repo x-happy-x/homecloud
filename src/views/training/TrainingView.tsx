@@ -7,8 +7,10 @@ import {formatNumber, plural, runMoment} from '../../lib/format';
 import {saveSettings} from '../../services/endpoints/settings';
 import {
   activateRouterModel, cancelRouterBatch, clearRouterSkips, getRouterBatches, getRouterReview,
-  getRouterSummary, importRouterAnswer, routerExportUrl, runRouter, saveRouterLabel, skipRouterPhoto,
+  getRouterSummary, getRouterTaggers, importRouterAnswer, routerExportUrl, runRouter, saveRouterLabel,
+  skipRouterPhoto, startRouterTagging, stopRouterJob,
   type RouterBatch, type RouterJob, type RouterLabel, type RouterQueueItem, type RouterSummary,
+  type RouterTagger, type TaggerId,
 } from '../../services/endpoints/training';
 import {photoMediaUrl, viewerSize} from '../../services/media';
 import {qk} from '../../services/queryKeys';
@@ -34,6 +36,12 @@ const refreshRouter = () => {
 };
 
 const photos = (count: number) => `${formatNumber(count)} ${plural(count, 'снимок', 'снимка', 'снимков')}`;
+
+/** Названия разметчиков до того, как пришёл их список. */
+const TAGGER_TITLES: Record<TaggerId, string> = {ram_plus: 'RAM++', qwen: 'Qwen3-VL-2B', lmstudio: 'LM Studio'};
+const TAG_COUNTS = [20, 100, 500, 1000];
+
+const percent = (value: number | null | undefined) => value == null ? '—' : `${Math.round(value * 100)}%`;
 
 export function TrainingView({job}: {job?: RouterJob}) {
   const tab = useStore(state => state.training.tab);
@@ -66,7 +74,7 @@ export function TrainingView({job}: {job?: RouterJob}) {
       </div>
 
       {tab === 'review' && <ReviewPanel summary={summary} />}
-      {tab === 'batch' && <BatchPanel summary={summary} />}
+      {tab === 'batch' && <BatchPanel summary={summary} job={job} />}
       {tab === 'models' && <ModelsPanel summary={summary} job={job} />}
     </section>
   );
@@ -98,7 +106,7 @@ function Overview({summary, job}: {summary: RouterSummary; job?: RouterJob}) {
         <b>{formatNumber(reviewed)}</b>
         <small>
           вручную {formatNumber(summary.human_reviewed ?? 0)} · похожих {formatNumber(summary.propagated ?? 0)}
-          {' · '}нейросетью {formatNumber(summary.ai_reviewed ?? 0)}
+          {' · '}нейросетью {formatNumber((summary.ai_reviewed ?? 0) + (summary.local_reviewed ?? 0))}
         </small>
         <Progress value={toTrain ? reviewed / MIN_REVIEWS : toAuto === null ? 1
           : 1 - toAuto / (summary.auto_train_every ?? 50)} />
@@ -118,13 +126,39 @@ function Overview({summary, job}: {summary: RouterSummary; job?: RouterJob}) {
           {summary.skipped ? ` · пропущено ${formatNumber(summary.skipped)}` : ''}
         </small>
       </div>
-      {(running || job?.status === 'error') && (
-        <div className={`training-card job${job?.status === 'error' ? ' error' : ''}`}>
-          <span className="training-label">{job?.action === 'train' ? 'Обучение новой версии' : 'Пересчёт меток'}</span>
-          <b>{job?.status === 'error' ? 'Ошибка' : fraction === null ? '…' : `${Math.floor(fraction * 100)}%`}</b>
-          <small>{job?.error || (job?.loss != null ? `ошибка модели (loss) ${job.loss}` : 'идёт в фоне')}</small>
-          {running && <Progress value={fraction} />}
-        </div>
+      {(running || job?.status === 'error') && <JobCard job={job!} fraction={fraction} />}
+    </div>
+  );
+}
+
+function JobCard({job, fraction}: {job: RouterJob; fraction: number | null}) {
+  const canEdit = useStore(state => state.session.canEdit);
+  const running = Boolean(job.active);
+  const tagging = job.action === 'tag';
+  const title = tagging
+    ? `${job.scope === 'reviewed' ? 'Проверка' : 'Разметка'} · ${TAGGER_TITLES[job.engine ?? 'ram_plus'] ?? job.engine}`
+    : job.action === 'train' ? 'Обучение новой версии' : 'Пересчёт меток';
+  const stop = useMutation({mutationFn: stopRouterJob});
+
+  let note = job.error || 'идёт в фоне';
+  if (!job.error && tagging) {
+    note = job.status === 'preparing' ? 'загружаю модель…' : `${formatNumber(job.completed ?? 0)} из ${formatNumber(job.total ?? 0)}`;
+    if (job.accepted) note += ` · сохранено ${formatNumber(job.accepted)}`;
+    if (job.errors) note += ` · не открылось ${formatNumber(job.errors)}`;
+  } else if (!job.error && job.loss != null) {
+    note = `ошибка модели (loss) ${job.loss}`;
+  }
+
+  return (
+    <div className={`training-card job${job.status === 'error' ? ' error' : ''}`}>
+      <span className="training-label">{title}</span>
+      <b>{job.status === 'error' ? 'Ошибка' : fraction === null ? '…' : `${Math.floor(fraction * 100)}%`}</b>
+      <small>{note}</small>
+      {running && <Progress value={fraction} />}
+      {running && tagging && canEdit && (
+        <Button small disabled={stop.isPending} onClick={() => stop.mutate()}>
+          {stop.isPending || stop.isSuccess ? 'Останавливаю…' : 'Остановить'}
+        </Button>
       )}
     </div>
   );
@@ -246,8 +280,19 @@ function ReviewPanel({summary}: {summary: RouterSummary}) {
     );
   }
 
-  const suggested = new Set(item.router_suggested ?? []);
   const title = (id: string) => labels.find(label => label.id === id)?.title ?? id;
+  // Основная модель и разметчики, смотревшие снимок, — каждый своей строкой.
+  const sources: Array<[string, string, string[]]> = [
+    ['base', item.router_trained ? 'Своя модель предлагает' : 'Общая модель предлагает', item.router_suggested ?? []],
+    ...Object.entries(item.router_alternatives ?? {}).map(([engine, ids]): [string, string, string[]] =>
+      [engine, TAGGER_TITLES[engine as TaggerId] ?? engine, ids ?? []]),
+  ];
+  const votes = new Map<string, number>();
+  for (const [, , ids] of sources) for (const id of ids) votes.set(id, (votes.get(id) ?? 0) + 1);
+  const suggested = new Set(votes.keys());
+  const addAll = (ids: string[]) => {
+    setDraft(item.path, [...new Set([...selected, ...ids])]);
+  };
 
   return (
     <div className="review">
@@ -276,17 +321,35 @@ function ReviewPanel({summary}: {summary: RouterSummary}) {
               </button>
             ))}
           </div>
-          {[...suggested].some(id => !selected.has(id)) && (
-            <div className="review-suggest">
-              <span className="review-hint"><Icon name="process" size={14} />Модель предлагает</span>
-              {[...suggested].filter(id => !selected.has(id)).map(id => (
-                <button key={id} type="button" className="label-chip suggested" disabled={!canEdit} onClick={() => toggle(id)}>
-                  <Icon name="plus" size={14} />
-                  {title(id)}
-                </button>
-              ))}
-            </div>
-          )}
+          {sources.map(([source, name, ids]) => {
+            const rest = ids.filter(id => !selected.has(id));
+            // Разметчик смотрел снимок и ничего не нашёл — это тоже ответ.
+            if (!rest.length && (source === 'base' || ids.length)) return null;
+            return (
+              <div key={source} className={`review-suggest${source === 'base' ? '' : ' alternative'}`}>
+                <span className="review-hint"><Icon name="process" size={14} />{name}</span>
+                {rest.length === 0 && <span className="review-hint">ничего не нашёл</span>}
+                {rest.map(id => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`label-chip suggested${(votes.get(id) ?? 0) > 1 ? ' agreed' : ''}`}
+                    title={(votes.get(id) ?? 0) > 1 ? `Сходятся ${votes.get(id)} модели` : undefined}
+                    disabled={!canEdit}
+                    onClick={() => toggle(id)}
+                  >
+                    <Icon name="plus" size={14} />
+                    {title(id)}
+                  </button>
+                ))}
+                {canEdit && rest.length > 1 && (
+                  <button type="button" className="review-accept" onClick={() => addAll(rest)}>
+                    Принять все
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </section>
 
         <section className="review-block">
@@ -366,7 +429,7 @@ function ReviewPanel({summary}: {summary: RouterSummary}) {
 
 /* ---------- пакеты для нейросети ---------- */
 
-function BatchPanel({summary}: {summary: RouterSummary}) {
+function BatchPanel({summary, job}: {summary: RouterSummary; job?: RouterJob}) {
   const canEdit = useStore(state => state.session.canEdit);
   const adultMode = useStore(state => state.prefs.adultMode);
   const size = useStore(state => state.training.batchSize);
@@ -404,6 +467,12 @@ function BatchPanel({summary}: {summary: RouterSummary}) {
 
   return (
     <div className="batch-panel">
+      <LocalTaggers summary={summary} job={job} />
+
+      <div className="batch-heading">
+        <h3>Вручную через чат-нейросеть</h3>
+        <small>ChatGPT, Claude, Gemini: архив туда, ответ обратно.</small>
+      </div>
       <section className="batch-steps">
         <div className="batch-step">
           <span className="batch-step-number">1</span>
@@ -441,6 +510,147 @@ function BatchPanel({summary}: {summary: RouterSummary}) {
         ? <p className="batch-empty">Ожидающих пакетов нет. Скачайте архив — его карточка появится здесь.</p>
         : list.map(batch => <BatchCard key={batch.batch_id} batch={batch} canEdit={canEdit} />)}
     </div>
+  );
+}
+
+/** RAM++ и Qwen на этой машине: без архивов и копирования, рядом с основной моделью. */
+function LocalTaggers({summary, job}: {summary: RouterSummary; job?: RouterJob}) {
+  const canEdit = useStore(state => state.session.canEdit);
+  const adultMode = useStore(state => state.prefs.adultMode);
+  const toast = useStore(state => state.toast);
+  const taggers = useQuery({queryKey: qk.routerTaggers(), queryFn: getRouterTaggers});
+  const [count, setCount] = useState(100);
+  const [accept, setAccept] = useState(false);
+  const busy = Boolean(job?.active);
+
+  const start = useMutation({
+    mutationFn: (payload: {engine: TaggerId; scope: 'queue' | 'reviewed'}) => startRouterTagging({
+      ...payload,
+      count: payload.scope === 'reviewed' ? 5000 : count,
+      accept: payload.scope === 'queue' && accept,
+      adult: adultMode === 'hide' ? 'hide' : '',
+    }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({queryKey: qk.routerStatus()});
+      toast('Разметка запущена — ход виден в карточке сверху', 'success');
+    },
+    onError: (error: Error) => toast(error.message, 'error'),
+  });
+
+  const list = taggers.data?.taggers ?? [];
+  const base = list.find(tagger => tagger.base);
+  const humans = summary.human_reviewed ?? 0;
+
+  return (
+    <section className="taggers">
+      <div className="batch-heading">
+        <h3>Локальные модели</h3>
+        <small>
+          Смотрят на сами снимки и кладут свои метки рядом с основной моделью — в разметке это отдельные подсказки.
+          Можно сразу сохранять их ответ, тогда на нём будет учиться своя модель.
+        </small>
+      </div>
+
+      <div className="taggers-options">
+        <span className="review-hint">Следующие в очереди</span>
+        {TAG_COUNTS.map(value => (
+          <Chip key={value} active={count === value} onClick={() => setCount(value)}>{formatNumber(value)}</Chip>
+        ))}
+        <ToggleChip
+          checked={accept}
+          disabled={!canEdit}
+          title="Ответ модели сразу станет разметкой без вашей проверки. Уже размеченное вручную не трогается."
+          onChange={setAccept}
+        >
+          сразу сохранять разметкой
+        </ToggleChip>
+      </div>
+
+      {taggers.isPending && <div className="review-loading">Проверяю модели…</div>}
+      <div className="taggers-list">
+        {list.filter(tagger => !tagger.base).map(tagger => (
+          <TaggerCard
+            key={tagger.id}
+            tagger={tagger}
+            base={base}
+            humans={humans}
+            disabled={!canEdit || busy || start.isPending}
+            onRun={scope => start.mutate({engine: tagger.id as TaggerId, scope})}
+            count={count}
+            total={summary.labels?.length ?? 0}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TaggerCard({tagger, base, humans, disabled, count, total, onRun}: {
+  tagger: RouterTagger;
+  base?: RouterTagger;
+  humans: number;
+  disabled: boolean;
+  count: number;
+  total: number;
+  onRun(scope: 'queue' | 'reviewed'): void;
+}) {
+  const {quality} = tagger;
+  const checked = quality.photos > 0;
+  const unchecked = Math.max(0, humans - quality.photos);
+
+  return (
+    <article className={`tagger-card${tagger.ready ? '' : ' offline'}`}>
+      <header>
+        <b>{tagger.title}</b>
+        <small>{tagger.detail}</small>
+      </header>
+      <p>{tagger.note}</p>
+
+      <div className="tagger-quality" title="Сравнение с тем, что вы отметили вручную, по меткам, которые модель умеет ставить">
+        {checked ? (
+          <>
+            <div>
+              <span>Точность</span>
+              <b>{percent(quality.precision)}</b>
+              <Progress value={quality.precision ?? 0} className={(quality.precision ?? 0) < .5 ? 'weak' : ''} />
+            </div>
+            <div>
+              <span>Полнота</span>
+              <b>{percent(quality.recall)}</b>
+              <Progress value={quality.recall ?? 0} className={(quality.recall ?? 0) < .5 ? 'weak' : ''} />
+            </div>
+            <small>
+              на {photos(quality.photos)} вашей разметки
+              {base?.quality.photos ? ` · основная модель: ${percent(base.quality.precision)} и ${percent(base.quality.recall)}` : ''}
+            </small>
+          </>
+        ) : (
+          <small>Ещё не сравнивалась с вашей разметкой.</small>
+        )}
+      </div>
+
+      <small className="tagger-stats">
+        посмотрела {photos(tagger.tagged ?? 0)}
+        {tagger.accepted ? ` · сохранено разметкой ${formatNumber(tagger.accepted)}` : ''}
+        {tagger.id === 'ram_plus' ? ` · умеет ${tagger.labels} из ${total} меток` : ''}
+      </small>
+
+      <div className="tagger-actions">
+        <Button variant="primary" small disabled={disabled || !tagger.ready} onClick={() => onRun('queue')}>
+          Разметить {formatNumber(count)}
+        </Button>
+        {unchecked > 0 && (
+          <Button
+            small
+            disabled={disabled || !tagger.ready}
+            title="Прогнать по снимкам, размеченным вручную, и посчитать, насколько модель с вами согласна"
+            onClick={() => onRun('reviewed')}
+          >
+            Сравнить с моей разметкой
+          </Button>
+        )}
+      </div>
+    </article>
   );
 }
 

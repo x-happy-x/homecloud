@@ -28,6 +28,8 @@ export interface RouterSummary {
   human_reviewed?: number;
   propagated?: number;
   ai_reviewed?: number;
+  /** Сохранено разметкой прямо из ответа RAM++ или Qwen. */
+  local_reviewed?: number;
   pending_batches?: number;
   skipped?: number;
   batch_sizes?: number[];
@@ -46,12 +48,44 @@ export interface RouterQueueItem extends PhotoSummary {
   router_suggested?: string[];
   /** Метки ставит своя обученная версия — её подсказки можно отмечать заранее. */
   router_trained?: boolean;
+  /** Что сказали разметчики, уже смотревшие снимок: движок → метки. Пустой массив — ничего не нашёл. */
+  router_alternatives?: Partial<Record<TaggerId, string[]>>;
+}
+
+export type TaggerId = 'ram_plus' | 'qwen' | 'lmstudio';
+
+export interface TaggerQuality {
+  /** Сколько снимков, размеченных вручную, разметчик тоже посмотрел. */
+  photos: number;
+  /** Доля верных среди того, что он отметил. */
+  precision: number | null;
+  /** Доля найденного из того, что отметили вы. */
+  recall: number | null;
+}
+
+export interface RouterTagger {
+  id: TaggerId | 'zero_shot' | 'trained';
+  title: string;
+  /** Основной источник меток — для сравнения, не запускается. */
+  base?: boolean;
+  ready: boolean;
+  note?: string;
+  detail?: string;
+  tagged?: number;
+  accepted?: number;
+  labels: number;
+  quality: TaggerQuality;
 }
 
 export interface RouterJob {
   active?: boolean;
   status?: string;
-  action?: 'train' | 'bootstrap';
+  action?: 'train' | 'bootstrap' | 'tag';
+  engine?: TaggerId;
+  scope?: 'queue' | 'reviewed';
+  accept?: boolean;
+  accepted?: number;
+  errors?: number;
   completed?: number;
   total?: number;
   loss?: number;
@@ -71,6 +105,8 @@ export const getRouterStatus = () => api<RouterJob>('/api/router/status');
 export const getRouterReview = (hideAdult: boolean, limit = 24) =>
   api<{photos: RouterQueueItem[]}>(`/api/router/review${query({limit, adult: hideAdult ? 'hide' : ''})}`);
 
+export const getRouterTaggers = () => api<{taggers: RouterTagger[]}>('/api/router/taggers');
+
 export const getRouterBatches = () => api<{batches: RouterBatch[]}>('/api/router/batches');
 
 export const runRouter = (action: 'bootstrap' | 'train') => post(`/api/router/${action}`);
@@ -81,6 +117,10 @@ export const clearRouterSkips = () => post<{restored: number}>('/api/router/skip
 export const cancelRouterBatch = (batchId: string) => post('/api/router/batch/cancel', {batch_id: batchId});
 export const importRouterAnswer = (text: string) =>
   post<{imported: number; skipped: string[]; auto_started?: boolean}>('/api/router/import', {text});
+export const startRouterTagging = (payload: {
+  engine: TaggerId; scope: 'queue' | 'reviewed'; count: number; accept: boolean; adult: string;
+}) => post('/api/router/tag', payload);
+export const stopRouterJob = () => post('/api/router/stop');
 export const activateRouterModel = (payload: {version: string}) => post('/api/router/activate', payload);
 
 /** Адрес архива-пакета: запрос сам создаёт пакет и резервирует снимки. */

@@ -22,6 +22,7 @@
 .training-card.source { border-color: color-mix(in srgb, var(--patina) 35%, var(--line-soft)); }
 .training-card.source b { font-size: 1rem; }
 .training-card.job { border-color: color-mix(in srgb, var(--patina) 45%, var(--line-soft)); background: var(--patina-soft); }
+.training-card.job .button { justify-self: start; margin-top: 6px; }
 .training-card.job.error { border-color: color-mix(in srgb, var(--rose) 45%, var(--line-soft)); background: var(--rose-soft); }
 .training-label { color: var(--muted); font-size: .68rem; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
 
@@ -82,6 +83,23 @@
 .review-suggest .label-chip::after { display: none; }
 .review-suggest .label-chip { border-style: dashed; border-color: color-mix(in srgb, var(--patina) 55%, var(--line)); color: var(--patina); }
 .review-hint svg { flex: none; fill: currentColor; color: var(--patina); }
+// Разметчики RAM++ и Qwen — своим цветом, чтобы не путать с основной моделью.
+.review-suggest.alternative .label-chip { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); color: var(--brass); }
+.review-suggest.alternative .review-hint svg { color: var(--brass); }
+// Метку предлагают сразу несколько моделей — ей стоит верить больше.
+.review-suggest .label-chip.agreed { border-style: solid; font-weight: 600; }
+.review-accept {
+  margin-left: auto;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--r-s);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: .74rem;
+  cursor: pointer;
+}
+.review-accept:hover { background: var(--surface); color: var(--ink); }
 
 .review-search {
   display: flex;
@@ -153,6 +171,39 @@
 /* ---------- пакеты ---------- */
 
 .batch-panel { display: grid; gap: 12px; }
+.batch-heading { display: grid; gap: 2px; margin-top: 6px; }
+.batch-heading h3 { margin: 0; font-size: .96rem; }
+.batch-heading small { color: var(--muted); font-size: .78rem; line-height: 1.45; }
+
+/* ---------- локальные разметчики ---------- */
+
+.taggers { display: grid; gap: 10px; }
+.taggers-options { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.taggers-options .chip { min-width: 46px; min-height: 32px; justify-content: center; padding: 0 10px; }
+.taggers-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 8px; }
+.tagger-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-l);
+  background: var(--surface-2);
+}
+.tagger-card.offline { opacity: .75; }
+.tagger-card header { display: grid; gap: 1px; min-width: 0; }
+.tagger-card header b { font-size: .95rem; }
+.tagger-card header small { overflow: hidden; color: var(--muted); font-size: .74rem; text-overflow: ellipsis; white-space: nowrap; }
+.tagger-card p { margin: 0; color: var(--ink-2); font-size: .8rem; line-height: 1.45; }
+.tagger-quality { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; padding: 8px 10px; border-radius: var(--r-m); background: var(--surface); }
+.tagger-quality > div { display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 6px; row-gap: 3px; }
+.tagger-quality span { color: var(--muted); font-size: .72rem; }
+.tagger-quality b { justify-self: end; font-size: .95rem; font-variant-numeric: tabular-nums; }
+.tagger-quality .progress-track { grid-column: 1 / -1; height: 4px; }
+.tagger-quality .progress-track.weak span { background: var(--brass); }
+.tagger-quality small { grid-column: 1 / -1; color: var(--muted); font-size: .72rem; line-height: 1.4; }
+.tagger-stats { color: var(--muted); font-size: .74rem; }
+.tagger-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .batch-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 8px; }
 .batch-step {
   display: flex;

@@ -70,6 +70,7 @@ export function usePollingStatus() {
   useFinished(Boolean(router.data?.active), () => {
     void queryClient.invalidateQueries({queryKey: qk.routerSummary()});
     void queryClient.invalidateQueries({queryKey: ['router-review']});
+    void queryClient.invalidateQueries({queryKey: qk.routerTaggers()});
   });
 
   return {
