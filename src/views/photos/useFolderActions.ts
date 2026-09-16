@@ -1,3 +1,4 @@
+import {confirmAction} from '../../services/dialogs';
 import {useMutation} from '@tanstack/react-query';
 import {formatNumber} from '../../lib/format';
 import {getSettings, saveSettings} from '../../services/endpoints/settings';
@@ -72,17 +73,17 @@ export function useFolderActions() {
     excludeFromFilter(path: string) {
       setFilters({folder: '', folderExclude: path, album: 0});
     },
-    hide(path: string) {
-      if (!confirm(`Скрыть «${path}» из сканирования и галереи?\nПуть будет добавлен в настройки исключений.`)) return;
+    async hide(path: string) {
+      if (!await confirmAction(`Скрыть «${path}» из сканирования и галереи?\nПуть будет добавлен в настройки исключений.`)) return;
       hide.mutate(path);
     },
-    remove(path: string) {
-      if (!confirm(`Удалить все медиа из «${path}»?\nФайлы будут отправлены в корзину. Если медиа в каталоге нет, сервер попробует удалить саму пустую папку.`)) return;
+    async remove(path: string) {
+      if (!await confirmAction(`Удалить все медиа из «${path}»?\nФайлы будут отправлены в корзину. Если медиа в каталоге нет, сервер попробует удалить саму пустую папку.`)) return;
       remove.mutate(path);
     },
-    move(path: string, target: PickedFolder) {
+    async move(path: string, target: PickedFolder) {
       if (!target.path) return;
-      if (!confirm(`Переместить все медиа из «${path}» в «${target.path}» на «${target.deviceName}»?`)) return;
+      if (!await confirmAction(`Переместить все медиа из «${path}» в «${target.path}» на «${target.deviceName}»?`)) return;
       move.mutate({path, target});
     },
   };

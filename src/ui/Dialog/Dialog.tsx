@@ -1,9 +1,11 @@
-import {useCallback, useRef, type ReactNode} from 'react';
+import {useCallback, useRef, type ReactNode, type KeyboardEventHandler} from 'react';
 import {useNativeDialog} from '../../hooks/useNativeDialog';
 import {IconButton} from '../IconButton/IconButton';
 
 export interface DialogProps {
   open: boolean;
+  'aria-label'?: string;
+  onKeyDown?: KeyboardEventHandler<HTMLDialogElement>;
   onClose(): void;
   /**
    * Просмотрщик и карточка группы закрываются шагом назад по истории, чтобы
@@ -15,11 +17,11 @@ export interface DialogProps {
   children: ReactNode;
 }
 
-export function Dialog({open, onClose, closeThroughHistory, closeOnBackdrop, className, children}: DialogProps) {
+export function Dialog({open, onClose, closeThroughHistory, closeOnBackdrop, className, children, 'aria-label': label, onKeyDown}: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const close = useCallback(() => onClose(), [onClose]);
   useNativeDialog(ref, open, {closeThroughHistory, closeOnBackdrop, onClose: close});
-  return <dialog ref={ref} className={className}>{children}</dialog>;
+  return <dialog ref={ref} className={className} aria-label={label} onKeyDown={onKeyDown}>{children}</dialog>;
 }
 
 export interface SheetProps {

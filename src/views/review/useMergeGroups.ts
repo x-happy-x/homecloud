@@ -1,3 +1,4 @@
+import {confirmAction} from '../../services/dialogs';
 import {useMutation} from '@tanstack/react-query';
 import {assignGroups} from '../../services/endpoints/people';
 import {queryClient} from '../../services/queryClient';
@@ -30,7 +31,7 @@ export function useMergeGroups(onMerged?: () => void) {
     },
   });
 
-  return (first: SimilarGroup, second: SimilarGroup) => {
+  return async (first: SimilarGroup, second: SimilarGroup) => {
     const target = mergeTarget(first, second);
     if (!target) {
       toast('Сначала дайте имя одной из групп');
@@ -38,7 +39,7 @@ export function useMergeGroups(onMerged?: () => void) {
     }
     const other = target === first ? second : first;
     // Действие обратимо кнопкой отмены, но затрагивает все лица обеих групп.
-    const ok = confirm(`Объединить «${other.title}» с «${target.title}»? `
+    const ok = await confirmAction(`Объединить «${other.title}» с «${target.title}»? `
       + 'Все лица станут одним человеком, действие можно отменить.');
     if (ok) merge.mutate({first, second});
   };

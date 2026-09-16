@@ -1,3 +1,4 @@
+import {AppDialogs} from '../components/AppDialogs/AppDialogs';
 import {useCallback, useEffect, useMemo} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import './AppShell.scss';
@@ -95,6 +96,7 @@ export function AppShell() {
       <Viewer />
       <LoginDialog />
       <NotifStack />
+      <AppDialogs />
     </>
   );
 }

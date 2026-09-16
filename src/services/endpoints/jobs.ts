@@ -101,7 +101,8 @@ export const getDuplicates = (
   filters: {kind: string; sort: string; hideSmall: boolean; folder: string},
   limit: number,
   offset: number,
+  signal?: AbortSignal,
 ) => api<DuplicatesPage>(`/api/duplicates${query({
   similar: similar ? 1 : 0, kind: filters.kind, sort: filters.sort, folder: filters.folder,
   hide_small: filters.hideSmall ? 1 : 0, limit, offset,
-})}`);
+})}`, {signal});

@@ -1,3 +1,4 @@
+import {confirmAction} from '../../services/dialogs';
 import {useMutation} from '@tanstack/react-query';
 import {formatNumber, plural} from '../../lib/format';
 import {deletePhotos, hidePhotos, revealPhotos} from '../../services/endpoints/photos';
@@ -40,9 +41,9 @@ export function usePhotoActions() {
     busy: hide.isPending || reveal.isPending || remove.isPending,
 
     /** Перенос в скрытый альбом: файл уезжает в личную папку на устройстве. */
-    hide(paths: string[], onDone?: () => void) {
+    async hide(paths: string[], onDone?: () => void) {
       if (!paths.length) return;
-      if (!confirm(`Перенести ${formatNumber(paths.length)} ${plural(paths.length, 'снимок', 'снимка', 'снимков')} `
+      if (!await confirmAction(`Перенести ${formatNumber(paths.length)} ${plural(paths.length, 'снимок', 'снимка', 'снимков')} `
         + 'в скрытый альбом?\nФайлы переедут в личную папку и пропадут у остальных.')) return;
       hide.mutate(paths, {onSuccess: onDone});
     },
@@ -51,10 +52,10 @@ export function usePhotoActions() {
       if (paths.length) reveal.mutate(paths, {onSuccess: onDone});
     },
 
-    remove(paths: string[], onDone?: () => void) {
+    async remove(paths: string[], onDone?: () => void) {
       const unique = [...new Set(paths)].filter(Boolean);
       if (!unique.length) return;
-      if (!confirm(`Переместить в корзину ${unique.length} `
+      if (!await confirmAction(`Переместить в корзину ${unique.length} `
         + `${plural(unique.length, 'фотографию', 'фотографии', 'фотографий')}?`)) return;
       remove.mutate(unique, {onSuccess: onDone});
     },

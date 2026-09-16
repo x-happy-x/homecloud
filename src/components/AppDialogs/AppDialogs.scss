@@ -1,0 +1,5 @@
+.app-dialog .sheet { width: min(520px, calc(100vw - 24px)); height: auto; max-height: 90dvh; border-radius: var(--r-l); }
+.app-dialog .sheet-body { display: grid; gap: 18px; }
+.app-dialog-message { margin: 0; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.6; }
+.app-dialog-field { display: grid; gap: 10px; }
+.app-dialog-field input { width: 100%; min-width: 0; }

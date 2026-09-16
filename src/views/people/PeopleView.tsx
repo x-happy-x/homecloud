@@ -1,3 +1,4 @@
+import {confirmAction, promptText} from '../../services/dialogs';
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import './PeopleView.scss';
@@ -116,10 +117,10 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
     },
   });
 
-  const onAssign = () => {
+  const onAssign = async () => {
     // Лица уже названных людей уедут к новому имени — о таком предупреждаем.
     const conflicts = named.filter(group => group.name !== pick.name);
-    if (conflicts.length && !confirm(
+    if (conflicts.length && !await confirmAction(
       `В выборе уже названные люди: ${conflicts.map(group =>
         `${group.title} — ${group.count} ${plural(group.count, 'лицо', 'лица', 'лиц')}`).join(', ')}.`
       + `\nИх лица перейдут к «${pick.name}». Продолжить?`)) return;
@@ -158,8 +159,8 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
               small
               title="Поискать группы среди лиц, которые не собрались ни в одну — не трогая уже собранное"
               disabled={recluster.isPending}
-              onClick={() => {
-                if (!confirm('Разобрать остаток? Второй проход пройдёт только по лицам, которые '
+              onClick={async () => {
+                if (!await confirmAction('Разобрать остаток? Второй проход пройдёт только по лицам, которые '
                   + 'не попали ни в одну группу, и соберёт из них новые. Уже собранные группы, '
                   + 'имена и исключения не изменятся.')) return;
                 recluster.mutate('leftovers');
@@ -171,8 +172,8 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
               small
               title="Заново разложить безымянные лица по группам"
               disabled={recluster.isPending}
-              onClick={() => {
-                if (!confirm('Пересобрать автоматические группы заново? Имена и исключения останутся, '
+              onClick={async () => {
+                if (!await confirmAction('Пересобрать автоматические группы заново? Имена и исключения останутся, '
                   + 'а безымянные группы соберутся по-новому. Можно остановить в любой момент.')) return;
                 recluster.mutate('all');
               }}
@@ -208,8 +209,8 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
         <div className="panel-actions people-album-actions">
           <Button
             small
-            onClick={() => {
-              const title = prompt('Название альбома, например «Родственники»');
+            onClick={async () => {
+              const title = await promptText('Название альбома, например «Родственники»');
               if (title) createAlbum.mutate(title);
             }}
           >

@@ -1,3 +1,4 @@
+import {confirmAction, showProgressDialog} from '../../services/dialogs';
 import {memo, useCallback, useMemo, useState, type MouseEvent} from 'react';
 import {useInfiniteQuery, useMutation} from '@tanstack/react-query';
 import './DuplicatesView.scss';
@@ -115,7 +116,24 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
 
   const remove = useMutation({
     mutationFn: async (all: boolean) => {
-      const targetGroups = all ? await loadAllDuplicates(similar, filters) : active;
+      let targetGroups = active;
+      if (all) {
+        const dialog = showProgressDialog('Ищем все дубликаты…',
+          'Собираем группы по выбранным фильтрам. После поиска покажем, какие копии будут удалены.');
+        try {
+          targetGroups = await loadAllDuplicates(similar, filters, {
+            signal: dialog.signal,
+            onProgress: (loaded, total) => dialog.update(
+              `Проверено групп: ${formatNumber(loaded)} из ${formatNumber(total)}`,
+              total ? loaded / total : 1),
+          });
+        } catch (error) {
+          if (dialog.signal.aborted) return null;
+          throw error;
+        } finally {
+          dialog.close();
+        }
+      }
       const paths = [...new Set(targetGroups.flatMap(extrasOf))];
       const size = targetGroups.reduce((sum, group) => sum + gainOf(group, keepOf(group), filters.folder), 0);
       if (!paths.length) { toast('Нет лишних копий для удаления'); return null; }
@@ -124,7 +142,7 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
           ? `В каждой группе останется копия в папке ${filters.folder}. Остальные копии будут удалены.\n`
           : 'В каждой группе останется отмеченный снимок.\n')
         + 'Файлы будут перемещены в корзину.';
-      if (!confirm(text)) return null;
+      if (!await confirmAction(text, {title: 'Удалить дубликаты?', confirmLabel: 'Удалить', danger: true})) return null;
       return deleteDuplicatesWithProgress(paths);
     },
     onSuccess: result => {

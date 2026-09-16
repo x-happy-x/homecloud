@@ -1,3 +1,4 @@
+import {confirmAction, promptText} from '../../../services/dialogs';
 import {useState, type CSSProperties} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import '../../../components/albums/AlbumTree.scss';
@@ -41,15 +42,15 @@ export function AlbumsSection() {
 
   const pick = (id: number) => setFilters({album: current === id ? 0 : id, folder: '', hidden: false});
 
-  const rename = (album: Album) => {
-    const title = prompt('Название альбома', album.title);
+  const rename = async (album: Album) => {
+    const title = await promptText('Название альбома', album.title);
     if (title === null) return;
     change.mutate({call: () => renameAlbum(album.id, title), message: 'Альбом переименован'});
   };
 
-  const remove = (album: Album) => {
+  const remove = async (album: Album) => {
     const nested = albums.filter(item => item.trail.startsWith(`${album.trail} / `)).length;
-    if (!confirm(`Удалить альбом «${album.title}»${nested ? ` и ${nested} вложенных` : ''}?`
+    if (!await confirmAction(`Удалить альбом «${album.title}»${nested ? ` и ${nested} вложенных` : ''}?`
       + '\nСами фотографии останутся на месте.')) return;
     if (current === album.id) setFilters({album: 0});
     change.mutate({call: () => deleteAlbum(album.id), message: 'Альбом удалён', refreshPhotos: true});
@@ -61,8 +62,8 @@ export function AlbumsSection() {
         <div className="panel-actions">
           <Button
             small
-            onClick={() => {
-              const title = prompt('Название альбома, например «2010 год»');
+            onClick={async () => {
+              const title = await promptText('Название альбома, например «2010 год»');
               if (title) change.mutate({call: () => createAlbum(title), message: 'Альбом создан'});
             }}
           >

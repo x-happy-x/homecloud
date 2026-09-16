@@ -1,3 +1,4 @@
+import {confirmAction, promptText} from '../../services/dialogs';
 import {useState} from 'react';
 import {useMutation} from '@tanstack/react-query';
 import '../../components/albums/AlbumTree.scss';
@@ -43,15 +44,15 @@ export function PeopleAlbumTree({albums}: {albums: PeopleAlbum[]}) {
   const crumbs: PeopleAlbum[] = [];
   for (let album = byId.get(current); album; album = byId.get(album.parent_id)) crumbs.unshift(album);
 
-  const rename = (album: PeopleAlbum) => {
-    const title = prompt('Название альбома', album.title);
+  const rename = async (album: PeopleAlbum) => {
+    const title = await promptText('Название альбома', album.title);
     if (title === null) return;
     change.mutate({call: () => renamePeopleAlbum(album.id, title), message: 'Альбом переименован'});
   };
 
-  const remove = (album: PeopleAlbum) => {
+  const remove = async (album: PeopleAlbum) => {
     const nested = albums.filter(item => item.trail.startsWith(`${album.trail} / `)).length;
-    if (!confirm(`Удалить альбом «${album.title}»${nested ? ` и ${nested} вложенных` : ''}?`
+    if (!await confirmAction(`Удалить альбом «${album.title}»${nested ? ` и ${nested} вложенных` : ''}?`
       + '\nСами люди и группы останутся на месте.')) return;
     if (current === album.id) setPeopleAlbum(0);
     change.mutate({call: () => deletePeopleAlbum(album.id), message: 'Альбом удалён'});

@@ -1,3 +1,4 @@
+import {confirmAction} from '../../services/dialogs';
 import {useCallback, useRef, useState} from 'react';
 import {useMutation} from '@tanstack/react-query';
 import {planSteps} from '../../hooks/useDeviceJobNotifications';
@@ -80,8 +81,8 @@ export function DeviceCard({device, onScan, onEdit}: DeviceCardProps) {
               )}
             <DeviceMenu
               onEdit={() => onEdit(device)}
-              onRemove={() => {
-                if (confirm(`Удалить устройство «${device.name}» из HomeCloud?\nКаталог на самом устройстве не тронется.`)) {
+              onRemove={async () => {
+                if (await confirmAction(`Удалить устройство «${device.name}» из HomeCloud?\nКаталог на самом устройстве не тронется.`)) {
                   remove.mutate();
                 }
               }}
