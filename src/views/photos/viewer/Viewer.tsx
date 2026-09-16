@@ -55,13 +55,16 @@ export function Viewer() {
 function GalleryViewer() {
   const routePhoto = useStore(state => state.routePhoto);
   const setRoutePhoto = useStore(state => state.setRoutePhoto);
+  // Вне галереи её страницы не грузятся: снимок, открытый с другого экрана
+  // (например, из дубликатов), показываем один.
+  const inGallery = useStore(state => state.view === 'photos');
   const {photos, isPending, hasNextPage, isFetchingNextPage, fetchNextPage} = useGallery();
 
   const position = photos.findIndex(photo => photo.path === routePhoto);
   const single = useQuery({
     queryKey: qk.photo(routePhoto),
     queryFn: () => getPhoto(routePhoto),
-    enabled: Boolean(routePhoto) && !isPending && position < 0,
+    enabled: Boolean(routePhoto) && position < 0 && (!isPending || !inGallery),
   });
 
   const list = position >= 0 || !single.data ? photos : [...photos, single.data];

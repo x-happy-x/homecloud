@@ -1,6 +1,7 @@
-import {memo, useMemo} from 'react';
+import {memo, useCallback, useMemo, useState, type MouseEvent} from 'react';
 import {useInfiniteQuery, useMutation} from '@tanstack/react-query';
 import './DuplicatesView.scss';
+import {MediaContextMenu, mediaMenuAt, type MediaMenuItem, type MediaMenuState} from '../../components/media/MediaContextMenu';
 import {fileSize, formatNumber, photoDate, plural} from '../../lib/format';
 import {
   getDuplicates, type DuplicateGroup, type DuplicatePhoto, type DuplicatesStatus, type DuplicatesSummary,
@@ -47,6 +48,29 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
   const selectSkipped = useStore(state => state.select);
   const clearSelection = useStore(state => state.clear);
   const toast = useStore(state => state.toast);
+  const setKeep = useStore(state => state.setDupKeep);
+  const openPhoto = useStore(state => state.setRoutePhoto);
+  const [menu, setMenu] = useState<MediaMenuState | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  /** Удалённые из меню — прячем сразу, не дожидаясь перезапроса списка. */
+  const [deleted, setDeleted] = useState<Set<string>>(() => new Set());
+
+  const removeOne = useMutation({
+    mutationFn: (path: string) => deletePhotos([path]),
+    onSuccess: (data, path) => {
+      if (data.errors.length) {
+        toast('Не удалось удалить файл', 'error');
+        return;
+      }
+      setDeleted(current => new Set(current).add(path));
+      toast('Файл перемещён в корзину', 'success');
+      void queryClient.invalidateQueries({queryKey: ['duplicates']});
+      void queryClient.invalidateQueries({queryKey: ['state']});
+      void queryClient.invalidateQueries({queryKey: ['photos']});
+    },
+  });
+  const onCardMenu = useCallback((event: MouseEvent, photo: DuplicatePhoto) =>
+    setMenu(mediaMenuAt(event, photo.path, photo.kind === 'video')), []);
 
   const groups = useInfiniteQuery({
     queryKey: qk.duplicates(similar, {...filters}),
@@ -58,11 +82,26 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
     },
   });
 
-  const list = useMemo(() => groups.data?.pages.flatMap(page => page.groups) ?? [], [groups.data]);
+  const list = useMemo(() => (groups.data?.pages.flatMap(page => page.groups) ?? [])
+    .map(group => {
+      if (!deleted.size) return group;
+      const paths = group.paths.filter(path => !deleted.has(path));
+      const keep = deleted.has(group.keep) ? paths[0] : group.keep;
+      return {
+        ...group, keep, paths, count: paths.length,
+        photos: group.photos.filter(photo => !deleted.has(photo.path)),
+      };
+    })
+    .filter(group => group.paths.length > 1), [groups.data, deleted]);
   const total = groups.data?.pages[0]?.total ?? 0;
   const summary = groups.data?.pages[0]?.summary;
 
-  const keepOf = (group: DuplicateGroup) => keepChoice[group.key] || group.keep;
+  // Выбранный файл могли удалить из меню — тогда снова оставляем то, что советует сервер,
+  // иначе «удалить лишнее» снесло бы всю группу.
+  const keepOf = (group: DuplicateGroup) => {
+    const chosen = keepChoice[group.key];
+    return chosen && group.paths.includes(chosen) ? chosen : group.keep;
+  };
   /** Лишние в группе — все пути, кроме выбранного. */
   const extrasOf = (group: DuplicateGroup) => group.paths.filter(path => path !== keepOf(group));
 
@@ -98,6 +137,27 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
       + 'В каждой группе останется отмеченный снимок. Файлы удаляются с диска устройства.';
     if (confirm(text)) remove.mutate();
   };
+
+  const menuItems: MediaMenuItem[] = [
+    {label: menu?.video ? 'Открыть видео' : 'Открыть фото', icon: 'openExternal', onSelect: openPhoto},
+    ...(canEdit ? [
+      {
+        label: 'Оставить этот файл',
+        icon: 'check',
+        onSelect: (path: string) => {
+          const group = list.find(item => item.paths.includes(path));
+          if (group) setKeep(group.key, path);
+        },
+      },
+      {
+        label: 'Удалить в корзину',
+        icon: 'trash',
+        danger: true,
+        disabled: removeOne.isPending,
+        onSelect: (path: string) => removeOne.mutate(path),
+      },
+    ] satisfies MediaMenuItem[] : []),
+  ];
 
   const running = ['counting', 'running'].includes(status?.status ?? '');
 
@@ -179,6 +239,7 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
             off={skipped.has(group.key)}
             canEdit={canEdit}
             adultMode={adultMode}
+            onMenu={onCardMenu}
           />
         ))}
         {groups.isPending && <div className="dup-loading">Считаю группы…</div>}
@@ -192,6 +253,8 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
           </Button>
         </div>
       )}
+
+      <MediaContextMenu menu={menu} items={menuItems} onClose={closeMenu} />
 
       {list.length === 0 && !groups.isPending && !running && (
         <EmptyState mark="✓" title={summary?.groups ? 'Под фильтр ничего не попало' : 'Дубликатов не найдено'}>
@@ -299,9 +362,10 @@ interface GroupCardProps {
   off: boolean;
   canEdit: boolean;
   adultMode: AdultMode;
+  onMenu(event: MouseEvent, photo: DuplicatePhoto): void;
 }
 
-const GroupCard = memo(function GroupCard({group, keep, off, canEdit, adultMode}: GroupCardProps) {
+const GroupCard = memo(function GroupCard({group, keep, off, canEdit, adultMode, onMenu}: GroupCardProps) {
   const toggle = useStore(state => state.toggle);
   const setKeep = useStore(state => state.setDupKeep);
   const hidden = group.count - group.photos.length;
@@ -339,6 +403,7 @@ const GroupCard = memo(function GroupCard({group, keep, off, canEdit, adultMode}
             canEdit={canEdit && !off}
             adultMode={adultMode}
             onKeep={() => setKeep(group.key, photo.path)}
+            onMenu={event => onMenu(event, photo)}
           />
         ))}
         {hidden > 0 && (
@@ -358,13 +423,14 @@ interface DupCardProps {
   canEdit: boolean;
   adultMode: AdultMode;
   onKeep(): void;
+  onMenu(event: MouseEvent): void;
 }
 
-function DupCard({photo, keep, canEdit, adultMode, onKeep}: DupCardProps) {
+function DupCard({photo, keep, canEdit, adultMode, onKeep, onMenu}: DupCardProps) {
   const shape = photo.width ? `${photo.width}×${photo.height}` : photo.kind === 'video' ? 'видео' : '';
   const date = photoDate(photo.taken);
   return (
-    <figure className={`dup-card${keep ? ' keep' : ''}`}>
+    <figure className={`dup-card${keep ? ' keep' : ''}`} onContextMenu={onMenu}>
       <button
         type="button"
         className="dup-card-image"

@@ -15,6 +15,7 @@ export function usePhotoActions() {
     clear('photos');
     void queryClient.invalidateQueries({queryKey: ['state']});
     void queryClient.invalidateQueries({queryKey: ['photos']});
+    void queryClient.invalidateQueries({queryKey: ['duplicates']});
   };
 
   const hide = useMutation({

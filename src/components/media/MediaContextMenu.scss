@@ -1,0 +1,31 @@
+.media-context-menu {
+  position: fixed;
+  z-index: 90;
+  min-width: 210px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-2) 96%, transparent);
+  box-shadow: var(--shadow-lift);
+  backdrop-filter: blur(16px);
+}
+.media-context-menu button {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: .84rem;
+  text-align: left;
+  cursor: pointer;
+}
+.media-context-menu button svg { flex: none; fill: currentColor; color: var(--muted); }
+.media-context-menu button:hover:not(:disabled) { background: var(--ground); }
+.media-context-menu button:disabled { opacity: .55; cursor: default; }
+.media-context-menu button.danger, .media-context-menu button.danger svg { color: var(--rose); }
