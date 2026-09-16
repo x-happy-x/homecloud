@@ -1,6 +1,7 @@
 import {describe, expect, test} from 'vitest';
 import {
-  jobFraction, jobWork, scanOverallFraction, scanStepIndex, scanSteps, videoWeight, withFeatureDeps,
+  jobFraction, jobWork, phaseLabel, scanOverallFraction, scanStepIndex, scanSteps, videoWeight,
+  withFeatureDeps,
 } from './jobs';
 
 describe('videoWeight', () => {
@@ -70,5 +71,20 @@ describe('withFeatureDeps', () => {
   test('снятие галочки зависимости не трогает', () => {
     const all = {...none, visual: true, caption: true, adult: true};
     expect(withFeatureDeps(all, 'caption', false)).toEqual({...all, caption: false});
+  });
+});
+
+describe('подпись этапа', () => {
+  test('вид файлов дописывается к названию', () => {
+    expect(phaseLabel({phase: 'faces', kinds: {faces: 'photos'}} as never))
+      .toBe('Распознавание лиц · только фото');
+    expect(phaseLabel({phase: 'ocr', kinds: {ocr: 'videos'}} as never))
+      .toBe('Распознавание текста · только видео');
+  });
+  test('всё сразу, отсутствие карты и неизвестный этап', () => {
+    expect(phaseLabel({phase: 'faces', kinds: {faces: 'all'}} as never)).toBe('Распознавание лиц');
+    expect(phaseLabel({phase: 'faces'} as never)).toBe('Распознавание лиц');
+    expect(phaseLabel({phase: 'непонятно', status: 'running'} as never)).toBe('Обработка');
+    expect(phaseLabel({} as never)).toBe('');
   });
 });

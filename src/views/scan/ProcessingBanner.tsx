@@ -1,7 +1,7 @@
 import {useMutation} from '@tanstack/react-query';
 import {deviceEta} from '../../lib/eta';
 import {formatNumber} from '../../lib/format';
-import {JOB_LABELS, jobFraction} from '../../lib/jobs';
+import {jobFraction, phaseLabel} from '../../lib/jobs';
 import {stopJob, type Device} from '../../services/endpoints/backends';
 import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
@@ -42,7 +42,7 @@ export function ProcessingBanner({devices}: {devices: Device[] | undefined}) {
     <section className="processing-banner" aria-live="polite">
       <div className="processing-head">
         <div>
-          <strong>{JOB_LABELS[job.phase ?? ''] || 'Обработка фотографий'}</strong>
+          <strong>{phaseLabel(job) || 'Обработка фотографий'}</strong>
           <span>{device.name}</span>
         </div>
         <b>{determinate ? `${Math.round(fraction * 100)}%` : '…'}</b>

@@ -1,15 +1,16 @@
 import {keepPreviousData, useMutation, useQuery} from '@tanstack/react-query';
+import {FeaturePicker} from '../../components/features/FeaturePicker';
 import {formatNumber, plural} from '../../lib/format';
 import {browseDevice, startJob, type Device} from '../../services/endpoints/backends';
 import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
+import {anyFeature} from '../../store/slices/scan';
 import {Button} from '../../ui/Button/Button';
 import {CheckRow} from '../../ui/CheckRow/CheckRow';
 import {Dialog, Sheet} from '../../ui/Dialog/Dialog';
 import {Field} from '../../ui/Field/Field';
 import {HintLine} from '../../ui/Hint/Hint';
-import {FeatureList} from './FeatureList';
 import {FileTree} from './FileTree';
 import {ScanHistory} from './ScanHistory';
 import {useInventory} from './useInventory';
@@ -42,6 +43,7 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
   const select = useStore(state => state.select);
   const selectedPaths = useStore(state => state.scan.selectedPaths);
   const features = useStore(state => state.scan.features);
+  const setFeatures = useStore(state => state.setFeatures);
   const force = useStore(state => state.scan.force);
   const setForce = useStore(state => state.setScanForce);
   const visualModel = useStore(state => state.scan.visualModel);
@@ -53,7 +55,12 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
 
   const submit = useMutation({
     mutationFn: () => startJob(device.id, {
-      roots: [...roots], paths: selectedPaths, features, force, visual_model: visualModel,
+      roots: [...roots],
+      paths: selectedPaths,
+      features: features.photos,
+      video_features: features.videos,
+      force,
+      visual_model: visualModel,
     }),
     onSuccess: async () => {
       onClose();
@@ -67,14 +74,16 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
       toast('Выберите диск, папку или источник из прошлого запуска');
       return;
     }
-    if (!Object.values(features).some(Boolean)) {
-      toast('Выберите хотя бы одну возможность');
+    if (!anyFeature(features)) {
+      toast('Выберите хотя бы один этап — для снимков или для роликов');
       return;
     }
     submit.mutate();
   };
 
   const addRoot = (path: string) => select('roots', [...roots, path]);
+  // Модель визуального индекса нужна, только если этот этап вообще включён.
+  const needsModel = features.photos.visual || features.videos.visual;
 
   return (
     <Sheet
@@ -109,8 +118,8 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
 
       <section>
         <div className="section-label">Возможности</div>
-        <FeatureList capabilities={capabilities} />
-        {capabilities.visual && (
+        <FeaturePicker value={features} onChange={setFeatures} capabilities={capabilities} />
+        {capabilities.visual && needsModel && (
           <Field
             label="Модель визуального индекса"
             hint="Индексы моделей сохраняются отдельно; выбранная станет основной для поиска."

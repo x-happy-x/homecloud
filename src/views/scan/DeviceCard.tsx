@@ -1,7 +1,7 @@
 import {useMutation} from '@tanstack/react-query';
 import {deviceEta} from '../../lib/eta';
 import {formatNumber} from '../../lib/format';
-import {FEATURE_INFO, JOB_LABELS, jobFraction} from '../../lib/jobs';
+import {FEATURE_INFO, jobFraction, phaseLabel} from '../../lib/jobs';
 import {removeBackend, stopJob, type Device} from '../../services/endpoints/backends';
 import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
@@ -50,9 +50,7 @@ export function DeviceCard({device, onScan, onEdit}: DeviceCardProps) {
   ];
   const fraction = jobFraction(job);
   const eta = deviceEta.estimate(device);
-  const status = device.online
-    ? JOB_LABELS[job.phase ?? ''] || JOB_LABELS[job.status ?? ''] || 'В сети'
-    : 'Не в сети';
+  const status = device.online ? phaseLabel(job) || 'В сети' : 'Не в сети';
 
   return (
     <article className={`device-card${device.online ? '' : ' offline'}`}>
@@ -93,7 +91,7 @@ export function DeviceCard({device, onScan, onEdit}: DeviceCardProps) {
           {job.active && (
             <div className="device-progress">
               <div>
-                <span>{JOB_LABELS[job.phase ?? ''] || 'Обработка'}</span>
+                <span>{phaseLabel(job) || 'Обработка'}</span>
                 <b>{Math.round(fraction * 100)}%</b>
               </div>
               <Progress value={fraction} />

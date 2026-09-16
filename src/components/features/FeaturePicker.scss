@@ -1,0 +1,31 @@
+@use '../../styles/mixins' as *;
+
+.feature-picker { display: grid; gap: 14px; }
+
+.feature-group > header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 9px;
+}
+.feature-group > header b { font-size: .92rem; }
+.feature-group > header span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--patina-soft);
+  color: var(--patina);
+  font-size: .72rem;
+  font-weight: 600;
+}
+.feature-group > header small { width: 100%; color: var(--muted); font-size: .75rem; }
+
+.feature-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+}
+
+@include bp-md {
+    .feature-cards { grid-template-columns: 1fr; }
+}

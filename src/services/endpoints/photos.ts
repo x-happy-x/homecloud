@@ -12,7 +12,12 @@ export const revealPhotos = (paths: string[]) =>
 export const deletePhotos = (paths: string[]) =>
   post<{deleted: number} & BatchErrors>('/api/photos/delete', {paths});
 
-export const processPhotos = (payload: {paths: string[]; features: Record<string, boolean>; force: boolean}) =>
+export const processPhotos = (payload: {
+  paths: string[];
+  features: Record<string, boolean>;
+  video_features?: Record<string, boolean>;
+  force: boolean;
+}) =>
   post('/api/photos/process', payload);
 
 export const assignSpeaker = (payload: {

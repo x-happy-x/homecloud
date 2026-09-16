@@ -4,13 +4,61 @@ import type {Store} from '../index';
 export type ScanFeature =
   | 'faces' | 'visual' | 'ocr' | 'caption' | 'adult' | 'speech' | 'diarize' | 'authenticity';
 
-export const DEFAULT_FEATURES: Record<ScanFeature, boolean> = {
-  faces: true, visual: true, ocr: false, caption: false,
+/** Снимки и ролики обрабатываются порознь: ролик стоит в разы дороже. */
+export type MediaKind = 'photos' | 'videos';
+
+export type FeatureFlags = Record<ScanFeature, boolean>;
+
+export const MEDIA_KINDS: MediaKind[] = ['photos', 'videos'];
+
+export const KIND_TITLES: Record<MediaKind, string> = {
+  photos: 'Фотографии',
+  videos: 'Видео',
+};
+
+export const KIND_NOTES: Record<MediaKind, string> = {
+  photos: 'Этапы для снимков',
+  videos: 'Ролик дороже снимка: этапы для него выбираются отдельно',
+};
+
+const NO_FEATURES: FeatureFlags = {
+  faces: false, visual: false, ocr: false, caption: false,
   adult: false, speech: false, diarize: false, authenticity: false,
 };
 
-/** Этапы, которые предлагает окно задания на устройстве. */
-export const SCAN_DIALOG_FEATURES: ScanFeature[] = ['faces', 'visual', 'ocr', 'caption', 'adult'];
+/** Что отмечено, когда окно только открылось. */
+export const DEFAULT_FEATURES: FeatureFlags = {
+  ...NO_FEATURES, faces: true, visual: true,
+};
+
+/**
+ * Что имеет смысл для каждого вида файлов: речь и разделение голосов бывают
+ * только в видео. Остальные этапы умеют и то и другое — у ролика они берут
+ * кадры, поэтому и стоят дороже.
+ */
+export const KIND_FEATURES: Record<MediaKind, ScanFeature[]> = {
+  photos: ['faces', 'visual', 'ocr', 'caption', 'adult', 'authenticity'],
+  videos: ['faces', 'visual', 'ocr', 'caption', 'adult', 'speech', 'diarize', 'authenticity'],
+};
+
+/**
+ * Начальный набор для вида файлов. Возможности устройства не заданы — значит
+ * спрашивать нечего (обработка выбранных снимков идёт на основном).
+ */
+export function initialFeatures(
+  kind: MediaKind,
+  capabilities?: Record<string, boolean>,
+): FeatureFlags {
+  const flags = {...NO_FEATURES};
+  for (const key of KIND_FEATURES[kind]) {
+    flags[key] = DEFAULT_FEATURES[key] && (!capabilities || Boolean(capabilities[key]));
+  }
+  return flags;
+}
+
+/** Есть ли вообще что запускать: хоть один этап хоть для одного вида. */
+export const anyFeature = (features: Record<MediaKind, FeatureFlags>): boolean =>
+  MEDIA_KINDS.some(kind => Object.values(features[kind]).some(Boolean));
 
 export interface ScanSlice {
   scan: {
@@ -21,7 +69,7 @@ export interface ScanSlice {
     treeOpen: Set<string>;
     /** Отдельные файлы, взятые из прошлого запуска. */
     selectedPaths: string[];
-    features: Record<ScanFeature, boolean>;
+    features: Record<MediaKind, FeatureFlags>;
     force: boolean;
     visualModel: string;
   };
@@ -32,7 +80,7 @@ export interface ScanSlice {
   toggleTreeNode(path: string): void;
   openTreeNodes(paths: string[]): void;
   setSelectedPaths(paths: string[]): void;
-  setFeatures(features: Record<ScanFeature, boolean>): void;
+  setFeatures(kind: MediaKind, features: FeatureFlags): void;
   setScanForce(force: boolean): void;
   setScanVisualModel(model: string): void;
 }
@@ -44,22 +92,21 @@ export const createScanSlice: StateCreator<Store, [], [], ScanSlice> = set => {
   return {
     scan: {
       deviceId: null, browsePath: '', treeOpen: new Set(), selectedPaths: [],
-      features: {...DEFAULT_FEATURES}, force: false, visualModel: '',
+      features: {photos: initialFeatures('photos'), videos: initialFeatures('videos')},
+      force: false, visualModel: '',
     },
 
-    openScan: (deviceId, capabilities, visualModel) => set(state => {
-      const features = {...DEFAULT_FEATURES};
-      for (const key of Object.keys(features) as ScanFeature[]) {
-        if (!capabilities[key]) features[key] = false;
-      }
-      return {
-        scan: {
-          deviceId, browsePath: '', treeOpen: new Set(), selectedPaths: [],
-          features, force: false, visualModel,
+    openScan: (deviceId, capabilities, visualModel) => set(state => ({
+      scan: {
+        deviceId, browsePath: '', treeOpen: new Set(), selectedPaths: [],
+        features: {
+          photos: initialFeatures('photos', capabilities),
+          videos: initialFeatures('videos', capabilities),
         },
-        selection: {...state.selection, roots: new Set()},
-      };
-    }),
+        force: false, visualModel,
+      },
+      selection: {...state.selection, roots: new Set()},
+    })),
 
     closeScan: () => patch({deviceId: null}),
     setBrowsePath: browsePath => patch({browsePath}),
@@ -75,7 +122,11 @@ export const createScanSlice: StateCreator<Store, [], [], ScanSlice> = set => {
     })),
 
     setSelectedPaths: selectedPaths => patch({selectedPaths}),
-    setFeatures: features => patch({features}),
+
+    setFeatures: (kind, features) => set(state => ({
+      scan: {...state.scan, features: {...state.scan.features, [kind]: features}},
+    })),
+
     setScanForce: force => patch({force}),
     setScanVisualModel: visualModel => patch({visualModel}),
   };

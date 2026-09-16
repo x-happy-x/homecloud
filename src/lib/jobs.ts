@@ -24,6 +24,9 @@ export const FEATURE_INFO: Record<string, [string, string]> = {
   ocr: ['OCR', 'Текст на изображениях, русский и английский'],
   caption: ['Описания', 'WD-теги → подробное локальное JSON-описание через Qwen3-VL'],
   adult: ['Контент 18+', 'NudeNet: области для блюра · WD-tagger: рейтинг и подробные теги'],
+  speech: ['Речь', 'Расшифровка сказанного: субтитры и поиск по словам'],
+  diarize: ['Кто говорит', 'Разделение голосов по репликам; нужна готовая расшифровка'],
+  authenticity: ['Рисованные лица', 'Отсев мультяшных и игровых персонажей от настоящих людей'],
 };
 
 interface JobLike extends DeviceJob {
@@ -129,4 +132,17 @@ export function withFeatureDeps<T extends Record<string, boolean>>(
   if (checked && (key === 'ocr' || key === 'caption')) next.visual = true;
   if (checked && key === 'caption') next.adult = true;
   return next as T;
+}
+
+/**
+ * Подпись этапа вместе с видом файлов: «Лица · только фото». Вид приходит в
+ * задании картой «фаза → вид»; на прежних бэкендах её нет, и подпись остаётся
+ * обычной.
+ */
+export function phaseLabel(job: JobLike = {} as JobLike): string {
+  const phase = job.phase ?? '';
+  const title = JOB_LABELS[phase] || JOB_LABELS[job.status ?? ''] || '';
+  const kind = job.kinds?.[phase];
+  if (!title || !kind || kind === 'all') return title;
+  return `${title} · ${kind === 'videos' ? 'только видео' : 'только фото'}`;
 }

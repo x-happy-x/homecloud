@@ -54,6 +54,8 @@ export interface DeviceJob {
   roots?: string[];
   paths?: string[];
   features?: Record<string, boolean>;
+  /** Вид файлов у каждой фазы: all, photos или videos. */
+  kinds?: Record<string, string>;
   inventory?: InventorySummary;
   catalog?: Record<string, number>;
   catalog_photos?: number;
@@ -133,7 +135,10 @@ export const setExclusions = (id: string, payload: {add?: string[]; remove?: str
 export const startJob = (id: string, payload: {
   roots: string[];
   paths?: string[];
+  /** Возможности для снимков. */
   features: Record<string, boolean>;
+  /** Возможности для роликов; не задано — тот же набор, что и для снимков. */
+  video_features?: Record<string, boolean>;
   force?: boolean;
   visual_model?: string;
 }) => post(device(id, 'job/start'), payload);

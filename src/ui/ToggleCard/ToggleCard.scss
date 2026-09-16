@@ -1,0 +1,74 @@
+.toggle-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-m);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.toggle-card:hover { border-color: color-mix(in srgb, var(--patina) 40%, var(--line)); }
+
+/* Флажок нужен клавиатуре и программам чтения, но не глазу. */
+.toggle-card input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.toggle-card:has(input:focus-visible) {
+  outline: 2px solid var(--patina);
+  outline-offset: 2px;
+}
+
+.toggle-card.on {
+  border-color: var(--patina);
+  background: var(--patina-soft);
+  box-shadow: 0 0 0 1px var(--patina) inset;
+}
+
+.toggle-card-body { min-width: 0; display: grid; gap: 3px; }
+.toggle-card-body b { font-size: .88rem; font-weight: 600; }
+.toggle-card-body small { color: var(--muted); font-size: .76rem; line-height: 1.4; }
+.toggle-card.on .toggle-card-body small { color: var(--ink-2); }
+
+.toggle-card-mark {
+  position: relative;
+  flex: none;
+  order: -1;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  transition: background .15s, border-color .15s;
+}
+.toggle-card.on .toggle-card-mark { border-color: var(--patina); background: var(--patina); }
+.toggle-card.on .toggle-card-mark::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  width: 6px;
+  height: 10px;
+  border: solid var(--patina-ink);
+  border-width: 0 2px 2px 0;
+  transform: rotate(40deg);
+}
+
+.toggle-card.unavailable {
+  background: var(--surface);
+  border-style: dashed;
+  cursor: default;
+  opacity: .6;
+}
+.toggle-card.unavailable:hover { border-color: var(--line-soft); }
