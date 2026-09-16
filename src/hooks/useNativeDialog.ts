@@ -6,6 +6,7 @@ export interface NativeDialogOptions {
    * должен остаться согласованным, поэтому они закрываются через историю.
    */
   closeThroughHistory?: boolean;
+  closeOnBackdrop?: boolean;
   onClose(): void;
 }
 
@@ -16,7 +17,7 @@ export interface NativeDialogOptions {
 export function useNativeDialog(
   ref: RefObject<HTMLDialogElement | null>,
   open: boolean,
-  {closeThroughHistory = false, onClose}: NativeDialogOptions,
+  {closeThroughHistory = false, closeOnBackdrop = true, onClose}: NativeDialogOptions,
 ): void {
   useEffect(() => {
     const dialog = ref.current;
@@ -40,7 +41,7 @@ export function useNativeDialog(
     const closed = () => onClose();
     // Клик мимо содержимого: цель события — сам <dialog>, а не его начинка.
     const backdrop = (event: MouseEvent) => {
-      if (event.target === dialog) onClose();
+      if (closeOnBackdrop && event.target === dialog) onClose();
     };
 
     dialog.addEventListener('cancel', cancel);
@@ -51,5 +52,5 @@ export function useNativeDialog(
       dialog.removeEventListener('close', closed);
       dialog.removeEventListener('click', backdrop);
     };
-  }, [ref, closeThroughHistory, onClose]);
+  }, [ref, closeThroughHistory, closeOnBackdrop, onClose]);
 }

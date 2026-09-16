@@ -468,6 +468,7 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
       open={open}
       onClose={onClose}
       closeThroughHistory={closeThroughHistory}
+      closeOnBackdrop={false}
       className={[
         'viewer',
         chromeHidden ? 'bare' : '',
@@ -587,6 +588,16 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
               {movie && (player.buffering || mediaStatus === 'loading') && <div className="viewer-buffering" />}
             </div>
 
+            {many && transform.scale <= 1.02 && (
+              <>
+                <button className="viewer-nav prev viewer-ui" type="button" aria-label="Предыдущая" onClick={() => go(-1)}>
+                  <Icon name="chevronLeft" />
+                </button>
+                <button className="viewer-nav next viewer-ui" type="button" aria-label="Следующая" onClick={() => go(1)}>
+                  <Icon name="chevronRight" />
+                </button>
+              </>
+            )}
           </div>
 
           <header className="viewer-bar top viewer-ui">

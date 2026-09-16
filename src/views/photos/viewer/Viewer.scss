@@ -161,6 +161,7 @@
 
 .viewer-nav {
   position: absolute;
+  z-index: 3;
   top: 50%;
   transform: translateY(-50%);
   width: 46px; height: 46px;

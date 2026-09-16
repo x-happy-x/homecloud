@@ -10,14 +10,15 @@ export interface DialogProps {
    * адрес не разошёлся с тем, что на экране.
    */
   closeThroughHistory?: boolean;
+  closeOnBackdrop?: boolean;
   className?: string;
   children: ReactNode;
 }
 
-export function Dialog({open, onClose, closeThroughHistory, className, children}: DialogProps) {
+export function Dialog({open, onClose, closeThroughHistory, closeOnBackdrop, className, children}: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const close = useCallback(() => onClose(), [onClose]);
-  useNativeDialog(ref, open, {closeThroughHistory, onClose: close});
+  useNativeDialog(ref, open, {closeThroughHistory, closeOnBackdrop, onClose: close});
   return <dialog ref={ref} className={className}>{children}</dialog>;
 }
 
