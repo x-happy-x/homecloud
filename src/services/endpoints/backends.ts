@@ -36,6 +36,10 @@ export interface InventorySummary {
 export interface DeviceJob {
   active: boolean;
   status?: string;
+  /** Остановка запрошена, этап дорабатывает текущий файл. */
+  stop_requested?: boolean;
+  /** Файлов этапа, пропущенных из-за ошибок. */
+  errors?: number;
   /** Текущий этап: inventory, faces, visual… */
   phase?: string;
   error?: string;
@@ -49,7 +53,18 @@ export interface DeviceJob {
   video_track_step?: number;
   /** Секунды эпохи. */
   started_at?: number;
+  job_started_at?: number;
+  /** Последняя запись файла прогресса, секунды эпохи. */
+  updated_at?: number;
+  /** Конец задания, ISO. */
+  finished_at?: string;
   phase_started_at?: number;
+  /** Этапы задания в порядке выполнения (новые бэкенды). */
+  plan?: string[];
+  /** Пройденные и текущий этапы: начало, загрузка модели, конец, счётчики. */
+  phase_history?: Record<string, import('../../lib/scanPlan').PhaseHistory>;
+  /** Замеры прошлых запусков по ключу «этап:вид». */
+  timings?: Record<string, import('../../lib/scanPlan').PhaseTiming>;
   pid?: number;
   roots?: string[];
   paths?: string[];

@@ -17,7 +17,6 @@ import {GroupDialog} from '../views/people/GroupDialog';
 import {PhotoProcessDialog} from '../views/photos/PhotoProcessDialog';
 import {CollectionsPanel} from '../views/photos/panel/CollectionsPanel';
 import {Viewer} from '../views/photos/viewer/Viewer';
-import {ProcessingBanner} from '../views/scan/ProcessingBanner';
 import type {NavGroupSpec} from './navItems';
 import {VIEW_TITLES, type ViewName} from './routes';
 import {usePollingStatus} from './usePollingStatus';
@@ -82,7 +81,6 @@ export function AppShell() {
         <div className="main">
           <Topbar searchPlaceholder={SEARCH_PLACEHOLDERS[view] ?? null} />
           <main>
-            <ProcessingBanner devices={status.devices} />
             <ViewOutlet status={status} onOpenGroup={openGroup} />
           </main>
         </div>

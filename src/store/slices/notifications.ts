@@ -6,8 +6,19 @@ export type NotifLevel = 'info' | 'success' | 'error';
 
 export interface JobStep {
   title: string;
-  detail?: string;
   state: 'done' | 'active' | 'waiting';
+  /** Метка рядом с названием: «только видео». */
+  badge?: string;
+  /** Справа: у пройденного — сколько шёл, у текущего — счётчик, у следующих — прогноз. */
+  aside?: string;
+  /** Полоса текущего шага; null — доля неизвестна. */
+  progress?: number | null;
+  /** Подробности текущего шага, каждая своей строкой. */
+  lines?: string[];
+  /** Файл, который обрабатывается прямо сейчас. */
+  file?: string;
+  /** Одна строка подробностей — для задач без счётчиков. */
+  detail?: string;
 }
 
 export interface NotifData {
@@ -17,6 +28,8 @@ export interface NotifData {
   level: NotifLevel;
   /** Доля от 0 до 1; null — прогресс без известной доли. */
   progress?: number | null;
+  /** Строка под полосой: сколько идёт и сколько осталось. */
+  meta?: string;
   spinning?: boolean;
   steps?: JobStep[];
   canStop?: boolean;

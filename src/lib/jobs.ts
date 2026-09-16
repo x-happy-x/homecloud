@@ -76,49 +76,6 @@ export function jobFraction(job: JobLike = {} as JobLike): number {
   return total ? Math.min(1, done / total) : 0;
 }
 
-type FeatureFlags = Record<string, boolean>;
-
-const SCAN_PHASE_ORDER: Array<{key: string; always?: boolean; flag?: string | ((f: FeatureFlags) => boolean)}> = [
-  {key: 'inventory', always: true},
-  {key: 'faces', flag: 'faces'},
-  {key: 'authenticity', flag: 'authenticity'},
-  // Визуальный индекс строится и ради OCR, и ради описаний.
-  {key: 'visual', flag: f => Boolean(f.visual || f.ocr || f.caption)},
-  {key: 'ocr', flag: 'ocr'},
-  {key: 'caption', flag: 'caption'},
-  {key: 'adult', flag: 'adult'},
-  {key: 'speech', flag: 'speech'},
-  {key: 'diarize', flag: 'diarize'},
-];
-
-export interface ScanStep {
-  key: string;
-  title: string;
-}
-
-/** Этапы сканирования — только те, что включены в задании. */
-export function scanSteps(job: JobLike = {} as JobLike): ScanStep[] {
-  const features = (job.features ?? {}) as FeatureFlags;
-  return SCAN_PHASE_ORDER
-    .filter(item => item.always
-      || (typeof item.flag === 'function' ? item.flag(features) : Boolean(features[item.flag!])))
-    .map(item => ({key: item.key, title: JOB_LABELS[item.key] || item.key}));
-}
-
-export const scanStepIndex = (steps: ScanStep[], phase: string | undefined): number => {
-  const index = steps.findIndex(step => step.key === phase);
-  return index === -1 ? 1 : index + 1;
-};
-
-/** Общая готовность задания: пройденные этапы плюс доля текущего. */
-export function scanOverallFraction(steps: ScanStep[], stepIndex: number, job: JobLike): number {
-  if (!steps.length) return 0;
-  const work = jobWork(job);
-  const fraction = work.total ? Math.max(0, Math.min(1, work.done / work.total)) : 0;
-  const completed = Math.max(0, stepIndex - 1);
-  return (completed + fraction) / steps.length;
-}
-
 /**
  * Зависимости этапов: OCR и описания строятся поверх визуального индекса,
  * а описанию ещё нужен анализ 18+ — его теги идут в подсказку модели.
