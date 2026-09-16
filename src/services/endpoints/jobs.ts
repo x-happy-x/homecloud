@@ -72,10 +72,7 @@ export interface DuplicateGroup {
   paths: string[];
   /** Карточки первых путей — не больше дюжины. */
   photos: DuplicatePhoto[];
-  /** Только при фильтре по папке: лишние копии, лежащие прямо в ней. */
-  folder_paths?: string[];
-  /** Сколько байт освободят эти копии. */
-  folder_extra?: number;
+
 }
 
 export interface DuplicatesSummary {
@@ -95,7 +92,7 @@ export interface DuplicatesPage {
   groups: DuplicateGroup[];
   /** Групп после фильтра. */
   total: number;
-  /** Сводка по всем группам; на старом бэкенде её нет. */
+  /** Сводка по группам выбранной папки, до фильтров вида и размера. */
   summary?: DuplicatesSummary;
 }
 

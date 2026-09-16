@@ -106,7 +106,9 @@
 
 .dup-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .dup-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.dup-chips .chip { min-height: 32px; padding: 0 12px; font-size: .8rem; }
+.dup-toolbar .chip { min-height: 32px; padding: 0 12px; font-size: .8rem; }
+
+.dup-toolbar .toggle-chip-knob { width: 20px; height: 20px; }
 
 /* ---------- группы ---------- */
 

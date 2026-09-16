@@ -1,24 +1,20 @@
 import type {DuplicateGroup} from '../../services/endpoints/jobs';
 
-/**
- * Что удалится из группы. Обычно это все копии, кроме оставляемой, но когда
- * список сужен до одной папки — только её копии: остальные файлы группы лежат
- * в других местах, и убирать их никто не просил. Такие пути сервер присылает
- * отдельным полем, вместе с их общим весом.
- */
-export function doomedPaths(group: DuplicateGroup, keep: string, folder: string): string[] {
-  const paths = folder ? group.folder_paths ?? [] : group.paths;
-  return paths.filter(path => path !== keep);
+/** В папке сохраняем её копию, даже если раньше вручную выбрали другую. */
+export function keeperOf(group: DuplicateGroup, chosen: string | undefined, folder: string): string {
+  const parent = (path: string) => path.replace(/\\/g, '/').slice(0, path.replace(/\\/g, '/').lastIndexOf('/'));
+  const candidates = folder
+    ? group.paths.filter(path => parent(path) === folder.replace(/\\/g, '/').replace(/\/$/, ''))
+    : group.paths;
+  return chosen && candidates.includes(chosen) ? chosen : candidates.includes(group.keep) ? group.keep : candidates[0] ?? '';
 }
 
-/** Сколько освободит группа, если оставить keep: сервер считал для своего выбора. */
+export function doomedPaths(group: DuplicateGroup, keep: string, _folder: string): string[] {
+  return group.paths.includes(keep) ? group.paths.filter(path => path !== keep) : [];
+}
+
 export function gainOf(group: DuplicateGroup, keep: string, folder: string): number {
+  if (!doomedPaths(group, keep, folder).length) return 0;
   const size = (path: string) => group.photos.find(photo => photo.path === path)?.size ?? 0;
-  // В папке удаляются только её копии — по ним же и вес, посчитанный сервером.
-  if (folder) {
-    const spared = group.folder_paths?.includes(keep) ? size(keep) : 0;
-    return Math.max(0, (group.folder_extra ?? 0) - spared);
-  }
-  if (keep === group.keep) return group.extra;
   return Math.max(0, group.extra + size(group.keep) - size(keep));
 }

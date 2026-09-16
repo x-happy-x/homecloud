@@ -9,7 +9,8 @@ import {
 import {deletePhotos} from '../../services/endpoints/photos';
 import {photoMediaUrl} from '../../services/media';
 import {qk} from '../../services/queryKeys';
-import {doomedPaths, gainOf} from './scope';
+import {loadAllDuplicates} from './loadAll';
+import {doomedPaths, gainOf, keeperOf} from './scope';
 import {queryClient} from '../../services/queryClient';
 import {useStore} from '../../store';
 import type {DupKind, DupLayout, DupSort} from '../../store/slices/duplicates';
@@ -106,12 +107,7 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
   const total = groups.data?.pages[0]?.total ?? 0;
   const summary = groups.data?.pages[0]?.summary;
 
-  // Выбранный файл могли удалить из меню — тогда снова оставляем то, что советует сервер,
-  // иначе «удалить лишнее» снесло бы всю группу.
-  const keepOf = (group: DuplicateGroup) => {
-    const chosen = keepChoice[group.key];
-    return chosen && group.paths.includes(chosen) ? chosen : group.keep;
-  };
+  const keepOf = (group: DuplicateGroup) => keeperOf(group, keepChoice[group.key], filters.folder);
   const extrasOf = (group: DuplicateGroup) => doomedPaths(group, keepOf(group), filters.folder);
 
   const active = list.filter(group => !skipped.has(group.key));
@@ -119,19 +115,31 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
   const bytes = active.reduce((sum, group) => sum + gainOf(group, keepOf(group), filters.folder), 0);
 
   const remove = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (all: boolean) => {
+      const targetGroups = all ? await loadAllDuplicates(similar, filters) : active;
+      const paths = [...new Set(targetGroups.flatMap(extrasOf))];
+      const size = targetGroups.reduce((sum, group) => sum + gainOf(group, keepOf(group), filters.folder), 0);
+      if (!paths.length) { toast('Нет лишних копий для удаления'); return null; }
+      const text = `Удалить ${files(paths.length)} (${fileSize(size)}) из ${groupsText(targetGroups.length)}?\n`
+        + (filters.folder
+          ? `В каждой группе останется копия в папке ${filters.folder}. Остальные копии будут удалены.\n`
+          : 'В каждой группе останется отмеченный снимок.\n')
+        + 'Файлы будут перемещены в корзину.';
+      if (!confirm(text)) return null;
       let deleted = 0;
       let failed = 0;
-      for (let from = 0; from < extras.length; from += DELETE_BATCH) {
-        const data = await deletePhotos(extras.slice(from, from + DELETE_BATCH)) as
+      for (let from = 0; from < paths.length; from += DELETE_BATCH) {
+        const data = await deletePhotos(paths.slice(from, from + DELETE_BATCH)) as
           {deleted: number; errors: unknown[]};
         deleted += data.deleted;
         failed += data.errors.length;
-        toast(`Удалено ${formatNumber(deleted)} из ${formatNumber(extras.length)}…`);
+        toast(`Удалено ${formatNumber(deleted)} из ${formatNumber(paths.length)}…`);
       }
       return {deleted, failed};
     },
-    onSuccess: ({deleted, failed}) => {
+    onSuccess: result => {
+      if (!result) return;
+      const {deleted, failed} = result;
       toast(`Удалено: ${formatNumber(deleted)}${failed ? `, ошибок: ${failed}` : ''}`,
         failed ? 'error' : 'success');
       resetChoices();
@@ -139,16 +147,12 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
       void queryClient.invalidateQueries({queryKey: ['duplicates']});
       void queryClient.invalidateQueries({queryKey: ['state']});
     },
+    onSettled: () => {
+      void queryClient.invalidateQueries({queryKey: ['duplicates']});
+      void queryClient.invalidateQueries({queryKey: ['photos']});
+      void queryClient.invalidateQueries({queryKey: ['state']});
+    },
   });
-
-  const confirmRemove = () => {
-    const text = `Удалить ${files(extras.length)} (${fileSize(bytes)}) из ${groupsText(active.length)}?\n`
-      + (filters.folder
-        ? `Только копии из папки ${filters.folder}; файлы группы в других папках останутся.\n`
-        : 'В каждой группе останется отмеченный снимок.\n')
-      + 'Файлы удаляются с диска устройства.';
-    if (confirm(text)) remove.mutate();
-  };
 
   const menuItems: MediaMenuItem[] = [
     {label: menu?.video ? 'Открыть видео' : 'Открыть фото', icon: 'openExternal', onSelect: openPhoto},
@@ -249,21 +253,25 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
         </div>
       )}
 
-      {canEdit && extras.length > 0 && (
+      {canEdit && total > 0 && (
         <ActionBar
           variant="sticky"
           count={active.length}
           countLabel={`${groupsText(active.length)} · удалим ${files(extras.length)}`
-            + `${filters.folder ? ` в папке ${baseName(filters.folder)}` : ''} · ${fileSize(bytes)}`}
+            + `${filters.folder ? ` · оставим копии в ${baseName(filters.folder)}` : ''} · ${fileSize(bytes)}`}
           actions={
             <>
               {skipped.size > 0
                 ? <Button small onClick={() => clearSelection('dupSkip')}>Выбрать все показанные</Button>
                 : <Button small onClick={() => selectSkipped('dupSkip', list.map(group => group.key))}>Снять выбор</Button>}
               <span className="toolbar-spacer" />
-              <Button variant="danger" disabled={remove.isPending} onClick={confirmRemove}>
+              <Button variant="danger" disabled={remove.isPending || !extras.length} onClick={() => remove.mutate(false)}>
                 <Icon name="trash" size={16} />
-                <span>Удалить лишнее</span>
+                <span>Удалить выбранные</span>
+              </Button>
+              <Button variant="danger" disabled={remove.isPending} onClick={() => remove.mutate(true)}>
+                <Icon name="trash" size={16} />
+                <span>{remove.isPending ? 'Обработка…' : 'Удалить все дубликаты'}</span>
               </Button>
             </>
           }
@@ -382,7 +390,7 @@ function Summary({summary, similar, folder, onFolder}: SummaryProps) {
       </div>
       {summary.top_folders.length > 0 && (
         <div className="dup-folders">
-          <h4>Где больше всего лишних копий</h4>
+          <h4>Папки с дубликатами</h4>
           <ul>
             {summary.top_folders.map(item => {
               const picked = item.folder === folder;
@@ -394,7 +402,7 @@ function Summary({summary, similar, folder, onFolder}: SummaryProps) {
                     aria-pressed={picked}
                     title={picked
                       ? 'Показать группы во всей библиотеке'
-                      : `Оставить только копии в этой папке: ${item.folder}`}
+                      : `Сохранить копии в этой папке: ${item.folder}`}
                     onClick={() => onFolder(picked ? '' : item.folder)}
                   >
                     <Icon name="folder" size={16} />
@@ -434,7 +442,7 @@ const GroupCard = memo(function GroupCard({
 }: GroupCardProps) {
   const toggle = useStore(state => state.toggle);
   const setKeep = useStore(state => state.setDupKeep);
-  // В папке удаляются только её копии, и карточками сервер прислал их же.
+  // Удаляем все копии, кроме сохраняемой в выбранной папке.
   const doomed = doomedPaths(group, keep, folder).length;
   const hidden = doomed - group.photos.filter(photo => photo.path !== keep).length;
   const kept = group.photos.find(photo => photo.path === keep) ?? group.photos[0];
@@ -448,7 +456,7 @@ const GroupCard = memo(function GroupCard({
           <strong title={kept?.path}>{kept?.filename || baseName(keep)}</strong>
           <small>
             {files(group.count)} · удалим {formatNumber(doomed)}
-            {folder ? ' в этой папке' : ''}
+            {folder ? ' · оставим копию в выбранной папке' : ''}
           </small>
         </div>
         <span className="dup-gain" title="Освободится при удалении лишних">
@@ -460,7 +468,7 @@ const GroupCard = memo(function GroupCard({
             title={off
               ? 'Группа не будет очищена'
               : folder
-                ? 'Копии этой группы в выбранной папке будут удалены'
+                ? 'Останется копия в выбранной папке'
                 : 'Лишние файлы этой группы будут удалены'}
             onChange={() => toggle('dupSkip', group.key)}
           >
