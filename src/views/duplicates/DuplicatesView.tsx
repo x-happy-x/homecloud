@@ -10,6 +10,7 @@ import {deletePhotos} from '../../services/endpoints/photos';
 import {photoMediaUrl} from '../../services/media';
 import {qk} from '../../services/queryKeys';
 import {loadAllDuplicates} from './loadAll';
+import {deleteDuplicatesWithProgress} from './remove';
 import {doomedPaths, gainOf, keeperOf} from './scope';
 import {queryClient} from '../../services/queryClient';
 import {useStore} from '../../store';
@@ -24,8 +25,6 @@ import {Progress} from '../../ui/Progress/Progress';
 import {SectionHead} from '../../ui/ViewHeader/ViewHeader';
 
 const PAGE = 30;
-/** Бэкенд принимает до пятисот путей за раз — удаляем партиями. */
-const DELETE_BATCH = 200;
 
 const LAYOUTS: Array<[DupLayout, 'rowView' | 'zoomLarge' | 'gridSix', string]> = [
   ['row', 'rowView', 'Лентой: все снимки группы в строку'],
@@ -126,22 +125,10 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
           : 'В каждой группе останется отмеченный снимок.\n')
         + 'Файлы будут перемещены в корзину.';
       if (!confirm(text)) return null;
-      let deleted = 0;
-      let failed = 0;
-      for (let from = 0; from < paths.length; from += DELETE_BATCH) {
-        const data = await deletePhotos(paths.slice(from, from + DELETE_BATCH)) as
-          {deleted: number; errors: unknown[]};
-        deleted += data.deleted;
-        failed += data.errors.length;
-        toast(`Удалено ${formatNumber(deleted)} из ${formatNumber(paths.length)}…`);
-      }
-      return {deleted, failed};
+      return deleteDuplicatesWithProgress(paths);
     },
     onSuccess: result => {
       if (!result) return;
-      const {deleted, failed} = result;
-      toast(`Удалено: ${formatNumber(deleted)}${failed ? `, ошибок: ${failed}` : ''}`,
-        failed ? 'error' : 'success');
       resetChoices();
       clearSelection('dupSkip');
       void queryClient.invalidateQueries({queryKey: ['duplicates']});
