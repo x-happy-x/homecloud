@@ -43,6 +43,8 @@
   transform-origin: center;
   transition: transform .08s ease-out;
   will-change: transform;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 .viewer.is-zoomed .viewer-media-shell img,
 .viewer.is-zoomed .viewer-media-shell video { transition: none; }
@@ -248,14 +250,17 @@
   display: flex;
   gap: 4px;
   width: 100%;
-  padding: 2px 0;
+  padding: 2px 0 8px;
   overflow-x: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 35%) transparent;
   cursor: grab;
   overscroll-behavior-x: contain;
 }
 .viewer-strip.dragging { cursor: grabbing; scroll-behavior: auto; }
-.viewer-strip::-webkit-scrollbar { display: none; }
+.viewer-strip::-webkit-scrollbar { height: 6px; }
+.viewer-strip::-webkit-scrollbar-track { background: transparent; }
+.viewer-strip::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 30%); border-radius: 999px; }
 .strip-item {
   flex: none;
   width: 48px; height: 48px;

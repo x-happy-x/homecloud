@@ -517,12 +517,13 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
                       src={src}
                       style={mediaStyle(transform)}
                       onLoadedMetadata={event => {
+                        const node = event.currentTarget;
                         markReady(mediaKey);
                         setPlayer(state => ({
                           ...state,
-                          duration: event.currentTarget.duration || photo.duration || 0,
-                          volume: event.currentTarget.volume,
-                          muted: event.currentTarget.muted,
+                          duration: node.duration || photo.duration || 0,
+                          volume: node.volume,
+                          muted: node.muted,
                         }));
                       }}
                       onCanPlay={() => markReady(mediaKey)}
@@ -532,11 +533,20 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
                       onWaiting={() => setPlayer(state => ({...state, buffering: true}))}
                       onPlaying={() => setPlayer(state => ({...state, buffering: false}))}
                       onSeeking={() => setPlayer(state => ({...state, seeking: true}))}
-                      onSeeked={event => setPlayer(state => ({...state, seeking: false, current: event.currentTarget.currentTime || 0}))}
-                      onTimeUpdate={event => setPlayer(state => ({...state, current: event.currentTarget.currentTime || 0}))}
-                      onVolumeChange={event => setPlayer(state => ({
-                        ...state, volume: event.currentTarget.volume, muted: event.currentTarget.muted,
-                      }))}
+                      onSeeked={event => {
+                        const current = event.currentTarget.currentTime || 0;
+                        setPlayer(state => ({...state, seeking: false, current}));
+                      }}
+                      onTimeUpdate={event => {
+                        const current = event.currentTarget.currentTime || 0;
+                        setPlayer(state => ({...state, current}));
+                      }}
+                      onVolumeChange={event => {
+                        const node = event.currentTarget;
+                        const volume = node.volume;
+                        const muted = node.muted;
+                        setPlayer(state => ({...state, volume, muted}));
+                      }}
                     />
                     {showVideoPoster && (
                       <>
@@ -727,7 +737,7 @@ function VideoControls({player, duration, onHold, onPlay, onMute, onFullscreen, 
         max={Math.max(0, duration)}
         step="0.1"
         value={Math.min(player.current, duration || 0)}
-        onChange={event => onSeek(Number(event.currentTarget.value))}
+        onInput={event => onSeek(Number(event.currentTarget.value))}
         aria-label="Перемотка"
       />
       <div className="viewer-player-row">
@@ -739,7 +749,7 @@ function VideoControls({player, duration, onHold, onPlay, onMute, onFullscreen, 
           <Icon name={player.muted || player.volume === 0 ? 'volumeOff' : 'volume'} />
         </button>
         <input className="viewer-volume" type="range" min="0" max="1" step="0.02"
-          value={player.muted ? 0 : player.volume} onChange={event => onVolume(Number(event.currentTarget.value))}
+          value={player.muted ? 0 : player.volume} onInput={event => onVolume(Number(event.currentTarget.value))}
           aria-label="Громкость" />
         <button className="viewer-icon" type="button" aria-label="Полный экран" onClick={onFullscreen}>
           <Icon name="fullscreen" />
