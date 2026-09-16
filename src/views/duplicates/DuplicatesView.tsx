@@ -265,6 +265,7 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
             adultMode={adultMode}
             layout={layout}
             onMenu={onCardMenu}
+            onOpen={openPhoto}
           />
         ))}
         {groups.isPending && <div className="dup-loading">Считаю группы…</div>}
@@ -389,9 +390,13 @@ interface GroupCardProps {
   adultMode: AdultMode;
   layout: DupLayout;
   onMenu(event: MouseEvent, photo: DuplicatePhoto): void;
+  /** Открыть снимок в просмотрщике: двойной щелчок или щелчок по уже оставляемому. */
+  onOpen(path: string): void;
 }
 
-const GroupCard = memo(function GroupCard({group, keep, off, canEdit, adultMode, layout, onMenu}: GroupCardProps) {
+const GroupCard = memo(function GroupCard({
+  group, keep, off, canEdit, adultMode, layout, onMenu, onOpen,
+}: GroupCardProps) {
   const toggle = useStore(state => state.toggle);
   const setKeep = useStore(state => state.setDupKeep);
   const hidden = group.count - group.photos.length;
@@ -429,6 +434,7 @@ const GroupCard = memo(function GroupCard({group, keep, off, canEdit, adultMode,
           adultMode={adultMode}
           onKeep={path => setKeep(group.key, path)}
           onMenu={onMenu}
+          onOpen={onOpen}
         />
       )}
       {MOSAIC[layout] === 0 && <div className="dup-row">
@@ -441,6 +447,7 @@ const GroupCard = memo(function GroupCard({group, keep, off, canEdit, adultMode,
             adultMode={adultMode}
             onKeep={() => setKeep(group.key, photo.path)}
             onMenu={event => onMenu(event, photo)}
+            onOpen={() => onOpen(photo.path)}
           />
         ))}
         {hidden > 0 && (
@@ -462,6 +469,7 @@ interface MosaicProps {
   adultMode: AdultMode;
   onKeep(path: string): void;
   onMenu(event: MouseEvent, photo: DuplicatePhoto): void;
+  onOpen(path: string): void;
 }
 
 /**
@@ -469,7 +477,7 @@ interface MosaicProps {
  * файла — в подсказке и в меню по правой кнопке; на последней плитке —
  * сколько копий не поместилось.
  */
-function Mosaic({group, keep, size, canEdit, adultMode, onKeep, onMenu}: MosaicProps) {
+function Mosaic({group, keep, size, canEdit, adultMode, onKeep, onMenu, onOpen}: MosaicProps) {
   // Порядок постоянный — совет сервера первым, как пришло. Если ставить первым
   // выбранный кадр, после щелчка плитки просто менялись местами, а отметка
   // «Оставим» оставалась на прежнем месте.
@@ -491,9 +499,11 @@ function Mosaic({group, keep, size, canEdit, adultMode, onKeep, onMenu}: MosaicP
             key={photo.path}
             type="button"
             className={`dup-tile${kept ? ' keep' : ''}`}
-            disabled={!canEdit || kept}
-            title={kept ? `Останется: ${details}` : `Оставить этот: ${details}`}
-            onClick={() => onKeep(photo.path)}
+            title={kept || !canEdit
+              ? `${details}\nЩелчок — открыть`
+              : `${details}\nЩелчок — оставить этот, двойной — открыть`}
+            onClick={() => (kept || !canEdit ? onOpen(photo.path) : onKeep(photo.path))}
+            onDoubleClick={() => onOpen(photo.path)}
             onContextMenu={event => onMenu(event, photo)}
           >
             <img src={photoMediaUrl(photo, adultMode, 360)} alt="" loading="lazy" decoding="async" />
@@ -515,9 +525,10 @@ interface DupCardProps {
   adultMode: AdultMode;
   onKeep(): void;
   onMenu(event: MouseEvent): void;
+  onOpen(): void;
 }
 
-function DupCard({photo, keep, canEdit, adultMode, onKeep, onMenu}: DupCardProps) {
+function DupCard({photo, keep, canEdit, adultMode, onKeep, onMenu, onOpen}: DupCardProps) {
   const shape = photo.width ? `${photo.width}×${photo.height}` : photo.kind === 'video' ? 'видео' : '';
   const date = photoDate(photo.taken);
   return (
@@ -525,9 +536,9 @@ function DupCard({photo, keep, canEdit, adultMode, onKeep, onMenu}: DupCardProps
       <button
         type="button"
         className="dup-card-image"
-        disabled={!canEdit || keep}
-        title={keep ? 'Этот файл останется' : 'Оставить этот файл'}
-        onClick={onKeep}
+        title={keep || !canEdit ? 'Щелчок — открыть' : 'Щелчок — оставить этот файл, двойной — открыть'}
+        onClick={keep || !canEdit ? onOpen : onKeep}
+        onDoubleClick={onOpen}
       >
         <img src={photoMediaUrl(photo, adultMode, 360)} alt="" loading="lazy" decoding="async" />
         <span className="dup-mark">
