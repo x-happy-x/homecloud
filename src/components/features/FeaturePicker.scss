@@ -1,39 +1,75 @@
-@use '../../styles/mixins' as *;
-
-// Снимки и ролики рядом, если помещаются; карточки внутри — по две в ряд, пока
-// каждой хватает места. Ширину считает контейнер, а не окно: тот же выбор
-// живёт и в широком окне задания, и в узкой колонке.
-.feature-picker {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
-  gap: 18px;
-}
-.feature-group { min-width: 0; container-type: inline-size; }
-
-.feature-group > header {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 9px;
-}
-.feature-group > header b { font-size: .92rem; }
-.feature-group > header span {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--patina-soft);
-  color: var(--patina);
-  font-size: .72rem;
-  font-weight: 600;
-}
-.feature-group > header small { width: 100%; color: var(--muted); font-size: .75rem; }
+.feature-picker { display: grid; gap: 10px; min-width: 0; }
+.feature-summary { margin: 0; color: var(--muted); font-size: .76rem; }
 
 .feature-cards {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   gap: 8px;
 }
 
-@container (min-width: 380px) {
-  .feature-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+// Вся карточка — кнопка «включить для всех»: её ::before растянут на карточку,
+// а чипы видов лежат поверх и ловят свои щелчки сами.
+.feature-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 12px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-m);
+  background: var(--surface-2);
+  transition: border-color .15s, background .15s, box-shadow .15s;
 }
+.feature-card:hover { border-color: color-mix(in srgb, var(--patina) 40%, var(--line)); }
+.feature-card:has(.feature-card-main:focus-visible) { outline: 2px solid var(--patina); outline-offset: 2px; }
+.feature-card.on {
+  border-color: var(--patina);
+  background: var(--patina-soft);
+  box-shadow: 0 0 0 1px var(--patina) inset;
+}
+
+.feature-card-main {
+  flex: 1;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.feature-card-main::before { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.feature-card-main:focus-visible { outline: none; }
+.feature-card-main b { font-size: .88rem; font-weight: 600; }
+.feature-card-main small { color: var(--muted); font-size: .76rem; line-height: 1.4; }
+.feature-card.on .feature-card-main small { color: var(--ink-2); }
+
+.feature-card-kinds { position: relative; display: flex; flex-wrap: wrap; gap: 6px; }
+.kind-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.kind-chip svg { fill: currentColor; }
+.kind-chip:hover { border-color: var(--patina); color: var(--ink); }
+.kind-chip.on { border-color: var(--patina); background: var(--patina); color: var(--patina-ink); }
+.kind-chip:focus-visible { outline: 2px solid var(--patina); outline-offset: 2px; }
+
+.feature-card.unavailable { background: var(--surface); border-style: dashed; opacity: .6; }
+.feature-card.unavailable:hover { border-color: var(--line-soft); }
+.feature-card.unavailable .feature-card-main { cursor: default; }

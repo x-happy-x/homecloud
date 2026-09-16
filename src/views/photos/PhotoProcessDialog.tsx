@@ -10,7 +10,7 @@ import {
   anyFeature, initialFeatures, type FeatureFlags, type MediaKind,
 } from '../../store/slices/scan';
 import {Button} from '../../ui/Button/Button';
-import {CheckRow} from '../../ui/CheckRow/CheckRow';
+import {ToggleChip} from '../../ui/Chip/Chip';
 import {Dialog, Sheet} from '../../ui/Dialog/Dialog';
 import {HintLine} from '../../ui/Hint/Hint';
 
@@ -69,7 +69,9 @@ export function PhotoProcessDialog() {
           value={features}
           onChange={(kind, next) => setFeatures(current => ({...current, [kind]: next}))}
         />
-        <CheckRow checked={force} onChange={setForce}>Переделать заново, даже если уже посчитано</CheckRow>
+        <div className="toggle-row">
+          <ToggleChip checked={force} onChange={setForce}>Переделать заново, даже если уже посчитано</ToggleChip>
+        </div>
         <HintLine>
           Обычно повторно считается только то, что изменилось: этапы пропускают файлы, уже
           обработанные в этой же версии. Этапы для роликов применяются только к видео из

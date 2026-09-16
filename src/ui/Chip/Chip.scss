@@ -55,3 +55,4 @@
 .toggle-chip.active .toggle-chip-knob { background: var(--patina); color: var(--patina-ink); }
 .toggle-chip:focus-visible { outline: 2px solid var(--patina); outline-offset: 2px; }
 .toggle-chip:disabled { opacity: .5; cursor: default; }
+.toggle-row { display: flex; flex-wrap: wrap; gap: 8px; }
