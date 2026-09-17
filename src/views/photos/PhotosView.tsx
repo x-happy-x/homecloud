@@ -285,6 +285,7 @@ export function PhotosView() {
         busy={folderActions.busy}
         onClose={() => setFolderMenu(null)}
         onExclude={folderActions.excludeFromFilter}
+        onExcludeFaces={folderActions.excludeFaces}
         onHide={folderActions.hide}
         onMove={setMoveFolder}
         onDelete={folderActions.remove}

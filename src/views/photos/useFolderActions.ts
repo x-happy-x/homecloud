@@ -1,6 +1,7 @@
 import {confirmAction} from '../../services/dialogs';
 import {useMutation} from '@tanstack/react-query';
 import {formatNumber} from '../../lib/format';
+import {excludePath} from '../../services/endpoints/people';
 import {getSettings, saveSettings} from '../../services/endpoints/settings';
 import {deleteFolderMedia, moveFolderMedia} from '../../services/endpoints/photos';
 import {queryClient} from '../../services/queryClient';
@@ -68,10 +69,23 @@ export function useFolderActions() {
     onError: (error: Error) => toast(error.message || 'Не удалось переместить папку'),
   });
 
+  const excludeFaces = useMutation({
+    mutationFn: (path: string) => excludePath(path, true),
+    onSuccess: (_result, path) => {
+      toast(`Лица из «${path}» исключены из группировки`, 'success');
+      void queryClient.invalidateQueries({queryKey: ['state']});
+    },
+    onError: (error: Error) => toast(error.message || 'Не удалось исключить лица папки'),
+  });
+
   return {
-    busy: hide.isPending || remove.isPending || move.isPending,
+    busy: hide.isPending || remove.isPending || move.isPending || excludeFaces.isPending,
     excludeFromFilter(path: string) {
       setFilters({folder: '', folderExclude: path, album: 0});
+    },
+    async excludeFaces(path: string) {
+      if (!await confirmAction(`Исключить все лица из папки «${path}» и вложенных?\nСами снимки останутся на месте — уйдут только лица из группировки.`)) return;
+      excludeFaces.mutate(path);
     },
     async hide(path: string) {
       if (!await confirmAction(`Скрыть «${path}» из сканирования и галереи?\nПуть будет добавлен в настройки исключений.`)) return;

@@ -1,8 +1,11 @@
 import {copyText} from '../../../lib/clipboard';
-import {Fragment, useState, type MouseEvent} from 'react';
-import {useQuery} from '@tanstack/react-query';
+import {Fragment, useEffect, useState, type MouseEvent} from 'react';
+import {useMutation, useQuery} from '@tanstack/react-query';
+import {confirmAction} from '../../../services/dialogs';
 import {fileSize, timecode} from '../../../lib/format';
 import {getPhotoMetadata, type MetadataGroup} from '../../../services/endpoints/catalog';
+import {excludePath, getVideoPeopleHint, setVideoPeopleHint} from '../../../services/endpoints/people';
+import {queryClient} from '../../../services/queryClient';
 import {qk} from '../../../services/queryKeys';
 import {useStore} from '../../../store';
 import type {PhotoCard, RouterLabel} from '../../../types/api';
@@ -53,6 +56,7 @@ export function InfoPanel({photo, onClose, onSeek}: InfoPanelProps) {
       <h3>
         Файл
         <CopyPathButton photo={photo} />
+        <ExcludeFileFacesButton photo={photo} />
       </h3>
       <FileInfo photo={photo} />
     </div>
@@ -76,6 +80,86 @@ function CopyPathButton({photo}: {photo: PhotoCard}) {
     >
       копировать путь
     </button>
+  );
+}
+
+/** Разом снять с файла все найденные лица, если он попал в чужие группы целиком. */
+function ExcludeFileFacesButton({photo}: {photo: PhotoCard}) {
+  const canEdit = useStore(state => state.session.canEdit);
+  const toast = useStore(state => state.toast);
+  const exclude = useMutation({
+    mutationFn: () => excludePath(photo.path, false),
+    onSuccess: () => {
+      toast('Лица файла исключены из группировки', 'success');
+      void queryClient.invalidateQueries({queryKey: ['state']});
+    },
+    onError: (error: Error) => toast(error.message || 'Не удалось исключить лица файла', 'error'),
+  });
+  if (!canEdit || !photo.face_count) return null;
+  return (
+    <button
+      className="link-button"
+      type="button"
+      disabled={exclude.isPending}
+      onClick={async () => {
+        if (!await confirmAction(
+          `Исключить все лица этого файла (${photo.face_count}) из группировки?`
+          + '\nСам файл останется на месте — уйдут только его лица.',
+        )) return;
+        exclude.mutate();
+      }}
+    >
+      исключить лица файла
+    </button>
+  );
+}
+
+/** Сколько людей на самом деле в ролике — подсказка сводит лишние авто-группы к этому числу. */
+function VideoPeopleHint({photo}: {photo: PhotoCard}) {
+  const canEdit = useStore(state => state.session.canEdit);
+  const toast = useStore(state => state.toast);
+  const hint = useQuery({
+    queryKey: qk.videoPeopleHint(photo.path),
+    queryFn: () => getVideoPeopleHint(photo.path),
+    staleTime: Infinity,
+    retry: false,
+    enabled: Boolean(photo.path) && canEdit,
+  });
+  const [value, setValue] = useState('');
+  useEffect(() => {
+    setValue(hint.data?.count != null ? String(hint.data.count) : '');
+  }, [hint.data?.count]);
+  const save = useMutation({
+    mutationFn: (count: number | null) => setVideoPeopleHint(photo.path, count),
+    onSuccess: (_result, count) => {
+      toast(count ? `Сохранено: людей в ролике — ${count}` : 'Подсказка снята', 'success');
+      void queryClient.invalidateQueries({queryKey: qk.videoPeopleHint(photo.path)});
+      void queryClient.invalidateQueries({queryKey: ['state']});
+    },
+    onError: (error: Error) => toast(error.message || 'Не удалось сохранить', 'error'),
+  });
+  if (!canEdit) return null;
+  return (
+    <div className="video-people-hint">
+      <label htmlFor="video-people-count">Людей в ролике</label>
+      <input
+        id="video-people-count"
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={50}
+        value={value}
+        disabled={save.isPending}
+        onChange={event => setValue(event.target.value)}
+        onBlur={() => {
+          const count = value ? Math.max(1, Math.round(Number(value))) : null;
+          if (count === (hint.data?.count ?? null)) return;
+          save.mutate(count);
+        }}
+        placeholder="не указано"
+      />
+      <small>Поможет свести лишние группы лиц в ролике к этому числу.</small>
+    </div>
   );
 }
 
@@ -130,6 +214,7 @@ function PlacesPanel({photo, onClose}: {photo: PhotoCard; onClose(): void}) {
         onExclude={path => { onClose(); folderActions.excludeFromFilter(path); }}
         // Остальное делаем не закрывая просмотрщик: эти действия идут запросом,
         // и снимать компонент, пока он не ответил, — терять и ответ, и сообщение.
+        onExcludeFaces={folderActions.excludeFaces}
         onHide={folderActions.hide}
         onMove={setMoveFolder}
         onDelete={folderActions.remove}
@@ -264,6 +349,7 @@ function FileInfo({photo}: {photo: PhotoCard}) {
           <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
         ))}
       </dl>
+      {movie && photo.face_count > 0 && <VideoPeopleHint photo={photo} />}
       <FileMetadata photo={photo} />
     </>
   );

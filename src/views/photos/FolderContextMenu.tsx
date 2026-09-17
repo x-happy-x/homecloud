@@ -13,13 +13,14 @@ interface FolderContextMenuProps {
   busy?: boolean;
   onClose(): void;
   onExclude(path: string): void;
+  onExcludeFaces(path: string): void;
   onHide(path: string): void;
   onMove(path: string): void;
   onDelete(path: string): void;
 }
 
 export function FolderContextMenu({
-  menu, canEdit, busy, onClose, onExclude, onHide, onMove, onDelete,
+  menu, canEdit, busy, onClose, onExclude, onExcludeFaces, onHide, onMove, onDelete,
 }: FolderContextMenuProps) {
   useEffect(() => {
     if (!menu) return undefined;
@@ -53,6 +54,7 @@ export function FolderContextMenu({
       onContextMenu={event => event.preventDefault()}
     >
       <button type="button" role="menuitem" onClick={act(onExclude)}>Исключить из фильтра</button>
+      {canEdit && <button type="button" role="menuitem" disabled={busy} onClick={act(onExcludeFaces)}>Исключить лица из папки</button>}
       {canEdit && <button type="button" role="menuitem" disabled={busy} onClick={act(onHide)}>Скрыть</button>}
       {canEdit && <button type="button" role="menuitem" disabled={busy} onClick={act(onMove)}>Переместить…</button>}
       {canEdit && <button type="button" role="menuitem" disabled={busy} onClick={act(onDelete)}>Удалить</button>}

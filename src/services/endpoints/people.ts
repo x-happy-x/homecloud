@@ -9,6 +9,17 @@ export const assignFaces = (payload: Record<string, unknown>) =>
 
 export const excludeFaces = (payload: Record<string, unknown>) => post('/api/exclude', payload);
 
+/** Исключить сразу все лица одного файла (`folder: false`) или всей папки. */
+export const excludePath = (path: string, folder: boolean) =>
+  post('/api/exclude-path', {path, folder});
+
+/** Сколько людей на самом деле в ролике — подсказка против лишних групп. */
+export const getVideoPeopleHint = (path: string) =>
+  api<{path: string; count: number | null}>(`/api/video-people${query({path})}`);
+
+export const setVideoPeopleHint = (path: string, count: number | null) =>
+  post('/api/video-people', {path, count});
+
 export const setAvatar = (payload: Record<string, unknown>) => post('/api/set-avatar', payload);
 export const clearAvatar = (payload: Record<string, unknown>) => post('/api/clear-avatar', payload);
 
