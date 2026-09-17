@@ -1,4 +1,4 @@
-import {confirmAction, promptText} from '../../services/dialogs';
+import {confirmAction} from '../../services/dialogs';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import './PeopleView.scss';
@@ -8,7 +8,6 @@ import {useKeyboardShortcuts} from '../../hooks/useKeyboardShortcuts';
 import {useKin} from '../../hooks/useKin';
 import {useSwipeScroll} from '../../hooks/useSwipeScroll';
 import {formatNumber, percent, plural, shortName} from '../../lib/format';
-import {createPeopleAlbum} from '../../services/endpoints/albums';
 import {startRecluster} from '../../services/endpoints/jobs';
 import {assignGroups, getFaceSuggestions} from '../../services/endpoints/people';
 import {queryClient} from '../../services/queryClient';
@@ -74,8 +73,12 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
   const visible = useMemo(() => {
     const album = peopleAlbum ? data?.people_albums.find(item => item.id === peopleAlbum) : undefined;
     const inAlbum = album ? new Set(album.member_keys) : null;
+    // Люди из скрытого альбома нигде не показываются — только внутри самого
+    // скрытого альбома (админу; обычному зрителю сервер их вовсе не отдаёт).
+    const insideHidden = Boolean(album?.effectively_hidden);
     return (data?.groups ?? [])
       .filter(group => !REVIEW_KINDS.has(group.kind))
+      .filter(group => insideHidden || !group.hidden)
       .filter(group => !inAlbum || inAlbum.has(group.key))
       .filter(group => !needle || lower(`${group.title} ${group.name ?? ''}`).includes(needle));
   }, [data, peopleAlbum, needle]);
@@ -153,18 +156,10 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
     },
   });
 
-  const createAlbum = useMutation({
-    mutationFn: (title: string) => createPeopleAlbum(title),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({queryKey: ['state']});
-      toast('Альбом создан');
-    },
-  });
-
   const stats = data?.stats;
   const count = selected.size;
   const rail = useMemo(() => (data?.groups ?? [])
-    .filter(group => group.kind === 'auto' && guesses.has(group.key))
+    .filter(group => group.kind === 'auto' && !group.hidden && guesses.has(group.key))
     .sort((a, b) => guesses.get(b.key)!.score - guesses.get(a.key)!.score)
     .slice(0, GUESS_RAIL), [data, guesses]);
   const track = useRef<HTMLDivElement>(null);
@@ -239,24 +234,11 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
             </button>
           ))}
         </div>
-        {canEdit && (
-          <Button
-            small
-            variant="ghost"
-            onClick={async () => {
-              const title = await promptText('Название альбома, например «Родственники»');
-              if (title) createAlbum.mutate(title);
-            }}
-          >
-            <Icon name="plus" size={16} />
-            <span>Альбом</span>
-          </Button>
-        )}
       </div>
 
-      {data && <PeopleAlbumTree albums={data.people_albums} />}
+      {data && <PeopleAlbumTree albums={data.people_albums} groups={data.groups} />}
 
-      {canEdit && mode !== 'named' && !needle && rail.length > 0 && (
+      {canEdit && mode !== 'named' && !needle && !peopleAlbum && rail.length > 0 && (
         <section className="guess-rail" aria-label="Похожие на знакомых">
           <div className="people-section-head">
             <h2>Узнали знакомых</h2>

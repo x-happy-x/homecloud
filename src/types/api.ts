@@ -132,6 +132,10 @@ export interface PeopleAlbum {
   total: number;
   member_keys: string[];
   hidden: boolean;
+  /** Скрыт сам или лежит внутри скрытого. */
+  effectively_hidden?: boolean;
+  /** id вложенных альбомов. */
+  children?: number[];
 }
 
 export interface Album {

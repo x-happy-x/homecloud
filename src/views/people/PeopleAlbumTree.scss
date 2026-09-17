@@ -1,0 +1,141 @@
+@use '../../styles/mixins' as *;
+
+.people-albums { display: grid; gap: 14px; min-width: 0; }
+
+/* ---------- лента альбомов ---------- */
+
+.people-album-rail {
+  display: grid;
+  grid-auto-flow: column;
+  /* Карточка по своему содержимому, но не шире 260 точек. */
+  grid-auto-columns: max-content;
+  gap: 12px;
+  /* Лента выходит к краям экрана, первая карточка — по линии текста. */
+  margin: -4px calc(var(--gap) * -1) 0;
+  padding: 4px var(--gap) 8px;
+  scroll-padding-inline: var(--gap);
+  scroll-snap-type: x proximity;
+}
+
+.people-album-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  max-width: 260px;
+  padding: 10px 16px 10px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-l);
+  background: var(--surface-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.people-album-card:hover { border-color: var(--line); box-shadow: var(--shadow); transform: translateY(-1px); }
+.people-album-card:focus-visible { outline: 2px solid var(--patina); outline-offset: 2px; }
+.people-album-card.secret { border-style: dashed; background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+.people-album-card.add { border-style: dashed; background: transparent; color: var(--patina); }
+.people-album-card.add:hover { background: var(--patina-soft); border-color: var(--patina); }
+
+.people-album-faces { flex: none; display: flex; padding-left: 12px; }
+.people-album-face {
+  flex: none;
+  width: 40px; height: 40px;
+  margin-left: -12px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--surface-2);
+  overflow: hidden;
+  background: var(--ground);
+  color: var(--muted);
+}
+.people-album-face img, .people-album-face .person-letter { width: 100%; height: 100%; object-fit: cover; font-size: .8rem; }
+.people-album-face.blank { margin-left: 0; border: 1px dashed var(--line); }
+.people-album-card.add .people-album-face.blank { margin-left: 0; color: var(--patina); border-color: currentColor; background: transparent; }
+.people-album-card.add .people-album-faces, .people-album-card:has(.blank) .people-album-faces { padding-left: 0; }
+.people-album-card.secret .people-album-face img { filter: grayscale(.6); }
+
+.people-album-text { display: grid; gap: 1px; min-width: 0; }
+.people-album-text b {
+  display: flex; align-items: center; gap: 5px;
+  font-size: .9rem; font-weight: 650;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.people-album-text b svg { flex: none; color: var(--muted); }
+.people-album-text small { font-size: .74rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- открытый альбом ---------- */
+
+.people-album-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 14px 12px 8px;
+  border-radius: var(--r-l);
+  border: 1px solid var(--line-soft);
+  background: var(--surface);
+}
+.people-album-bar.secret { border-style: dashed; }
+.people-album-back {
+  flex: none;
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ground);
+  color: var(--ink);
+  cursor: pointer;
+}
+.people-album-back:hover { background: var(--patina-soft); color: var(--patina); }
+.people-album-title { flex: 1 1 220px; display: grid; gap: 2px; min-width: 0; }
+.people-album-trail { display: flex; flex-wrap: wrap; gap: 2px 0; font-size: .74rem; }
+.people-album-trail button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.people-album-trail button::after { content: '›'; margin: 0 6px; opacity: .6; }
+.people-album-trail button:hover { color: var(--patina); }
+.people-album-title strong {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 1.1rem; letter-spacing: -.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.people-album-title strong svg { flex: none; color: var(--muted); }
+.people-album-title small { font-size: .76rem; color: var(--muted); }
+
+.people-album-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.people-album-actions button {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.people-album-actions button:hover { border-color: var(--patina); color: var(--patina); }
+.people-album-actions button.danger:hover { border-color: var(--rose); color: var(--rose); }
+.people-album-bar .album-move { flex-basis: 100%; margin: 0; }
+
+@include bp-md {
+  .people-album-rail { gap: 10px; }
+  .people-album-card { max-width: 72vw; }
+  .people-album-bar { padding: 10px; gap: 10px; }
+  .people-album-title { flex-basis: calc(100% - 60px); }
+  /* Действия — ровный ряд иконок во всю ширину: подписи не влезают. */
+  .people-album-actions { width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; }
+  .people-album-actions button { justify-content: center; padding: 0 6px; min-height: 40px; }
+  .people-album-actions button span { display: none; }
+}

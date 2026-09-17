@@ -76,22 +76,3 @@
 
 .album-row.secret { margin-bottom: 8px; border: 1px dashed var(--line); }
 .album-row.secret .album-cover { font-size: 1.15rem; background: var(--patina-soft); }
-
-/* ---------- альбомы людей ---------- */
-
-/* Альбомы людей — строкой пилюль: список на пол-экрана оттеснял самих людей вниз. */
-.people-album-tree { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
-.people-album-tree > .album-row { padding-left: 0; border: 1px solid var(--line-soft); border-radius: 999px; background: var(--surface-2); }
-.people-album-tree > .album-row .album-pick { padding: 5px 6px 5px 14px; border-radius: 999px; }
-.people-album-tree > .album-row .album-body { display: flex; align-items: baseline; gap: 8px; }
-.people-album-tree > .album-row .album-tools { padding-right: 4px; }
-.people-album-tree > .album-row:not(:hover, :focus-within) .album-tools { display: none; }
-.people-album-tree > .album-row .album-move { flex-basis: 100%; }
-.people-album-tree > .album-row:has(.album-move) { flex-wrap: wrap; border-radius: 16px; padding: 4px 8px; }
-.people-album-tree.hidden { display: none; }
-.people-album-tree > .album-row.people-album-crumbs { flex-wrap: wrap; margin: 0; border: 0; background: none; }
-.people-album-crumbs .album-pick { flex: 0 0 auto; padding: 4px 10px; }
-.people-album-crumbs .album-pick.active b { color: var(--muted); font-weight: 500; }
-.people-album-crumbs .album-pick:last-child b { color: var(--ink); font-weight: 700; }
-.people-album-hidden { opacity: .55; }
-.people-album-hidden .album-body b { font-style: italic; }
