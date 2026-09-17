@@ -1,13 +1,187 @@
-.grid-hint { margin: -6px 0 10px; font-size: .8rem; color: var(--muted); }
-/* Кнопка пересборки не сжимается рядом со статистикой. */
-.recluster { flex: none; }
+@use '../../styles/mixins' as *;
 
-/* Поиск и фильтр в одну строку: на узком экране чип уходит под поле. */
-.people-filters {
+/* С .view.active: общее правило экранов ставит display: block и съедало отступы. */
+.view.active.people-view { display: grid; gap: clamp(20px, 2.6vw, 30px); align-content: start; min-width: 0; }
+
+/* ---------- шапка ---------- */
+
+.people-hero {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 18px 28px;
+  margin-top: 12px;
+  padding: clamp(20px, 3.4vw, 36px);
+  border-radius: var(--r-l);
+  overflow: hidden;
+  background:
+    radial-gradient(90% 140% at 100% 0%, color-mix(in srgb, var(--brass) 18%, transparent), transparent 55%),
+    radial-gradient(80% 120% at 0% 100%, color-mix(in srgb, var(--patina) 22%, transparent), transparent 60%),
+    var(--surface);
+  border: 1px solid var(--line-soft);
+}
+.people-hero-text { flex: 1 1 320px; min-width: 0; }
+.people-hero h1 { font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -.02em; line-height: 1; }
+.people-hero-note { margin: 12px 0 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }
+.people-hero-note b { color: var(--ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+.people-hero-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.people-hero-actions .button { gap: 6px; }
+
+.face-pile { display: flex; align-items: center; padding-left: 14px; }
+.face-pile-item {
+  width: clamp(38px, 5vw, 52px);
+  aspect-ratio: 1;
+  margin-left: -14px;
+  border-radius: 50%;
+  border: 3px solid var(--surface);
+  overflow: hidden;
+  background: var(--ground);
+  box-shadow: var(--shadow);
+  animation: rise .35s ease both;
+}
+.face-pile-item:nth-child(2) { animation-delay: .04s; }
+.face-pile-item:nth-child(3) { animation-delay: .08s; }
+.face-pile-item:nth-child(4) { animation-delay: .12s; }
+.face-pile-item:nth-child(5) { animation-delay: .16s; }
+.face-pile-item:nth-child(6) { animation-delay: .2s; }
+.face-pile-item:nth-child(7) { animation-delay: .24s; }
+.face-pile-item img, .face-pile-item .person-letter { width: 100%; height: 100%; object-fit: cover; display: grid; place-items: center; font-size: .9rem; }
+
+/* ---------- поиск и фильтр ---------- */
+
+.people-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 4px;
 }
-.people-filters .inline-search { flex: 1 1 240px; }
+.people-toolbar .inline-search { flex: 1 1 240px; max-width: 360px; margin: 0; }
+.people-toolbar > .button { margin-left: auto; gap: 6px; }
+
+.people-modes {
+  display: inline-flex;
+  min-width: 0;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--ground);
+  border: 1px solid var(--line-soft);
+}
+.people-modes button {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: .84rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.people-modes button:hover { color: var(--ink); }
+.people-modes button.active { background: var(--surface-2); color: var(--ink); box-shadow: var(--shadow); }
+.people-modes small { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* ---------- разделы ---------- */
+
+.people-section { display: grid; gap: 18px; }
+.people-section-head { display: grid; gap: 6px; }
+.people-section-head h2 {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: clamp(1.1rem, 2.2vw, 1.3rem);
+  letter-spacing: -.01em;
+}
+.people-section-head h2 small { color: var(--muted); font-size: .8rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.people-section-head p { margin: 0; color: var(--muted); font-size: .82rem; max-width: 70ch; }
+.people-section + .people-section { margin-top: 8px; padding-top: clamp(24px, 3vw, 34px); border-top: 1px solid var(--line-soft); }
+
+/* ---------- лента догадок ---------- */
+
+.guess-rail { display: grid; gap: 16px; min-width: 0; }
+.guess-track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(230px, 250px);
+  gap: 16px;
+  /* Отступы внутри ленты — чтобы тени карточек не обрезались краем прокрутки. */
+  margin: -6px calc(var(--gap) * -1) 0;
+  padding: 6px var(--gap) 14px;
+  scroll-padding-inline: var(--gap);
+  scroll-snap-type: x proximity;
+}
+.guess-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--r-l);
+  border: 1px solid var(--line-soft);
+  background: var(--surface-2);
+  box-shadow: var(--shadow);
+  scroll-snap-align: start;
+  animation: rise .25s ease both;
+}
+.guess-faces {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.guess-face {
+  width: 76px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--ground);
+  box-shadow: 0 0 0 3px var(--surface-2), 0 0 0 4px var(--line-soft);
+  transition: transform .2s ease;
+}
+.guess-face img, .guess-face .person-letter { width: 100%; height: 100%; object-fit: cover; display: grid; place-items: center; }
+.guess-face.known { box-shadow: 0 0 0 3px var(--surface-2), 0 0 0 5px var(--patina); }
+.guess-faces:hover .guess-face.unknown { transform: translateX(4px) rotate(-3deg); }
+.guess-faces:hover .guess-face.known { transform: translateX(-4px) rotate(3deg); }
+.guess-link {
+  z-index: 1;
+  width: 26px; height: 26px;
+  margin: 0 -14px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--patina);
+  color: var(--patina-ink);
+  font-weight: 700;
+  box-shadow: 0 0 0 3px var(--surface-2);
+}
+.guess-text { display: grid; gap: 2px; text-align: center; min-width: 0; }
+.guess-text strong { font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.guess-text span { font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.guess-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.guess-actions .button { justify-content: center; gap: 4px; }
+
+.grid-hint { margin: -6px 0 10px; font-size: .8rem; color: var(--muted); }
+
+@include bp-md {
+  .view.active.people-view { gap: 22px; }
+  .people-hero { margin-top: 6px; padding: 20px 18px; gap: 16px; }
+  .people-toolbar { gap: 10px; }
+  .people-section-head p { font-size: .8rem; }
+  .people-hero-actions { width: 100%; flex-wrap: nowrap; }
+  .people-hero-actions .button { flex: 1 1 0; justify-content: center; min-width: 0; white-space: nowrap; }
+  .guess-track { grid-auto-columns: minmax(200px, 72vw); }
+  .face-pile { display: none; }
+  .people-toolbar .inline-search { max-width: none; flex-basis: 100%; }
+  .people-modes { flex: 1 1 100%; max-width: 100%; }
+  .people-toolbar > .button { margin-left: 0; }
+  .people-hero-actions { gap: 10px; }
+  .people-modes button { flex: 1; justify-content: center; padding: 0 8px; }
+}
+
+@include reduced-motion {
+  .face-pile-item, .guess-card { animation: none; }
+}

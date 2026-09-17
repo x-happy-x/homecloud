@@ -1,4 +1,5 @@
 import {api, post, query} from '../api';
+import type {CandidateFace} from '../../types/api';
 
 export const assignGroups = (payload: Record<string, unknown>) =>
   post('/api/assign-groups', payload);
@@ -40,3 +41,11 @@ export interface FaceSuggestions {
 
 /** Кого напоминают безымянные группы. Только подсказка: ничего не меняет. */
 export const getFaceSuggestions = () => api<FaceSuggestions>('/api/suggestions');
+
+/**
+ * Безымянные лица, похожие на названного человека, — по одному, а не группой.
+ * Только подсказка: имя появится, когда человек подтвердит.
+ */
+export const getPersonCandidates = (key: string, hideAdult: boolean) =>
+  api<{key: string; faces: CandidateFace[]}>(
+    `/api/person-candidates${query({key, adult: hideAdult ? 'hide' : ''})}`);

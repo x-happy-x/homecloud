@@ -66,8 +66,11 @@ export interface JobPlan {
  * этапом, только если её попросили или лица не запускаются — лица сами
  * обходят папки.
  */
-const ORDER = ['inventory', 'faces', 'visual', 'ocr', 'adult', 'caption', 'speech', 'authenticity', 'diarize'];
-const ANALYSIS = ['visual', 'ocr', 'caption', 'adult', 'speech', 'diarize', 'authenticity'];
+const ORDER = [
+  'inventory', 'faces', 'visual', 'ocr', 'adult', 'caption', 'speech', 'authenticity', 'diarize',
+  'curation', 'highlights',
+];
+const ANALYSIS = ['visual', 'ocr', 'caption', 'adult', 'speech', 'diarize', 'authenticity', 'curation'];
 /** Речь и голоса бывают только у роликов. */
 const VIDEO_ONLY = new Set(['speech', 'diarize']);
 
@@ -84,11 +87,11 @@ export function plannedKeys(job: Pick<DeviceJob, 'features' | 'plan'>): string[]
 /** До первых замеров: секунд на снимок и на загрузку модели. */
 const PER_FILE: Record<string, number> = {
   inventory: .003, faces: .09, visual: .07, ocr: .8, adult: .16, caption: 20,
-  speech: 25, authenticity: .05, diarize: 20,
+  speech: 25, authenticity: .05, diarize: 20, curation: .01, highlights: 0,
 };
 const LOAD: Record<string, number> = {
   inventory: 0, faces: 8, visual: 25, ocr: 15, adult: 20, caption: 60,
-  speech: 30, authenticity: 10, diarize: 30,
+  speech: 30, authenticity: 10, diarize: 30, curation: 2, highlights: 2,
 };
 
 const KIND_LABELS: Record<string, string> = {videos: 'только видео', photos: 'только фото'};

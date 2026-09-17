@@ -3,9 +3,9 @@ import {NAV_GROUPS, navGroupOf} from './navItems';
 import {VIEWS} from './routes';
 
 describe('пункты навигации', () => {
-  test('их четыре, порядок задан', () => {
+  test('их пять, порядок задан', () => {
     expect(NAV_GROUPS.map(group => group.label))
-      .toEqual(['Фотографии', 'Люди', 'Анализ', 'Настройки']);
+      .toEqual(['Фотографии', 'Подборки', 'Люди', 'Анализ', 'Настройки']);
   });
 
   test('каждый экран принадлежит ровно одному пункту', () => {

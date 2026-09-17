@@ -6,11 +6,14 @@ import {useStore} from '../../store';
 import type {KinPerson} from '../../types/api';
 import {Avatar} from '../../ui/Avatar/Avatar';
 
+/** Шум, мыло и исключённые живут на «Проверке», а не среди людей. */
+export const REVIEW_KINDS: ReadonlySet<string> = new Set(['noise', 'blurry', 'excluded']);
+
 export interface PersonGroup {
   key: string;
   title: string;
   name?: string | null;
-  kind?: 'person' | 'auto' | 'noise' | 'excluded' | string;
+  kind?: 'person' | 'auto' | 'noise' | 'blurry' | 'excluded' | string;
   bigfam_id?: string | null;
   count: number;
   photos: number;
@@ -28,6 +31,8 @@ export interface PersonSuggestion {
 export interface PersonCardProps {
   group: PersonGroup;
   kin?: KinPerson | null;
+  /** Безымянные группы мельче: главное на экране — названные люди. */
+  compact?: boolean;
   /** На «Проверке» карточки не выбираются — там другой сценарий. */
   selectable?: boolean;
   /** Кого напоминает безымянная группа. Догадка, решает человек. */
@@ -38,7 +43,7 @@ export interface PersonCardProps {
 }
 
 /** Аватарка: закреплённый кадр → портрет из картотеки → первое лицо группы. */
-function avatarSources(group: PersonGroup): string[] {
+export function avatarSources(group: PersonGroup): string[] {
   const crop = group.avatar || group.covers?.[0] || '';
   return !group.avatar_pinned && group.bigfam_id
     ? [`/media/bigfam/${group.bigfam_id}`, crop]
@@ -46,7 +51,7 @@ function avatarSources(group: PersonGroup): string[] {
 }
 
 export const PersonCard = memo(function PersonCard({
-  group, kin, selectable = true, suggestion, onOpen, onSelect, onAccept,
+  group, kin, compact = false, selectable = true, suggestion, onOpen, onSelect, onAccept,
 }: PersonCardProps) {
   // Подписка на свой бит выделения: иначе щелчок по одной карточке
   // перерисовывал бы всю сетку.
@@ -63,29 +68,32 @@ export const PersonCard = memo(function PersonCard({
   };
 
   const years = lifeYears(kin);
-  const label = group.kind === 'person' ? shortName(group.title, kin) : group.title;
+  const named = group.kind === 'person';
+  const label = named ? shortName(group.title, kin) : group.title;
   const counts = `${formatNumber(group.count)} ${plural(group.count, 'лицо', 'лица', 'лиц')} `
     + `на ${formatNumber(group.photos)} ${plural(group.photos, 'фотографии', 'фотографиях', 'фотографиях')}`;
+  const meta = named
+    ? `${formatNumber(group.photos)} ${plural(group.photos, 'снимок', 'снимка', 'снимков')}`
+    : `${formatNumber(group.count)} ${plural(group.count, 'лицо', 'лица', 'лиц')}`;
+  const classes = ['person-card', `kind-${group.kind ?? 'auto'}`];
+  if (compact) classes.push('compact');
+  if (selected) classes.push('selected');
+  if (suggestion) classes.push('guessed');
 
   return (
-    <article className={`person-card${selected ? ' selected' : ''}`} {...hold}>
+    <article className={classes.join(' ')} {...hold}>
       <div className="person-photo">
-        <button className="person-avatar" type="button" aria-label={`Открыть ${group.title}`} onClick={click}>
+        <button className="person-avatar" type="button" aria-label={`Открыть ${group.title}`} title={counts} onClick={click}>
           <Avatar srcs={avatarSources(group)} name={group.title} />
         </button>
         {group.hidden && (
           <span className="hidden-badge" title="В скрытом альбоме — видно только админу">🔒</span>
         )}
-        <span className="count-badge" title={counts}>
-          {formatNumber(group.count)}<i>/</i>{formatNumber(group.photos)}
-        </span>
         <span className="tick-mark" aria-hidden="true">✓</span>
       </div>
       <button className="person-label" type="button" title={group.title} onClick={click}>
         <span className="person-name">{label}</span>
-        {years
-          ? <span className="person-years">{years}</span>
-          : group.kind === 'auto' ? <span className="person-years">без имени</span> : null}
+        <span className="person-meta">{years ? `${years} · ${meta}` : meta}</span>
       </button>
       {suggestion && canEdit && onAccept && (
         <button
@@ -94,7 +102,7 @@ export const PersonCard = memo(function PersonCard({
           title={`Похожесть ${Math.round(suggestion.score * 100)}% — назвать группу этим именем`}
           onClick={event => { event.stopPropagation(); onAccept(group.key, suggestion); }}
         >
-          <span className="person-guess-name">похоже на {suggestion.name}</span>
+          <span className="person-guess-name">это {suggestion.name}?</span>
           <span className="person-guess-score">{Math.round(suggestion.score * 100)}%</span>
         </button>
       )}

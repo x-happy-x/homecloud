@@ -11,6 +11,8 @@ export const JOB_LABELS: Record<string, string> = {
   speech: 'Расшифровка речи',
   diarize: 'Разделение голосов',
   authenticity: 'Поиск рисованных лиц',
+  curation: 'Оценка снимков',
+  highlights: 'Сборка подборок',
   running: 'Обработка',
   completed: 'Завершено',
   stopped: 'Остановлено',
@@ -27,6 +29,8 @@ export const FEATURE_INFO: Record<string, [string, string]> = {
   speech: ['Речь', 'Расшифровка сказанного: субтитры и поиск по словам'],
   diarize: ['Кто говорит', 'Разделение голосов по репликам; нужна готовая расшифровка'],
   authenticity: ['Рисованные лица', 'Отсев мультяшных и игровых персонажей от настоящих людей'],
+  curation: ['Оценка снимков', 'Качество, время съёмки и люди в кадре — по уже посчитанному индексу'],
+  highlights: ['Подборки', 'Лучшее за месяц и год, события, «в этот день» — без новых моделей'],
 };
 
 interface JobLike extends DeviceJob {
@@ -88,6 +92,9 @@ export function withFeatureDeps<T extends Record<string, boolean>>(
   const next: Record<string, boolean> = {...features, [key]: checked};
   if (checked && (key === 'ocr' || key === 'caption')) next.visual = true;
   if (checked && key === 'caption') next.adult = true;
+  // Подборки собираются из оценок, а оценка читает визуальный индекс.
+  if (checked && key === 'highlights') next.curation = true;
+  if (checked && (key === 'curation' || key === 'highlights')) next.visual = true;
   return next as T;
 }
 

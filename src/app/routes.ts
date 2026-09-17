@@ -1,5 +1,5 @@
 export const VIEWS = [
-  'people', 'photos', 'review', 'training', 'scan', 'duplicates', 'settings',
+  'people', 'photos', 'highlights', 'review', 'training', 'scan', 'duplicates', 'settings',
 ] as const;
 
 export type ViewName = (typeof VIEWS)[number];
@@ -24,6 +24,7 @@ export const isAnalysisView = (view: string): view is AnalysisView => ANALYSIS_S
 export const VIEW_TITLES: Record<ViewName, string> = {
   people: 'Люди',
   photos: 'Фотографии',
+  highlights: 'Подборки',
   review: 'Проверка',
   training: 'Обучение',
   scan: 'Сканирование',
@@ -49,6 +50,8 @@ export interface RouteState {
   photo: string;
   /** Открытая карточка группы лиц. */
   group: string;
+  /** Открытая автоматическая подборка: ключ вида month:2019-12. */
+  highlight: string;
 }
 
 export const emptyRoute = (): RouteState => ({
@@ -66,6 +69,7 @@ export const emptyRoute = (): RouteState => ({
   hidden: false,
   photo: '',
   group: '',
+  highlight: '',
 });
 
 /**
@@ -96,6 +100,7 @@ export function buildHash(route: RouteState): string {
   if (route.group && (route.view === 'people' || route.view === 'review')) {
     params.set('group', route.group);
   }
+  if (route.highlight && route.view === 'highlights') params.set('h', route.highlight);
   const serialized = params.toString();
   return `#/${route.view}${serialized ? `?${serialized}` : ''}`;
 }
@@ -119,6 +124,7 @@ export function parseHash(hash: string): RouteState {
     hidden: params.get('hidden') === '1',
     photo: params.get('photo') || '',
     group: params.get('group') || '',
+    highlight: params.get('h') || '',
   };
 }
 
@@ -131,5 +137,7 @@ export function parseHash(hash: string): RouteState {
 export function historyMode(next: RouteState, previous: RouteState): 'push' | 'replace' {
   if (next.view !== previous.view) return 'push';
   if ((next.photo && !previous.photo) || (next.group && !previous.group)) return 'push';
+  // Открыть подборку — шаг истории: «назад» возвращает к списку подборок.
+  if (next.highlight && next.highlight !== previous.highlight) return 'push';
   return 'replace';
 }

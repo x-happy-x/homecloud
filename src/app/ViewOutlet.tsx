@@ -1,5 +1,6 @@
 import {useMemo, type ComponentProps, type ReactNode} from 'react';
 import {useMutation} from '@tanstack/react-query';
+import {REVIEW_KINDS} from '../components/people/PersonCard';
 import {useCatalogState} from '../hooks/useCatalogState';
 import {startDuplicatesScan, stopDuplicatesScan} from '../services/endpoints/jobs';
 import {queryClient} from '../services/queryClient';
@@ -7,6 +8,7 @@ import {qk} from '../services/queryKeys';
 import {useStore} from '../store';
 import {AnalysisLayout} from '../views/analysis/AnalysisLayout';
 import {DuplicatesView} from '../views/duplicates/DuplicatesView';
+import {HighlightsView} from '../views/highlights/HighlightsView';
 import {PeopleView} from '../views/people/PeopleView';
 import {PhotosView} from '../views/photos/PhotosView';
 import {ReviewView} from '../views/review/ReviewView';
@@ -31,7 +33,7 @@ export function ViewOutlet({status, onOpenGroup}: ViewOutletProps) {
   const state = useCatalogState().data;
 
   const reviewGroups = useMemo(
-    () => (state?.groups ?? []).filter(group => group.kind === 'noise' || group.kind === 'excluded'),
+    () => (state?.groups ?? []).filter(group => REVIEW_KINDS.has(group.kind)),
     [state],
   );
 
@@ -54,6 +56,8 @@ export function ViewOutlet({status, onOpenGroup}: ViewOutletProps) {
         return <PeopleView onOpenGroup={onOpenGroup} />;
       case 'photos':
         return <PhotosView />;
+      case 'highlights':
+        return <HighlightsView />;
       case 'review':
         return <ReviewView groups={reviewGroups} onOpenGroup={onOpenGroup} />;
       case 'training':

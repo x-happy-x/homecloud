@@ -14,6 +14,7 @@ export const routeOf = (state: Store): RouteState => ({
   ...state.filters,
   photo: state.routePhoto,
   group: state.routeGroup,
+  highlight: state.routeHighlight,
 });
 
 const sameRoute = (a: RouteState, b: RouteState): boolean => buildHash(a) === buildHash(b);

@@ -47,6 +47,22 @@ describe('buildHash', () => {
   });
 });
 
+describe('подборки', () => {
+  test('открытая подборка — в ссылке и только на своём экране', () => {
+    expect(buildHash(route({view: 'highlights', highlight: 'month:2019-12'})))
+      .toBe('#/highlights?h=month%3A2019-12');
+    expect(buildHash(route({view: 'photos', highlight: 'month:2019-12'}))).toBe('#/photos');
+    expect(parseHash('#/highlights?h=event%3A20191218-121931').highlight).toBe('event:20191218-121931');
+  });
+
+  test('открыть подборку — шаг истории, закрыть — нет', () => {
+    const list = route({view: 'highlights'});
+    const open = route({view: 'highlights', highlight: 'year:2019'});
+    expect(historyMode(open, list)).toBe('push');
+    expect(historyMode(list, open)).toBe('replace');
+  });
+});
+
 describe('parseHash', () => {
   test('неизвестный экран — фотографии', () => {
     expect(parseHash('#/nonsense').view).toBe('photos');

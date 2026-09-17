@@ -1,3 +1,5 @@
+@use '../../styles/mixins' as *;
+
 /* Галочка выбора .tick-mark общая с карточкой человека — она в PersonCard.scss. */
 .face-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(clamp(104px, 15vw, 140px), 1fr)); gap: 12px; }
 .face-card {
@@ -7,13 +9,14 @@
   background: var(--surface-2);
   overflow: hidden;
   display: block;
-  transition: border-color .15s, box-shadow .15s;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
 }
 .face-card { cursor: pointer; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+.face-card:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
 .face-card.selected { border-color: var(--patina); box-shadow: 0 0 0 2px var(--patina-soft); }
 .face-pin {
   position: absolute;
-  left: 7px; bottom: 34px;
+  right: 7px; bottom: 38px;
   z-index: 2;
   padding: 1px 7px;
   border-radius: 999px;
@@ -22,19 +25,229 @@
   font-size: .68rem;
 }
 .face-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--ground); }
-.face-foot { padding: 7px 9px 9px; }
+.face-foot { display: block; padding: 7px 9px 9px; }
 .face-name { display: block; font-size: .73rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.face-confidence { position: absolute; top: 7px; right: 7px; padding: 2px 6px; border-radius: 999px; background: rgb(20 29 27 / 55%); color: #fff; font-size: .64rem; }
+.face-confidence { position: absolute; top: 7px; right: 7px; z-index: 2; padding: 2px 6px; border-radius: 999px; background: rgb(20 29 27 / 55%); color: #fff; font-size: .64rem; }
 
-/* Метка кадра из видео на карточке лица. */
+/* Метка кадра из видео на карточке лица: по щелчку ролик откроется с этого места. */
 .face-moment {
   position: absolute;
   left: 7px;
-  bottom: 7px;
-  padding: 2px 6px;
+  bottom: 38px;
+  z-index: 2;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 7px;
   border-radius: 999px;
-  background: rgb(20 29 27 / 62%);
+  background: rgb(20 29 27 / 70%);
   color: #fff;
-  font-size: .64rem;
+  font-size: .66rem;
   font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(4px);
+}
+
+/* ---------- переключатель «стопками / все кадры» ---------- */
+
+.faces-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 12px;
+}
+.faces-head .section-label { margin: 0; }
+.faces-mode {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--ground);
+}
+.faces-mode button {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.faces-mode button.active { background: var(--surface-2); color: var(--ink); box-shadow: var(--shadow); }
+
+/* ---------- стопка ---------- */
+
+/* Карточка-стопка: под верхним кадром выглядывают ещё два листа. Отступ
+   сверху оставляет им место, чтобы стопка не вылезала из ячейки сетки. */
+.face-card.face-stack {
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  padding-top: 12px;
+}
+.face-card.face-stack:hover { transform: none; box-shadow: none; }
+.face-stack-body {
+  position: relative;
+  z-index: 1;
+  display: block;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-m);
+  background: var(--surface-2);
+  overflow: hidden;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .15s;
+}
+.face-stack-sheet {
+  position: absolute;
+  inset: 12px 0 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  background: var(--surface-2);
+  transform: translateY(-6px) scale(.93);
+  transform-origin: top center;
+  transition: transform .18s ease;
+}
+.face-stack-sheet.second { transform: translateY(-12px) scale(.86); background: var(--surface); }
+.face-stack:hover .face-stack-body { transform: translateY(2px); box-shadow: var(--shadow-lift); }
+.face-stack:hover .face-stack-sheet { transform: translateY(-8px) scale(.93) rotate(-2deg); }
+.face-stack:hover .face-stack-sheet.second { transform: translateY(-14px) scale(.86) rotate(3deg); }
+.face-stack.open .face-stack-body { border-color: var(--patina); box-shadow: 0 0 0 2px var(--patina-soft); }
+.face-stack.selected .face-stack-body { border-color: var(--patina); box-shadow: 0 0 0 2px var(--patina-soft); }
+.face-stack.selected .tick-mark { opacity: 1; transform: none; }
+.face-stack.partly .tick-mark { opacity: .55; transform: scale(.8); }
+.face-stack-count {
+  position: absolute;
+  top: 7px; right: 7px;
+  z-index: 2;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--patina);
+  color: var(--patina-ink);
+  font-size: .7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 8px rgb(20 29 27 / 25%);
+}
+
+/* Раскрытая стопка — лента во всю ширину сетки сразу под карточкой. */
+.face-stack-tray {
+  grid-column: 1 / -1;
+  padding: 12px;
+  border-radius: var(--r-l);
+  background: color-mix(in srgb, var(--patina) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--patina) 25%, transparent);
+  animation: rise .2s ease;
+}
+.face-stack-tray .face-grid { grid-template-columns: repeat(auto-fill, minmax(clamp(92px, 12vw, 120px), 1fr)); gap: 10px; }
+.face-stack-tray-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: .8rem;
+  color: var(--ink-2);
+}
+.face-stack-tray-head b { font-weight: 600; word-break: break-all; }
+.face-stack-close {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: .76rem;
+  cursor: pointer;
+}
+.face-stack-close:hover { border-color: var(--patina); color: var(--patina); }
+
+/* ---------- «возможно, это тоже он» ---------- */
+
+.candidates {
+  margin-bottom: 20px;
+  padding: 14px;
+  border-radius: var(--r-l);
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--patina) 16%, transparent), transparent 60%),
+    var(--surface);
+  border: 1px solid color-mix(in srgb, var(--patina) 28%, var(--line-soft));
+}
+.candidates-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.candidates-head h3 { margin: 0; font-size: 1rem; }
+.candidates-head p { margin: 3px 0 0; font-size: .8rem; color: var(--muted); max-width: 60ch; }
+.candidates-mark {
+  flex: none;
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  background: var(--patina);
+  color: var(--patina-ink);
+}
+.candidates-actions { margin-left: auto; display: flex; gap: 8px; flex: none; }
+.candidates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 8px;
+}
+.candidate {
+  position: relative;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--r-m);
+  background: var(--ground);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .15s, transform .15s;
+}
+.candidate:hover { transform: translateY(-1px); }
+.candidate img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; transition: filter .15s; }
+.candidate:not(.chosen) img { filter: saturate(.85); }
+.candidate.chosen { border-color: var(--patina); }
+.candidate .tick-mark { left: 5px; top: 5px; width: 20px; height: 20px; font-size: .64rem; }
+.candidate.chosen .tick-mark { opacity: 1; transform: none; }
+.candidate-score {
+  position: absolute;
+  right: 4px; bottom: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgb(20 29 27 / 66%);
+  color: #fff;
+  font-size: .62rem;
+  font-variant-numeric: tabular-nums;
+}
+.candidate-video {
+  position: absolute;
+  left: 4px; bottom: 4px;
+  display: grid; place-items: center;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: rgb(20 29 27 / 66%);
+  color: #fff;
+}
+.candidates-more {
+  border: 1px dashed var(--line);
+  border-radius: var(--r-m);
+  background: transparent;
+  color: var(--patina);
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  aspect-ratio: 1;
+}
+.candidates-more:hover { border-color: var(--patina); background: var(--patina-soft); }
+
+@include bp-sm {
+  .candidates-head { flex-wrap: wrap; }
+  .candidates-actions { margin-left: 0; width: 100%; }
+  .candidates-actions .button { flex: 1; }
+  .faces-mode span { display: none; }
 }

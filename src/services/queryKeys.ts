@@ -19,6 +19,8 @@ export const qk = {
    */
   facePhoto: (path: string) => ['face-photo', path] as const,
   speech: (path: string) => ['speech', path] as const,
+  /** Метаданные файла не меняются от правок каталога — отдельный ключ, не под «photos». */
+  photoMetadata: (path: string) => ['photo-metadata', path] as const,
 
   folders: (path: string) => ['folders', path] as const,
   albums: () => ['albums'] as const,
@@ -27,6 +29,8 @@ export const qk = {
   similar: (key: string) => ['similar', key] as const,
   similarPairs: (namedOnly: boolean) => ['similar-pairs', {namedOnly}] as const,
   faceSuggestions: () => ['face-suggestions'] as const,
+  /** Под «group»: любая правка имён сбрасывает их вместе с карточками групп. */
+  personCandidates: (key: string, hideAdult: boolean) => ['group', 'candidates', key, {hideAdult}] as const,
   compare: (a: string, b: string) => ['compare', a, b] as const,
 
   devices: () => ['devices'] as const,
@@ -37,6 +41,11 @@ export const qk = {
 
   duplicates: (similar: boolean, filters: Record<string, unknown>) => ['duplicates', {similar, ...filters}] as const,
   duplicatesStatus: () => ['duplicates-status'] as const,
+
+  highlights: (kind: string, hideAdult: boolean) => ['highlights', {kind, hideAdult}] as const,
+  /** Под «highlights», чтобы пересборка сбрасывала и открытую подборку. */
+  highlight: (key: string, hideAdult: boolean) => ['highlights', 'one', key, {hideAdult}] as const,
+  highlightsStatus: () => ['highlights-status'] as const,
   reclusterStatus: () => ['recluster-status'] as const,
 
   routerSummary: () => ['router-summary'] as const,

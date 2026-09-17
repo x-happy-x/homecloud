@@ -1,6 +1,9 @@
 import {copyText} from '../../../lib/clipboard';
 import {Fragment, useState, type MouseEvent} from 'react';
+import {useQuery} from '@tanstack/react-query';
 import {fileSize, timecode} from '../../../lib/format';
+import {getPhotoMetadata, type MetadataGroup} from '../../../services/endpoints/catalog';
+import {qk} from '../../../services/queryKeys';
 import {useStore} from '../../../store';
 import type {PhotoCard, RouterLabel} from '../../../types/api';
 import {FolderPickerDialog, type PickedFolder} from '../../../components/FolderPicker/FolderPickerDialog';
@@ -255,11 +258,77 @@ function FileInfo({photo}: {photo: PhotoCard}) {
     ['Тип', movie ? 'Видео' : 'Фотография'],
   ];
   return (
-    <dl className="file-info">
-      {rows.filter(([, value]) => value).map(([label, value]) => (
-        <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+    <>
+      <dl className="file-info">
+        {rows.filter(([, value]) => value).map(([label, value]) => (
+          <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+        ))}
+      </dl>
+      <FileMetadata photo={photo} />
+    </>
+  );
+}
+
+/** Разделы, которые открыты сразу; остальные — по щелчку, их бывает много. */
+const OPEN_GROUPS = new Set(['shot', 'camera', 'place', 'video']);
+
+/**
+ * Всё, что есть в заголовке файла: EXIF, GPS, встроенный текст, параметры
+ * потока у ролика. Грузится только при открытой шторке и один раз на файл.
+ */
+function FileMetadata({photo}: {photo: PhotoCard}) {
+  const metadata = useQuery({
+    queryKey: qk.photoMetadata(photo.path),
+    queryFn: () => getPhotoMetadata(photo.path, Boolean(photo.hidden_owner)),
+    staleTime: Infinity,
+    retry: false,
+    enabled: Boolean(photo.path),
+  });
+  if (metadata.isPending) return <p className="file-meta-note">Читаю метаданные…</p>;
+  if (metadata.isError) return <p className="file-meta-note">Метаданные не прочитались</p>;
+  const {groups, coords} = metadata.data;
+  if (!groups.length) return <p className="file-meta-note">Других метаданных в файле нет</p>;
+  return (
+    <div className="file-meta">
+      {groups.map(group => (
+        <MetadataSection
+          key={`${photo.path}:${group.id}`}
+          group={group}
+          coords={group.id === 'place' ? coords : null}
+        />
       ))}
-    </dl>
+    </div>
+  );
+}
+
+function MetadataSection({group, coords}: {group: MetadataGroup; coords: {latitude: number; longitude: number} | null}) {
+  return (
+    <details className="file-meta-group" open={OPEN_GROUPS.has(group.id)}>
+      <summary>
+        {group.title}
+        <small>{group.items.length}</small>
+      </summary>
+      <dl className="file-info">
+        {group.items.map(item => (
+          <div key={item.key}>
+            <dt>{item.label}</dt>
+            <dd>
+              {item.key === 'GPSCoordinates' && coords
+                ? (
+                  <a
+                    href={`https://www.openstreetmap.org/?mlat=${coords.latitude}&mlon=${coords.longitude}#map=16/${coords.latitude}/${coords.longitude}`}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    {item.value}
+                  </a>
+                )
+                : item.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </details>
   );
 }
 

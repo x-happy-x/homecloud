@@ -14,7 +14,9 @@ export interface FeaturePickerProps {
   capabilities?: Record<string, boolean>;
 }
 
-const ORDER: ScanFeature[] = ['faces', 'visual', 'ocr', 'caption', 'adult', 'speech', 'diarize', 'authenticity'];
+const ORDER: ScanFeature[] = [
+  'faces', 'visual', 'ocr', 'caption', 'adult', 'speech', 'diarize', 'authenticity', 'curation', 'highlights',
+];
 const KIND_LABELS: Record<MediaKind, string> = {photos: 'Фото', videos: 'Видео'};
 
 /**

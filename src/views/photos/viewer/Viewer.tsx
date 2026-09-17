@@ -17,6 +17,7 @@ import type {GroupDetail, GroupFace, PhotoCard} from '../../../types/api';
 import type {AdultMode} from '../../../types/domain';
 import {Dialog} from '../../../ui/Dialog/Dialog';
 import {Icon} from '../../../ui/Icon/Icon';
+import {videoStart} from '../../people/stacks';
 import {useGallery} from '../useGallery';
 import {usePhotoActions} from '../usePhotoActions';
 import {InfoPanel} from './InfoPanel';
@@ -58,7 +59,14 @@ function GalleryViewer() {
   // Вне галереи её страницы не грузятся: снимок, открытый с другого экрана
   // (например, из дубликатов), показываем один.
   const inGallery = useStore(state => state.view === 'photos');
-  const {photos, isPending, hasNextPage, isFetchingNextPage, fetchNextPage} = useGallery();
+  const sequence = useStore(state => state.viewer.sequence);
+  const gallery = useGallery();
+  // Снимок из ленты другого экрана (подборки) листается внутри неё.
+  const fromSequence = !inGallery && Boolean(sequence?.some(photo => photo.path === routePhoto));
+  const photos = fromSequence ? sequence! : gallery.photos;
+  const {isPending} = gallery;
+  const hasNextPage = !fromSequence && gallery.hasNextPage;
+  const {isFetchingNextPage, fetchNextPage} = gallery;
 
   const position = photos.findIndex(photo => photo.path === routePhoto);
   const single = useQuery({
@@ -120,6 +128,7 @@ function FaceViewer({group}: {group: GroupDetail}) {
       index={Math.min(index, list.length - 1)}
       open={list.length > 0}
       faces={group}
+      startAt={videoStart(group.faces[Math.min(index, list.length - 1)])}
       closeThroughHistory={false}
       onGo={next => setFaceIndex((next + list.length) % list.length)}
       onClose={closeFaces}
@@ -132,6 +141,8 @@ interface ViewerDialogProps {
   index: number;
   open: boolean;
   faces?: GroupDetail;
+  /** Ролик открывается не с начала, а с момента, где в кадре это лицо. */
+  startAt?: number | null;
   closeThroughHistory: boolean;
   onGo(index: number): void;
   onClose(): void;
@@ -155,7 +166,7 @@ interface SearchRequest {
   tab: Window | null;
 }
 
-function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onClose}: ViewerDialogProps) {
+function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, onGo, onClose}: ViewerDialogProps) {
   const adultMode = useStore(state => state.prefs.adultMode);
   const canEdit = useStore(state => state.session.canEdit);
   const view = useStore(state => state.view);
@@ -169,6 +180,8 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
   const actions = usePhotoActions();
 
   const video = useRef<HTMLVideoElement>(null);
+  /** Куда перемотать ролик, как только у него появятся метаданные. */
+  const pendingStart = useRef<number | null>(null);
   const stage = useRef<HTMLDivElement>(null);
   const mediaToken = useRef('');
   const pointers = useRef(new Map<number, Point>());
@@ -217,6 +230,23 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
     video.current?.pause();
     setPlayer(state => ({...state, playing: false, current: 0, duration: photo?.duration ?? 0, buffering: false, seeking: false}));
   }, [mediaKey, photo?.duration]);
+
+  // Лица одного ролика — это один и тот же файл: при переходе между ними
+  // видео не перезагружается, и перематывать надо уже загруженное.
+  useEffect(() => {
+    if (!open || !movie || startAt == null) {
+      pendingStart.current = null;
+      return;
+    }
+    const node = video.current;
+    if (node && node.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      pendingStart.current = null;
+      node.currentTime = startAt;
+      node.play().catch(() => {});
+    } else {
+      pendingStart.current = startAt;
+    }
+  }, [open, movie, startAt, index, mediaKey]);
 
   useEffect(() => {
     const resize = () => setTransform(current => clampTransform(current, stageBounds(stage.current)));
@@ -530,6 +560,11 @@ function ViewerDialog({list, index, open, faces, closeThroughHistory, onGo, onCl
                       onLoadedMetadata={event => {
                         const node = event.currentTarget;
                         markReady(mediaKey);
+                        if (pendingStart.current != null) {
+                          node.currentTime = Math.min(pendingStart.current, node.duration || pendingStart.current);
+                          pendingStart.current = null;
+                          node.play().catch(() => {});
+                        }
                         setPlayer(state => ({
                           ...state,
                           duration: node.duration || photo.duration || 0,

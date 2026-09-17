@@ -14,12 +14,14 @@ export interface NavGroupSpec {
 }
 
 /**
- * Один список на боковую панель и на нижнюю. Пунктов четыре, а не семь:
+ * Один список на боковую панель и на нижнюю. Пунктов пять, а не восемь:
  * проверка, обучение, сканирование и дубликаты — это обслуживание каталога,
- * и в навигации им хватает пункта «Анализ» с вкладками внутри.
+ * и в навигации им хватает пункта «Анализ» с вкладками внутри. «Подборки» —
+ * отдельный пункт: это то, что смотрят, а не то, чем обслуживают каталог.
  */
 export const NAV_GROUPS: NavGroupSpec[] = [
   {id: 'photos', view: 'photos', icon: 'photos', label: 'Фотографии', short: 'Фото', views: ['photos']},
+  {id: 'highlights', view: 'highlights', icon: 'highlights', label: 'Подборки', short: 'Подборки', views: ['highlights']},
   {id: 'people', view: 'people', icon: 'people', label: 'Люди', short: 'Люди', views: ['people']},
   {id: 'analysis', view: 'review', icon: 'analysis', label: 'Анализ', short: 'Анализ', views: ANALYSIS_VIEWS},
   {id: 'settings', view: 'settings', icon: 'settings', label: 'Настройки', short: 'Настройки', views: ['settings']},

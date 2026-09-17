@@ -36,7 +36,7 @@ export interface KinPerson {
   avatar?: string;
 }
 
-export type GroupKind = 'person' | 'auto' | 'noise' | 'excluded';
+export type GroupKind = 'person' | 'auto' | 'noise' | 'blurry' | 'excluded';
 
 export interface AlbumStamp {
   id: number;
@@ -72,14 +72,31 @@ export interface GroupFace {
   kind: PhotoKind;
   /** Секунда кадра, если лицо найдено в видео. */
   frame_time: number | null;
+  /** Промежуток трека в ролике: с какой секунды по какую лицо было в кадре. */
+  track_start?: number | null;
+  track_stop?: number | null;
+  /** Размытость миниатюры: 0 — резко, 1 — мыло; null — не оценена. */
+  blur?: number | null;
   thumbnail: string;
   original: string;
   confidence: number;
+  /** id верхнего лица стопки похожих кадров; у одиночного лица — его собственный. */
+  stack?: number;
+  stack_size?: number;
 }
 
 /** Карточка группы приходит плоско: сама группа и её лица в одном объекте. */
 export interface GroupDetail extends Group {
   faces: GroupFace[];
+  /** Сколько стопок получилось из лиц группы. */
+  stacks?: number;
+}
+
+/** Безымянное лицо, похожее на названного человека, — ждёт подтверждения. */
+export interface CandidateFace extends GroupFace {
+  score: number;
+  /** Группа, где лицо лежит сейчас: `auto:12` или `noise`. */
+  group: string;
 }
 
 /** Названный человек — кружки в панели подборок и подсказки выбора имени. */

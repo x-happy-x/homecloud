@@ -2,7 +2,8 @@ import type {StateCreator} from 'zustand';
 import type {Store} from '../index';
 
 export type ScanFeature =
-  | 'faces' | 'visual' | 'ocr' | 'caption' | 'adult' | 'speech' | 'diarize' | 'authenticity';
+  | 'faces' | 'visual' | 'ocr' | 'caption' | 'adult' | 'speech' | 'diarize' | 'authenticity'
+  | 'curation' | 'highlights';
 
 /** Снимки и ролики обрабатываются порознь: ролик стоит в разы дороже. */
 export type MediaKind = 'photos' | 'videos';
@@ -24,6 +25,7 @@ export const KIND_NOTES: Record<MediaKind, string> = {
 const NO_FEATURES: FeatureFlags = {
   faces: false, visual: false, ocr: false, caption: false,
   adult: false, speech: false, diarize: false, authenticity: false,
+  curation: false, highlights: false,
 };
 
 /** Что отмечено, когда окно только открылось. */
@@ -33,11 +35,11 @@ export const DEFAULT_FEATURES: FeatureFlags = {
 
 /**
  * Что имеет смысл для каждого вида файлов: речь и разделение голосов бывают
- * только в видео. Остальные этапы умеют и то и другое — у ролика они берут
+ * только в видео, а оценка и подборки — только для снимков. Остальные этапы умеют и то и другое — у ролика они берут
  * кадры, поэтому и стоят дороже.
  */
 export const KIND_FEATURES: Record<MediaKind, ScanFeature[]> = {
-  photos: ['faces', 'visual', 'ocr', 'caption', 'adult', 'authenticity'],
+  photos: ['faces', 'visual', 'ocr', 'caption', 'adult', 'authenticity', 'curation', 'highlights'],
   videos: ['faces', 'visual', 'ocr', 'caption', 'adult', 'speech', 'diarize', 'authenticity'],
 };
 

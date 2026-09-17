@@ -79,6 +79,30 @@ export function getPhotoGroups(params: PhotoFilterParams, by: string, order: str
 export const getPhoto = (path: string) =>
   api<{photo: PhotoCard}>(`/api/photo${query({path})}`).then(data => data.photo);
 
+export interface MetadataItem {
+  key: string;
+  label: string;
+  value: string;
+}
+
+export interface MetadataGroup {
+  /** shot, camera, place, image, format, video, text, other */
+  id: string;
+  title: string;
+  items: MetadataItem[];
+}
+
+/** EXIF, GPS и прочее из заголовка файла — бэкенд читает их по запросу. */
+export interface PhotoMetadata {
+  path: string;
+  kind: 'photo' | 'video';
+  groups: MetadataGroup[];
+  coords: {latitude: number; longitude: number} | null;
+}
+
+export const getPhotoMetadata = (path: string, hidden: boolean) =>
+  api<PhotoMetadata>(`/api/photo/metadata${query({path, hidden})}`);
+
 export const getFolders = (path: string) =>
   api<{path: string; trail: Array<{name: string; path: string}>; folders: Folder[]}>(
     `/api/folders${query({path})}`);

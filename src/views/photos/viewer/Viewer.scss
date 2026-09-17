@@ -385,6 +385,33 @@
 .file-info > div { display: flex; justify-content: space-between; gap: 12px; font-size: .82rem; }
 .file-info dt { margin: 0; color: var(--muted); }
 .file-info dd { min-width: 0; margin: 0; color: var(--ink-2); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
+.file-info dd a { color: var(--patina); }
+
+.file-meta { display: grid; gap: 6px; margin-top: 12px; }
+.file-meta-note { margin: 10px 0 0; color: var(--muted); font-size: .78rem; }
+.file-meta-group { border-top: 1px solid var(--line-soft); padding-top: 6px; }
+.file-meta-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  color: var(--ink);
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.file-meta-group > summary::-webkit-details-marker { display: none; }
+.file-meta-group > summary::before {
+  content: '';
+  width: 0; height: 0;
+  border-block: 4px solid transparent;
+  border-left: 5px solid var(--muted);
+  transition: transform .15s ease;
+}
+.file-meta-group[open] > summary::before { transform: rotate(90deg); }
+.file-meta-group > summary small { color: var(--muted); font-weight: 500; }
+.file-meta-group .file-info { padding: 2px 0 6px; }
 
 @include bp-md {
     .viewer.with-info .viewer-stage { inset: 0 0 48dvh 0; }

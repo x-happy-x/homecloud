@@ -58,3 +58,19 @@ p, code, pre, h1, h2, h3, summary,
 @include reduced-motion {
     *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/**
+ * Горизонтальная лента без полосы прокрутки: пальцем листается сама, мышью —
+ * через useSwipeScroll. Пока тянут, прилипание к карточкам выключено, иначе
+ * лента дёргается к ближайшей.
+ */
+.swipe-rail {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  cursor: grab;
+}
+.swipe-rail::-webkit-scrollbar { display: none; }
+.swipe-rail.dragging { cursor: grabbing; scroll-snap-type: none; user-select: none; }
+.swipe-rail.dragging * { pointer-events: none; }

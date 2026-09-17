@@ -134,6 +134,28 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     ],
   },
   {
+    id: 'face-quality',
+    group: 'recognition',
+    icon: 'people',
+    title: 'Размытые лица',
+    note: 'Слишком мыльные и крошечные лица не участвуют в группировке и не показываются в '
+      + 'карточках — они лежат отдельной группой в «Проверке». Имена и поиск не теряются.',
+    fields: [
+      {
+        kind: 'range', key: 'face_blur_threshold', label: 'Порог размытости',
+        min: 0.5, max: 1, step: 0.01,
+        low: 'прятать больше', high: 'прятать меньше',
+        hint: 'От 0.80 — сплошь мыло, ниже 0.70 — нормальные лица. 1.00 — ничего не прятать. '
+          + 'Чтобы группы собрались заново без мыла, нажмите «Пересобрать группы».',
+      },
+      {
+        kind: 'number', key: 'face_min_size', label: 'Минимальный размер лица',
+        min: 0, max: 200, step: 1, unit: 'точек', advanced: true,
+        hint: 'Лица меньше этого размера на оригинале считаются мылом. 0 — не проверять.',
+      },
+    ],
+  },
+  {
     id: 'video',
     group: 'recognition',
     icon: 'video',
@@ -286,6 +308,18 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
       kind: 'text', key: 'hidden_root', label: 'Куда переносить', mono: true,
       placeholder: 'Папка hidden внутри каталога',
       hint: 'Пусто — рядом с каталогом.',
+    }],
+  },
+  {
+    id: 'highlights',
+    group: 'library',
+    icon: 'highlights',
+    title: 'Подборки',
+    note: 'Лучшее за месяц и год, события и «в этот день» собираются сами из оценённых снимков.',
+    fields: [{
+      kind: 'switch', key: 'highlights_require_adult_check',
+      label: 'Только снимки, прошедшие проверку 18+',
+      hint: 'Выключено — в подборки попадают и ещё не проверенные снимки.',
     }],
   },
   {

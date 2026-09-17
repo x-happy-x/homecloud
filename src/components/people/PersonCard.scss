@@ -2,9 +2,13 @@
 
 .people-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 15vw, 172px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(clamp(128px, 14vw, 176px), 1fr));
   align-items: start;
-  gap: clamp(12px, 1.6vw, 22px);
+  gap: clamp(22px, 2.6vw, 34px) clamp(14px, 2vw, 26px);
+}
+.people-grid.compact {
+  grid-template-columns: repeat(auto-fill, minmax(clamp(84px, 8vw, 112px), 1fr));
+  gap: clamp(18px, 2vw, 26px) clamp(12px, 1.4vw, 20px);
 }
 
 .person-card {
@@ -12,58 +16,74 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 9px;
-  padding: 3px 2px 8px;
+  gap: 10px;
+  padding: 4px 2px 8px;
   text-align: center;
   user-select: none;
   -webkit-touch-callout: none;
   touch-action: manipulation;
+  animation: rise .24s ease both;
 }
 
-.person-photo { position: relative; width: 100%; max-width: 172px; }
+.person-photo { position: relative; width: 100%; max-width: 176px; }
 
+/* Аватар в кольце: при наведении кольцо окрашивается и чуть приподнимается. */
 .person-avatar {
   position: relative;
   display: block;
   width: 100%;
   aspect-ratio: 1;
-  padding: 0;
+  padding: 4px;
   border: 0;
   border-radius: 50%;
-  overflow: hidden;
-  background: var(--ground);
+  background: var(--surface-2);
   box-shadow: 0 0 0 1px var(--line-soft), var(--shadow);
-  transition: box-shadow .2s, transform .2s;
+  cursor: pointer;
+  transition: box-shadow .25s ease, transform .25s ease;
 }
-.person-card:hover .person-avatar { transform: translateY(-2px); box-shadow: 0 0 0 1px var(--line), var(--shadow-lift); }
-.person-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.person-card.selected .person-avatar { box-shadow: 0 0 0 3px var(--patina), var(--shadow-lift); }
-.person-letter {
+.person-avatar::before {
+  content: '';
   position: absolute;
   inset: 0;
+  border-radius: 50%;
+  padding: 2px;
+  background: conic-gradient(from 210deg, var(--patina), var(--brass), var(--patina));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+.person-avatar img, .person-avatar .person-letter {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+.person-avatar img { object-fit: cover; display: block; background: var(--ground); transition: transform .35s ease; }
+.person-avatar:focus-visible { outline: 2px solid var(--patina); outline-offset: 3px; }
+.person-card:hover .person-avatar { transform: translateY(-3px); box-shadow: 0 0 0 1px transparent, var(--shadow-lift); }
+.person-card:hover .person-avatar::before { opacity: 1; }
+.person-card.selected .person-avatar { box-shadow: 0 0 0 3px var(--patina), var(--shadow-lift); }
+.person-letter {
   display: grid; place-items: center;
-  background: var(--patina-soft);
+  background: linear-gradient(145deg, var(--patina-soft), var(--ground));
   color: var(--patina);
-  font-size: clamp(1.4rem, 5vw, 2rem);
+  font-size: clamp(1.4rem, 4vw, 2.2rem);
   font-weight: 700;
 }
 
-/* лейбл с числами: лиц / фотографий */
-.count-badge {
+/* Безымянная группа: кольцо пунктиром — у неё ещё нет имени. */
+.person-card.kind-auto .person-avatar { background: transparent; box-shadow: none; }
+.person-card.kind-auto .person-avatar::after {
+  content: '';
   position: absolute;
-  right: 3%; bottom: 3%;
-  z-index: 2;
-  display: inline-flex; align-items: center; gap: 2px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1.5px solid var(--surface);
-  background: rgb(20 29 27 / 66%);
-  color: #fff;
-  font-size: .7rem; font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  backdrop-filter: blur(4px);
+  inset: 0;
+  border: 1.5px dashed var(--line);
+  border-radius: 50%;
+  transition: border-color .25s ease;
 }
-.count-badge i { font-style: normal; opacity: .6; }
+.person-card.kind-auto:hover .person-avatar::after { border-color: transparent; }
+.person-card.guessed .person-avatar::after { border-color: color-mix(in srgb, var(--patina) 60%, transparent); }
 
 .tick-mark {
   position: absolute;
@@ -79,6 +99,7 @@
   opacity: 0;
   transform: scale(.55);
   transition: opacity .15s, transform .15s;
+  pointer-events: none;
 }
 .person-card.selected .tick-mark, .face-card.selected .tick-mark { opacity: 1; transform: none; }
 
@@ -96,7 +117,8 @@
 }
 
 .person-label {
-  display: block;
+  display: grid;
+  gap: 2px;
   width: 100%;
   padding: 0 2px;
   border: 0;
@@ -104,33 +126,53 @@
   color: inherit;
   font: inherit;
   text-align: center;
+  cursor: pointer;
 }
-.person-name { display: block; font-weight: 600; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.person-name { display: block; font-weight: 650; font-size: .92rem; letter-spacing: -.005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .15s; }
 .person-label:hover .person-name { color: var(--patina); }
-.person-years { display: block; margin-top: 1px; font-size: .76rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.person-meta { display: block; font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.person-card.compact { gap: 8px; }
+.person-card.compact .person-photo { max-width: 112px; }
+.person-card.compact .person-avatar { padding: 3px; }
+.person-card.compact .person-name { font-size: .8rem; font-weight: 600; color: var(--ink-2); }
+.person-card.compact .person-meta { font-size: .7rem; }
 
 @include bp-sm {
-    .people-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; }
-    .count-badge { padding: 2px 7px; font-size: .65rem; }
+  .people-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px 14px; }
+  .people-grid.compact { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px 14px; }
 }
 
-/* Догадка «похоже на …»: подсказка, а не факт, поэтому приглушённая и с
-   долей похожести на виду — по ней видно, насколько ей верить. */
+/* Догадка «это …?»: подсказка, а не факт, поэтому приглушённая и с долей
+   похожести на виду — по ней видно, насколько ей верить. */
 .person-guess {
-  width: 100%;
-  margin-top: 6px;
-  display: flex;
+  max-width: 100%;
+  margin-top: -2px;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
-  border: 1px dashed color-mix(in srgb, var(--patina) 55%, transparent);
+  padding: 3px 4px 3px 9px;
+  border: 1px solid color-mix(in srgb, var(--patina) 45%, transparent);
   border-radius: 999px;
   background: var(--patina-soft);
   color: var(--patina);
   font: inherit;
-  font-size: .72rem;
-  text-align: left;
+  font-size: .7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s;
 }
-.person-guess:hover { background: color-mix(in srgb, var(--patina) 22%, transparent); }
+.person-guess:hover { background: var(--patina); color: var(--patina-ink); }
 .person-guess-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.person-guess-score { margin-left: auto; font-variant-numeric: tabular-nums; opacity: .75; }
+.person-guess-score {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--patina) 18%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+@include reduced-motion {
+  .person-card { animation: none; }
+  .person-avatar, .person-avatar img { transition: none; }
+}

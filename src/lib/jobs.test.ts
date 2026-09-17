@@ -34,6 +34,10 @@ test('jobFraction отдаёт долю, а не проценты', () => {
 
 describe('withFeatureDeps', () => {
   const none = {faces: false, visual: false, ocr: false, caption: false, adult: false};
+  test('подборки тянут оценку снимков, а та — визуальный индекс', () => {
+    expect(withFeatureDeps({...none, curation: false, highlights: false}, 'highlights', true))
+      .toEqual({...none, highlights: true, curation: true, visual: true});
+  });
   test('OCR тянет за собой визуальный индекс', () => {
     expect(withFeatureDeps(none, 'ocr', true)).toEqual({...none, ocr: true, visual: true});
   });

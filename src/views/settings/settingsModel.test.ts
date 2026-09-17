@@ -53,8 +53,9 @@ describe('строки формы', () => {
 describe('поиск по настройкам', () => {
   it('находит строку внутри раздела и оставляет только её', () => {
     const found = searchSections(SETTINGS_SECTIONS, 'порог');
-    expect(found.map(section => section.id)).toEqual(['faces']);
+    expect(found.map(section => section.id)).toEqual(['faces', 'face-quality']);
     expect(found[0].fields.map(field => field.key)).toEqual(['face_suggest_threshold']);
+    expect(found[1].fields.map(field => field.key)).toEqual(['face_blur_threshold']);
   });
 
   it('по названию раздела отдаёт его целиком, «е» и «ё» не различает', () => {
