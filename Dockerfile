@@ -13,6 +13,9 @@ FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
+# ssh-клиент нужен, чтобы поднимать backend.ps1 на выключенной Windows-машине.
+RUN apk add --no-cache openssh-client
+
 COPY package*.json ./
 RUN npm ci --omit=dev
 

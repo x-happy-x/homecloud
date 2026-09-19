@@ -1,7 +1,6 @@
 // HomeCloud: статика интерфейса, вход через сервис account и прокси на бэкенд Windows.
 import { createServer, request as httpRequest } from 'node:http';
 import { createGzip } from 'node:zlib';
-import { spawn } from 'node:child_process';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { dirname, extname, join, normalize, relative as pathRelative, resolve } from 'node:path';
@@ -14,8 +13,6 @@ const PORT = Number(process.env.PORT || 4180);
 const BACKEND = new URL(process.env.PHOTO_BACKEND || 'http://192.168.1.10:18311');
 const BACKEND_TOKEN = process.env.PHOTO_TOKEN || '';
 const BACKENDS_FILE = process.env.BACKENDS_FILE || '/var/lib/homecloud/backends.json';
-// Ключ для запуска backend.ps1 на Windows-машине по SSH, если она выключена/не отвечает.
-const SSH_KEY_FILE = process.env.HOMECLOUD_SSH_KEY || '/var/lib/homecloud/ssh/id_ed25519';
 // Картотека bigfam на этом же хосте: она же выдаёт учётные записи и людей.
 const BIGFAM = (process.env.BIGFAM_URL || 'http://127.0.0.1:4173').replace(/\/+$/, '');
 // Логин, пароль и роль в HomeCloud (access.homecloud.role) проверяет сервис account.
@@ -289,32 +286,10 @@ const personName = person =>
 /* ---------- реестр устройств ---------- */
 
 const defaultBackend = () => ({
-  id: 'pc-x', name: 'PC-X', url: BACKEND.origin, token: BACKEND_TOKEN, primary: true, ssh: null,
+  id: 'pc-x', name: 'PC-X', url: BACKEND.origin, token: BACKEND_TOKEN, primary: true,
 });
 
-/**
- * SSH нужен не для доступа к API (для этого есть url+token), а только чтобы
- * поднять backend.ps1 на выключенном/только что загрузившемся компьютере.
- * Пустые поля на редактировании — «оставить как было», как и с token.
- */
-function validSsh(value, current = null) {
-  if (value.sshClear) return null;
-  const user = String(value.sshUser ?? '').trim() || current?.user || '';
-  const host = String(value.sshHost ?? '').trim() || current?.host || '';
-  const command = String(value.sshCommand ?? '').trim() || current?.command || '';
-  const portRaw = String(value.sshPort ?? '').trim();
-  const port = portRaw ? Number(portRaw) : (current?.port || 22);
-  if (!user && !host && !command && !portRaw) return current;
-  if (!user || !command) throw new Error('Для SSH-запуска укажите пользователя и команду запуска');
-  if (!/^[\w.-]{1,64}$/.test(user)) throw new Error('Некорректное имя пользователя SSH');
-  if (host && (host.length > 253 || /\s/.test(host))) throw new Error('Некорректный SSH-хост');
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Некорректный порт SSH');
-  if (command.length > 2000) throw new Error('Слишком длинная команда SSH');
-  if (/[\r\n]/.test(command)) throw new Error('Команда SSH не должна содержать переносы строк');
-  return {user, host, port, command};
-}
-
-function validBackend(value, current = {token: '', ssh: null}) {
+function validBackend(value, currentToken = '') {
   const url = new URL(String(value.url || ''));
   if (url.protocol !== 'http:') throw new Error('Backend должен использовать http в домашней сети');
   const host = url.hostname.toLowerCase();
@@ -329,10 +304,9 @@ function validBackend(value, current = {token: '', ssh: null}) {
   if (!/^[a-z0-9][a-z0-9_-]{0,47}$/.test(id)) throw new Error('Некорректный ID устройства');
   const name = String(value.name || '').trim();
   if (!name || name.length > 80) throw new Error('Укажите имя устройства');
-  const token = String(value.token || '') || current.token;
+  const token = String(value.token || '') || currentToken;
   if (!token) throw new Error('Укажите токен backend');
-  const ssh = validSsh(value, current.ssh);
-  return {id, name, url: url.origin, token, primary: !!value.primary, ssh};
+  return {id, name, url: url.origin, token, primary: !!value.primary};
 }
 
 async function loadBackends() {
@@ -355,45 +329,7 @@ async function saveBackends(rows) {
 const publicBackend = backend => ({
   id: backend.id, name: backend.name, url: backend.url,
   primary: !!backend.primary, hasToken: !!backend.token,
-  // Сама команда на брaузер не уходит — как и токен, это плечо для записи, не для чтения.
-  ssh: backend.ssh ? {user: backend.ssh.user, host: backend.ssh.host, port: backend.ssh.port} : null,
 });
-
-/** Запускает backend.ps1 на удалённой машине через SSH и сразу возвращается. */
-async function sshStart(backend) {
-  if (!backend.ssh) throw new Error('SSH не настроен для этого устройства');
-  try {
-    await stat(SSH_KEY_FILE);
-  } catch {
-    throw new Error(`SSH-ключ не найден на сервере: ${SSH_KEY_FILE}`);
-  }
-  const host = backend.ssh.host || new URL(backend.url).hostname;
-  const args = [
-    '-i', SSH_KEY_FILE, '-p', String(backend.ssh.port),
-    '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '-o', 'StrictHostKeyChecking=accept-new',
-    `${backend.ssh.user}@${host}`, backend.ssh.command,
-  ];
-  return new Promise((resolve, reject) => {
-    const child = spawn('ssh', args, {stdio: ['ignore', 'pipe', 'pipe']});
-    let out = '';
-    let err = '';
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      reject(new Error('SSH не ответил за 15 секунд — компьютер выключен или недоступен по сети'));
-    }, 15000);
-    child.stdout.on('data', chunk => { out += chunk; });
-    child.stderr.on('data', chunk => { err += chunk; });
-    child.on('error', error => {
-      clearTimeout(timer);
-      reject(new Error(`Не удалось запустить ssh на сервере: ${error.message}`));
-    });
-    child.on('close', code => {
-      clearTimeout(timer);
-      if (code === 0) resolve({ok: true, output: out.trim().slice(0, 2000)});
-      else reject(new Error(err.trim().slice(0, 500) || `ssh завершился с кодом ${code}`));
-    });
-  });
-}
 
 async function backendCall(backend, path, {method = 'GET', body = null} = {}) {
   const response = await fetch(`${backend.url}${path}`, {
@@ -657,7 +593,7 @@ async function handle(request, response) {
     const body = await readBody(request);
     const rows = await loadBackends();
     const index = rows.findIndex(item => item.id === String(body.id || '').toLowerCase());
-    const backend = validBackend(body, index >= 0 ? rows[index] : {token: '', ssh: null});
+    const backend = validBackend(body, index >= 0 ? rows[index].token : '');
     if (index >= 0) rows[index] = backend; else rows.push(backend);
     if (backend.primary) rows.forEach(item => { item.primary = item.id === backend.id; });
     await saveBackends(rows);
@@ -675,16 +611,9 @@ async function handle(request, response) {
     return sendJson(response, 200, {ok: true});
   }
 
-  const deviceRoute = /^\/api\/backends\/([a-z0-9_-]+)\/(browse|tree|exclusions|history|history\/forget|job\/start|job\/stop|ssh-start)$/.exec(pathname);
+  const deviceRoute = /^\/api\/backends\/([a-z0-9_-]+)\/(browse|tree|exclusions|history|history\/forget|job\/start|job\/stop)$/.exec(pathname);
   if (deviceRoute) {
     const backend = await backendById(deviceRoute[1]);
-    if (method === 'POST' && deviceRoute[2] === 'ssh-start') {
-      try {
-        return sendJson(response, 200, await sshStart(backend));
-      } catch (error) {
-        return sendJson(response, 502, {error: error.message});
-      }
-    }
     // Источники прошлых заданий: по ним потом гоняют другие этапы.
     if (method === 'GET' && deviceRoute[2] === 'history') {
       return sendJson(response, 200, await backendCall(backend, '/api/device/history'));

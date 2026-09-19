@@ -82,6 +82,13 @@ export interface DeviceJob {
   catalog_adult_analyzed?: number;
 }
 
+/** Куда и как подключиться по SSH, чтобы поднять backend.ps1 на выключенной машине. */
+export interface DeviceSsh {
+  user: string;
+  host: string;
+  port: number;
+}
+
 export interface Device {
   id: string;
   name: string;
@@ -89,6 +96,8 @@ export interface Device {
   online: boolean;
   primary?: boolean;
   hasToken?: boolean;
+  /** Нет или null — SSH-запуск не настроен. */
+  ssh?: DeviceSsh | null;
   error?: string;
   device?: DeviceInfo;
   job?: DeviceJob;
@@ -99,11 +108,16 @@ export const getDevices = () =>
 
 export const saveBackend = (payload: {
   id: string; name: string; url: string; token: string; primary: boolean;
+  /** Пусто — не менять (как и token); sshClear — убрать SSH-запуск совсем. */
+  sshUser?: string; sshHost?: string; sshPort?: string; sshCommand?: string; sshClear?: boolean;
 }) => post('/api/backends/save', payload);
 
 export const removeBackend = (id: string) => post('/api/backends/remove', {id});
 
 const device = (id: string, tail: string) => `/api/backends/${encodeURIComponent(id)}/${tail}`;
+
+/** Запускает backend.ps1 на устройстве по SSH; возвращается после того, как ssh отработал. */
+export const startBackendSsh = (id: string) => post<{ok: boolean; output?: string}>(device(id, 'ssh-start'));
 
 /** Без пути — список дисков; с путём — вложенные папки. */
 export const browseDevice = (id: string, path: string) =>

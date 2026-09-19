@@ -5,7 +5,7 @@ import {planSteps} from '../../hooks/useDeviceJobNotifications';
 import {formatNumber, roughDuration, runMoment} from '../../lib/format';
 import {FEATURE_INFO} from '../../lib/jobs';
 import {lastRun, planJob, planMeta} from '../../lib/scanPlan';
-import {removeBackend, stopJob, type Device} from '../../services/endpoints/backends';
+import {removeBackend, startBackendSsh, stopJob, type Device} from '../../services/endpoints/backends';
 import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
@@ -45,6 +45,11 @@ export function DeviceCard({device, onScan, onEdit}: DeviceCardProps) {
     mutationFn: () => removeBackend(device.id),
     onSuccess: () => { toast('Устройство удалено'); void refresh(); },
   });
+  const sshStart = useMutation({
+    mutationFn: () => startBackendSsh(device.id),
+    onSuccess: () => { toast('Команда отправлена — бэкенд поднимается, статус обновится через пару секунд'); void refresh(); },
+    onError: (error: Error) => toast(`Не удалось запустить по SSH: ${error.message}`),
+  });
 
   const job = device.job ?? {active: false};
   const running = device.online && job.active;
@@ -71,6 +76,13 @@ export function DeviceCard({device, onScan, onEdit}: DeviceCardProps) {
                 <Button variant="danger" small disabled={stop.isPending || job.stop_requested} onClick={() => stop.mutate()}>
                   <Icon name="stop" size={16} />
                   <span>Остановить</span>
+                </Button>
+              )
+              : !device.online && device.ssh
+              ? (
+                <Button variant="primary" small disabled={sshStart.isPending} onClick={() => sshStart.mutate()}>
+                  <Icon name="play" size={16} />
+                  <span>{sshStart.isPending ? 'Запускаю…' : 'Запустить'}</span>
                 </Button>
               )
               : (
