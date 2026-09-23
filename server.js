@@ -330,6 +330,55 @@ async function hubCall(path, {method = 'GET', body = null, user = null, timeout 
   return payload;
 }
 
+/** Люди одного пространства картотеки с роднёй — родня считается внутри него. */
+function kinPeople(payload, workspace) {
+  const sourcePeople = payload.people || [];
+  const selfPersonId = payload.me?.personId || '';
+  const visible = new Map(sourcePeople.map(person => [person.id, person]));
+  const relTypes = payload.schema?.relTypes || [];
+  const parentTypes = new Set(relTypes.filter(type => type.role === 'parent').map(type => type.key));
+  const spouseTypes = new Set(relTypes.filter(type => type.role === 'spouse').map(type => type.key));
+  const links = payload.links || [];
+  const parentIds = id => links.filter(link => parentTypes.has(link.type) && link.b === id)
+    .map(link => link.a).filter(parent => visible.has(parent));
+  const childIds = id => links.filter(link => parentTypes.has(link.type) && link.a === id)
+    .map(link => link.b).filter(child => visible.has(child));
+  const spouseIds = id => links.filter(link => spouseTypes.has(link.type) && (link.a === id || link.b === id))
+    .map(link => link.a === id ? link.b : link.a).filter(spouse => visible.has(spouse));
+  const relative = id => {
+    const person = visible.get(id);
+    return person && {
+      id: person.id, name: personName(person), deceased: !!person.deceased,
+      avatar: person.hasPhoto ? `/media/bigfam/${person.id}?rev=${person.photoRev || 0}` : '',
+    };
+  };
+  return sourcePeople.map(person => {
+    const parents = parentIds(person.id);
+    const siblings = [...new Set(parents.flatMap(childIds))].filter(id => id !== person.id);
+    return {
+      id: person.id,
+      workspace,
+      isSelf: person.id === selfPersonId,
+      name: personName(person),
+      // Части имени нужны интерфейсу: он показывает «Имя Ф.О.».
+      first: person.first || '',
+      last: person.last || '',
+      middle: person.middle || '',
+      birth: person.birth || '',
+      death: person.death || '',
+      deceased: !!person.deceased,
+      sex: person.sex || '',
+      avatar: person.hasPhoto ? `/media/bigfam/${person.id}?rev=${person.photoRev || 0}` : '',
+      relatives: {
+        parents: parents.map(relative).filter(Boolean),
+        siblings: siblings.map(relative).filter(Boolean),
+        children: childIds(person.id).map(relative).filter(Boolean),
+        spouses: spouseIds(person.id).map(relative).filter(Boolean),
+      },
+    };
+  });
+}
+
 /* ---------- прокси на хаб ---------- */
 
 async function proxy(request, response, pathname, user = null) {
@@ -521,57 +570,23 @@ async function handle(request, response) {
     return sendJson(response, 403, {error: 'У вас доступ только на просмотр'});
   }
 
+  // Люди из всех пространств картотеки, доступных этому пользователю.
   if (method === 'GET' && pathname === '/api/bigfam/people') {
     try {
-      const {status, payload} = await bigfamJson('/graph', {token: cookieOf(request)});
+      const token = cookieOf(request);
+      const {status, payload} = await bigfamJson('/workspaces', {token});
       if (status !== 200) {
         dropSession(request);
         return sendJson(response, status, {error: payload.error || 'Картотека не ответила'});
       }
-      const sourcePeople = payload.people || [];
-      const selfPersonId = payload.me?.personId || '';
-      const visible = new Map(sourcePeople.map(person => [person.id, person]));
-      const relTypes = payload.schema?.relTypes || [];
-      const parentTypes = new Set(relTypes.filter(type => type.role === 'parent').map(type => type.key));
-      const spouseTypes = new Set(relTypes.filter(type => type.role === 'spouse').map(type => type.key));
-      const links = payload.links || [];
-      const parentIds = id => links.filter(link => parentTypes.has(link.type) && link.b === id)
-        .map(link => link.a).filter(parent => visible.has(parent));
-      const childIds = id => links.filter(link => parentTypes.has(link.type) && link.a === id)
-        .map(link => link.b).filter(child => visible.has(child));
-      const spouseIds = id => links.filter(link => spouseTypes.has(link.type) && (link.a === id || link.b === id))
-        .map(link => link.a === id ? link.b : link.a).filter(spouse => visible.has(spouse));
-      const relative = id => {
-        const person = visible.get(id);
-        return person && {
-          id: person.id, name: personName(person), deceased: !!person.deceased,
-          avatar: person.hasPhoto ? `/media/bigfam/${person.id}?rev=${person.photoRev || 0}` : '',
-        };
-      };
-      const people = sourcePeople.map(person => {
-        const parents = parentIds(person.id);
-        const siblings = [...new Set(parents.flatMap(childIds))].filter(id => id !== person.id);
-        return ({
-        id: person.id,
-        isSelf: person.id === selfPersonId,
-        name: personName(person),
-        // Части имени нужны интерфейсу: он показывает «Имя Ф.О.».
-        first: person.first || '',
-        last: person.last || '',
-        middle: person.middle || '',
-        birth: person.birth || '',
-        death: person.death || '',
-        deceased: !!person.deceased,
-        sex: person.sex || '',
-        avatar: person.hasPhoto ? `/media/bigfam/${person.id}?rev=${person.photoRev || 0}` : '',
-        relatives: {
-          parents: parents.map(relative).filter(Boolean),
-          siblings: siblings.map(relative).filter(Boolean),
-          children: childIds(person.id).map(relative).filter(Boolean),
-          spouses: spouseIds(person.id).map(relative).filter(Boolean),
-        },
-      });
-      }).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+      const people = [];
+      for (const ws of payload.workspaces || []) {
+        const graph = await bigfamJson(`/w/${encodeURIComponent(ws.id)}/graph`, {token});
+        // пространство могли закрыть между запросами — просто пропускаем
+        if (graph.status !== 200) continue;
+        people.push(...kinPeople(graph.payload, {id: ws.id, name: ws.name, main: !!ws.main}));
+      }
+      people.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
       return sendJson(response, 200, {people});
     } catch (error) {
       return sendJson(response, 502, {error: `Картотека недоступна: ${error.message}`});
@@ -606,7 +621,7 @@ async function handle(request, response) {
   const avatar = /^\/media\/bigfam\/([\w-]+)$/.exec(pathname);
   if (method === 'GET' && avatar) {
     try {
-      const upstream = await fetch(`${BIGFAM}/api/people/${avatar[1]}/photo`, {
+      const upstream = await fetch(`${BIGFAM}/api/workspaces/people/${avatar[1]}/photo`, {
         headers: {Cookie: `${SESSION_COOKIE}=${encodeURIComponent(cookieOf(request))}`},
         signal: AbortSignal.timeout(10000),
       });
