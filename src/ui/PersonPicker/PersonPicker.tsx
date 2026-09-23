@@ -50,7 +50,9 @@ function buildOptions(people: NamedPerson[], kin: KinPerson[], search: string): 
     bigfamId: person.id,
     name: person.name,
     source: 'kin',
-    meta: [person.birth ? formatDate(person.birth) : '', person.deceased ? 'Умер' : '']
+    // из неосновного пространства — подписываем, откуда человек
+    meta: [person.birth ? formatDate(person.birth) : '', person.deceased ? 'Умер' : '',
+      person.workspace && !person.workspace.main ? person.workspace.name : '']
       .filter(Boolean).join(' · ') || 'из картотеки',
     avatar: person.avatar,
     person,

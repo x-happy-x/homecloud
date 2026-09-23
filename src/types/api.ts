@@ -24,6 +24,8 @@ export interface SessionResponse {
 
 export interface KinPerson {
   id: BigfamId;
+  /** Пространство картотеки, где живёт этот человек; main — основное. */
+  workspace?: {id: string; name: string; main: boolean};
   /** Человек, к которому привязана текущая учётная запись BiGFaM. */
   isSelf?: boolean;
   name: string;
