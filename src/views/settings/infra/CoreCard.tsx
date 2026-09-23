@@ -18,8 +18,6 @@ import {Popover} from '../../../ui/Popover/Popover';
 import {Progress} from '../../../ui/Progress/Progress';
 import {CoreComponents} from './CoreComponents';
 
-const GIB = 1073741824;
-
 const INSTALL_STEPS: Record<string, string> = {
   connect: 'Подключаюсь по SSH', upload: 'Загружаю пакет ядра', install: 'Устанавливаю',
   wait: 'Жду, пока ядро ответит', start: 'Запускаю ядро', key: 'Записываю ключ хаба',
@@ -320,7 +318,6 @@ function LegacyCatalog({device, sources}: {device: Device; sources: Source[]}) {
 function DeviceFacts({device}: {device: Device}) {
   const info = device.device;
   const capabilities = info?.capabilities ?? {};
-  const drives = info?.drives ?? [];
   const available = Object.entries(FEATURE_INFO).filter(([key]) => capabilities[key]);
   const missing = Object.entries(FEATURE_INFO).filter(([key]) => !capabilities[key]);
   const [components, setComponents] = useState(false);
@@ -328,30 +325,7 @@ function DeviceFacts({device}: {device: Device}) {
 
   return (
     <>
-      <div className="device-facts">
-        <section className="fact-block">
-          <h4>Диски</h4>
-          {drives.length
-            ? (
-              <ul className="drive-list">
-                {drives.map(drive => {
-                  const used = drive.total && drive.free != null ? 1 - drive.free / drive.total : null;
-                  return (
-                    <li key={drive.path} title={drive.path}>
-                      <Icon name="drive" size={16} />
-                      <span className="drive-name">{drive.name || drive.path}</span>
-                      <span className="drive-free">
-                        {drive.free == null ? '—' : `${formatNumber(Math.round(drive.free / GIB))} ГБ свободно`}
-                      </span>
-                      {used !== null && <Progress value={used} className={`drive-bar${used > .9 ? ' full' : ''}`} />}
-                    </li>
-                  );
-                })}
-              </ul>
-            )
-            : <p className="fact-empty">Диски не найдены</p>}
-        </section>
-
+      <div className="device-facts single">
         <section className="fact-block">
           <h4>Что умеет</h4>
           <div className="capability-list">
