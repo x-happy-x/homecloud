@@ -38,6 +38,8 @@ export const qk = {
   devices: () => ['devices'] as const,
   /** Окружения и модели одного ядра. */
   coreComponents: (id: string) => ['core-components', id] as const,
+  /** Задание, разделённое между ядрами. */
+  parallel: () => ['parallel'] as const,
   /** Источники — где лежат оригиналы. */
   sources: () => ['sources'] as const,
   /** Что хранит хаб по каждому источнику. */

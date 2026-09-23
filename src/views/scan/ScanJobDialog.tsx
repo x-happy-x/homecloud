@@ -1,7 +1,10 @@
+import {useState} from 'react';
 import {keepPreviousData, useMutation, useQuery} from '@tanstack/react-query';
 import {FeaturePicker} from '../../components/features/FeaturePicker';
 import {formatNumber, plural} from '../../lib/format';
-import {browseSource, startJob, type Device, type Source} from '../../services/endpoints/backends';
+import {
+  browseSource, startJob, startParallel, type Device, type Source,
+} from '../../services/endpoints/backends';
 import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
@@ -63,20 +66,28 @@ function ScanJobForm({device, devices, sources, inventory, onClose}: ScanJobForm
   const capabilities = device.device?.capabilities ?? {};
   const source = sources.find(item => item.id === sourceId) ?? null;
   const cores = devices.filter(item => item.online && !item.legacy);
+  const [parallel, setParallel] = useState(false);
+  // Делить можно папки: отдельные файлы из списка идут одному ядру.
+  const canSplit = cores.length > 1 && roots.size > 0 && !selectedPaths.length;
+  const split = parallel && canSplit;
 
   const submit = useMutation({
-    mutationFn: () => startJob(device.id, {
-      roots: [...roots],
-      paths: selectedPaths,
-      features: features.photos,
-      video_features: features.videos,
-      force,
-      visual_model: visualModel,
-    }),
+    mutationFn: async () => {
+      const job = {
+        features: features.photos,
+        video_features: features.videos,
+        force,
+        visual_model: visualModel,
+      };
+      if (split) return startParallel({roots: [...roots], ...job});
+      return startJob(device.id, {roots: [...roots], paths: selectedPaths, ...job});
+    },
     onSuccess: async () => {
       onClose();
       await queryClient.invalidateQueries({queryKey: qk.devices()});
-      toast(`Задание запущено на ${device.name}`);
+      await queryClient.invalidateQueries({queryKey: qk.parallel()});
+      toast(split ? 'Задание разделено между ядрами — ход виден над карточками ядер'
+        : `Задание запущено на ${device.name}`);
     },
   });
 
@@ -154,10 +165,21 @@ function ScanJobForm({device, devices, sources, inventory, onClose}: ScanJobForm
         <FeaturePicker value={features} onChange={setFeatures} capabilities={capabilities} />
         <div className="toggle-row">
           <ToggleChip checked={force} onChange={setForce}>Переделать заново, даже если уже посчитано</ToggleChip>
+          {canSplit && (
+            <ToggleChip checked={parallel} onChange={setParallel}>
+              Параллельно на всех подходящих ядрах
+            </ToggleChip>
+          )}
         </div>
         <HintLine>
           Пока переключатель выключен, повторный запуск считает только новые файлы и те, что изменились с прошлого раза.
         </HintLine>
+        {split && (
+          <HintLine>
+            Опись сделает ядро, где лежит источник, потом файлы поделятся между всеми свободными ядрами,
+            которые умеют выбранные этапы; подборки соберутся один раз в конце.
+          </HintLine>
+        )}
       </section>
 
       <div className="form-actions scan-submit">

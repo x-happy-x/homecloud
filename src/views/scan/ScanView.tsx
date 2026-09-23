@@ -10,6 +10,7 @@ import {EmptyState} from '../../ui/EmptyState/EmptyState';
 import {SectionHead} from '../../ui/ViewHeader/ViewHeader';
 import {CoreDialog} from './CoreDialog';
 import {DeviceCard} from './DeviceCard';
+import {ParallelStatus} from './ParallelStatus';
 import {ScanJobDialog} from './ScanJobDialog';
 import {SourceCard} from './SourceCard';
 import {SourceDialog} from './SourceDialog';
@@ -94,6 +95,7 @@ export function ScanView({devices}: ScanViewProps) {
           </Button>
         )}
       />
+      <ParallelStatus />
       <div className="device-list">
         {list.map(device => (
           <DeviceCard

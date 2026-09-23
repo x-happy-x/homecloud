@@ -563,3 +563,28 @@
   .folder-list { max-height: 45vh; }
 }
 
+
+/* ---------- задание на нескольких ядрах ---------- */
+
+.parallel-status {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.parallel-status.failed { border-color: var(--rose); }
+.parallel-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.parallel-head svg { fill: var(--patina); }
+.parallel-head strong { flex: 1; min-width: 0; }
+.parallel-parts { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.parallel-parts li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  font-size: .8rem;
+}
+.parallel-parts .progress-track { grid-column: 1 / -1; }
+.parallel-phase { color: var(--muted); font-size: .76rem; }

@@ -24,7 +24,6 @@ type StartPayload = Parameters<typeof startCoreComponent>[1];
  */
 export function CoreComponents({device}: {device: Device}) {
   const canEdit = useStore(state => state.session.canEdit);
-  const toast = useStore(state => state.toast);
   const query = useQuery({
     queryKey: qk.coreComponents(device.id),
     queryFn: () => getCoreComponents(device.id),
@@ -34,12 +33,10 @@ export function CoreComponents({device}: {device: Device}) {
   const start = useMutation({
     mutationFn: (payload: StartPayload) => startCoreComponent(device.id, payload),
     onSuccess: () => { void query.refetch(); },
-    onError: (error: Error) => toast(error.message),
   });
   const stop = useMutation({
     mutationFn: () => stopCoreComponent(device.id),
     onSuccess: () => { void query.refetch(); },
-    onError: (error: Error) => toast(error.message),
   });
 
   if (query.isPending) return <p className="fact-empty">Смотрю, что установлено…</p>;
