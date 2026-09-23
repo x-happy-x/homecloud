@@ -1,32 +1,24 @@
-import {confirmAction} from '../../services/dialogs';
+import {confirmAction} from '../../../services/dialogs';
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
-import {planSteps} from '../../hooks/useDeviceJobNotifications';
-import {fileSize, formatNumber, roughDuration, runMoment} from '../../lib/format';
-import {FEATURE_INFO} from '../../lib/jobs';
-import {lastRun, planJob, planMeta} from '../../lib/scanPlan';
+import {fileSize, formatNumber, runMoment} from '../../../lib/format';
+import {FEATURE_INFO} from '../../../lib/jobs';
 import {
-  exportLegacy, getExportLegacy, installCore, mergeImport, removeCore, startCoreSsh, stopJob,
+  exportLegacy, getExportLegacy, installCore, mergeImport, removeCore, startCoreSsh,
   type CorePackage, type Device, type Source,
-} from '../../services/endpoints/backends';
-import {queryClient} from '../../services/queryClient';
-import {qk} from '../../services/queryKeys';
-import {useStore} from '../../store';
-import {Button} from '../../ui/Button/Button';
-import {Icon} from '../../ui/Icon/Icon';
-import {IconButton} from '../../ui/IconButton/IconButton';
-import {Pill} from '../../ui/Pill/Pill';
-import {Popover} from '../../ui/Popover/Popover';
-import {Progress} from '../../ui/Progress/Progress';
+} from '../../../services/endpoints/backends';
+import {queryClient} from '../../../services/queryClient';
+import {qk} from '../../../services/queryKeys';
+import {useStore} from '../../../store';
+import {Button} from '../../../ui/Button/Button';
+import {Icon} from '../../../ui/Icon/Icon';
+import {IconButton} from '../../../ui/IconButton/IconButton';
+import {Pill} from '../../../ui/Pill/Pill';
+import {Popover} from '../../../ui/Popover/Popover';
+import {Progress} from '../../../ui/Progress/Progress';
 import {CoreComponents} from './CoreComponents';
-import {Pipeline} from './Pipeline';
-import {insidePath} from './SourceCard';
 
 const GIB = 1073741824;
-
-const LAST_STATUS: Record<string, string> = {
-  completed: 'Готово', stopped: 'Остановлено', error: 'Ошибка', interrupted: 'Прервано',
-};
 
 const INSTALL_STEPS: Record<string, string> = {
   connect: 'Подключаюсь по SSH', upload: 'Загружаю пакет ядра', install: 'Устанавливаю',
@@ -38,27 +30,23 @@ const INSTALL_ACTIONS: Record<string, string> = {
   install: 'Установка', update: 'Обновление', start: 'Запуск', key: 'Переход на ключ',
 };
 
-export interface DeviceCardProps {
+export interface CoreCardProps {
   device: Device;
   sources: Source[];
   corePackage: CorePackage | null;
-  onScan(device: Device): void;
   onEdit(device: Device): void;
 }
 
-/** Путь источника коротко: последняя папка, полный путь — в подсказке. */
-const shortPath = (path: string) =>
-  insidePath(path).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path;
-
-export function DeviceCard({device, sources, corePackage, onScan, onEdit}: DeviceCardProps) {
+/**
+ * Ядро в настройках: подключение и SSH, установка и обновление, перенос
+ * старого каталога, диски, что умеет, окружения и модели. Задания и их ход —
+ * на экране «Сканирование».
+ */
+export function CoreCard({device, sources, corePackage, onEdit}: CoreCardProps) {
   const canEdit = useStore(state => state.session.canEdit);
   const toast = useStore(state => state.toast);
   const refresh = () => queryClient.invalidateQueries({queryKey: qk.devices()});
 
-  const stop = useMutation({
-    mutationFn: () => stopJob(device.id),
-    onSuccess: () => { toast('Остановка запрошена — этап доработает текущий файл'); void refresh(); },
-  });
   const remove = useMutation({
     mutationFn: () => removeCore(device.id),
     onSuccess: () => { toast('Ядро удалено из HomeCloud'); void refresh(); },
@@ -66,7 +54,6 @@ export function DeviceCard({device, sources, corePackage, onScan, onEdit}: Devic
   const sshStart = useMutation({
     mutationFn: () => startCoreSsh(device.id),
     onSuccess: () => { toast('Запускаю ядро по SSH — статус обновится через пару секунд'); void refresh(); },
-    onError: (error: Error) => toast(`Не удалось запустить по SSH: ${error.message}`),
   });
   const install = useMutation({
     mutationFn: (action: 'install' | 'update') => installCore(device.id, action),
@@ -75,26 +62,21 @@ export function DeviceCard({device, sources, corePackage, onScan, onEdit}: Devic
         : 'Обновляю ядро — ход виден на карточке');
       void refresh();
     },
-    onError: (error: Error) => toast(error.message),
   });
   const trustKey = useMutation({
     mutationFn: () => installCore(device.id, 'key'),
     onSuccess: () => { toast('Ставлю ключ хаба — ход виден на карточке'); void refresh(); },
-    onError: (error: Error) => toast(error.message),
   });
 
-  const job = device.job ?? {active: false};
-  const running = device.online && !device.legacy && job.active;
-  const plan = running ? planJob(device) : null;
-  const last = device.online && !device.legacy && !job.active ? lastRun(job) : null;
+  const running = Boolean(device.job?.active);
   const installing = device.install?.status === 'running';
   const version = device.version || device.device?.version || '';
 
   const status = installing ? `${INSTALL_ACTIONS[device.install?.action ?? ''] ?? 'Установка'}…`
     : !device.online ? 'Не в сети'
     : device.legacy ? 'Старый бэкенд'
-    : running ? (job.stop_requested ? 'Останавливается' : 'Идёт задание')
-    : 'Готово к работе';
+    : running ? 'Считает задание'
+    : 'В сети';
   const tone = installing || running ? 'running' : !device.online || device.legacy ? 'error' : 'default';
 
   const confirmInstall = async (action: 'install' | 'update') => {
@@ -130,14 +112,7 @@ export function DeviceCard({device, sources, corePackage, onScan, onEdit}: Devic
         <Pill tone={tone}>{status}</Pill>
         {canEdit && (
           <div className="device-head-actions">
-            {running
-              ? (
-                <Button variant="danger" small disabled={stop.isPending || job.stop_requested} onClick={() => stop.mutate()}>
-                  <Icon name="stop" size={16} />
-                  <span>Остановить</span>
-                </Button>
-              )
-              : installing
+            {installing
               ? <Button small disabled>Идёт {INSTALL_ACTIONS[device.install?.action ?? '']?.toLowerCase() ?? 'установка'}…</Button>
               : device.online && device.legacy && device.ssh
               ? (
@@ -153,12 +128,14 @@ export function DeviceCard({device, sources, corePackage, onScan, onEdit}: Devic
                   <span>{sshStart.isPending ? 'Запускаю…' : 'Запустить'}</span>
                 </Button>
               )
-              : (
-                <Button variant="primary" small disabled={!device.online || device.legacy} onClick={() => onScan(device)}>
-                  <Icon name="plus" size={16} />
-                  <span>Новое задание</span>
+              : device.outdated && corePackage && device.ssh
+              ? (
+                <Button variant="primary" small disabled={install.isPending} onClick={() => void confirmInstall('update')}>
+                  <Icon name="process" size={16} />
+                  <span>Обновить</span>
                 </Button>
-              )}
+              )
+              : null}
             <DeviceMenu
               canInstall={Boolean(device.ssh && corePackage)}
               canTrustKey={Boolean(device.ssh?.hasPassword) && !installing}
@@ -192,14 +169,6 @@ export function DeviceCard({device, sources, corePackage, onScan, onEdit}: Devic
       )}
 
       {device.install && <InstallProgress device={device} />}
-      {running && plan && <RunningJob device={device} plan={plan} />}
-      {last && <LastJob device={device} last={last} />}
-      {device.online && !device.legacy && !running && !last && (
-        <div className="device-empty">
-          <strong>Заданий ещё не было</strong>
-          <span>Выберите источник и папки — прогресс появится здесь пайплайном.</span>
-        </div>
-      )}
       {device.online && device.device?.legacy && !device.legacyMerged && (
         <LegacyCatalog device={device} sources={sources} />
       )}
@@ -260,8 +229,9 @@ function InstallProgress({device}: {device: Device}) {
   const [open, setOpen] = useState(false);
   const failed = state.status === 'error';
   const done = state.status === 'completed';
-  // Удачный запуск старше минуты уже не новость.
-  if (done && state.action === 'start' && state.finished_at && Date.now() / 1000 - state.finished_at > 60) {
+  // Удачное действие — уже не новость: запуск через минуту, остальное через десять.
+  const stale = state.action === 'start' ? 60 : 600;
+  if (done && state.finished_at && Date.now() / 1000 - state.finished_at > stale) {
     return null;
   }
   const lines = open ? state.log : state.log.slice(-4);
@@ -309,7 +279,6 @@ function LegacyCatalog({device, sources}: {device: Device; sources: Source[]}) {
   const start = useMutation({
     mutationFn: () => exportLegacy(device.id),
     onSuccess: () => { setRunning(true); toast('Отправляю старый каталог на сервер…'); },
-    onError: (error: Error) => toast(error.message),
   });
 
   const state = status.data;
@@ -345,84 +314,6 @@ function LegacyCatalog({device, sources}: {device: Device; sources: Source[]}) {
         </Button>
       )}
     </div>
-  );
-}
-
-function Sources({roots, paths}: {roots?: string[]; paths?: string[]}) {
-  const items = roots ?? [];
-  const files = paths?.length ?? 0;
-  if (!items.length && !files) return null;
-  return (
-    <div className="run-sources">
-      {items.map(root => (
-        <span key={root} className="run-source" title={root}>
-          <Icon name="folder" size={14} />{shortPath(root)}
-        </span>
-      ))}
-      {files > 0 && <span className="run-source"><Icon name="photos" size={14} />{formatNumber(files)} файлов</span>}
-    </div>
-  );
-}
-
-function RunningJob({device, plan}: {device: Device; plan: NonNullable<ReturnType<typeof planJob>>}) {
-  const job = device.job!;
-  const phase = plan.phases[plan.index - 1];
-  const step = planSteps(plan, job)[plan.index - 1];
-
-  return (
-    <section className="device-run" aria-live="polite">
-      <div className="run-summary">
-        <div className="run-summary-text">
-          <span className="run-eyebrow">Этап {plan.index} из {plan.phases.length}</span>
-          <strong>{phase?.title ?? 'Обработка'}{phase?.kind && <span className="pipe-kind">{phase.kind}</span>}</strong>
-          <span className="run-meta">{planMeta(plan)}</span>
-        </div>
-        <b className="run-percent">{plan.fraction === null ? '…' : `${Math.floor(plan.fraction * 100)}%`}</b>
-      </div>
-      <Progress value={plan.fraction} />
-      <Sources roots={job.roots} paths={job.paths} />
-
-      <Pipeline phases={plan.phases} />
-
-      {step && (
-        <div className="run-now">
-          <div className="run-now-head">
-            <span>Сейчас</span>
-            {step.aside && <b>{step.aside}</b>}
-          </div>
-          {step.progress !== undefined && <Progress value={step.progress} className="run-now-bar" />}
-          {step.lines?.map(line => <p key={line}>{line}</p>)}
-          {step.file && (
-            <code className="run-file" title={step.file}>
-              <span>{shortPath(step.file)}</span>
-              <small>{insidePath(step.file).slice(0, Math.max(0, insidePath(step.file).length - shortPath(step.file).length - 1))}</small>
-            </code>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function LastJob({device, last}: {device: Device; last: NonNullable<ReturnType<typeof lastRun>>}) {
-  const job = device.job!;
-  const bits = [
-    last.duration ? `за ${roughDuration(last.duration)}` : '',
-    last.finishedAt ? runMoment(last.finishedAt * 1000) : '',
-  ].filter(Boolean).join(' · ');
-  return (
-    <section className={`device-run last status-${last.status}`}>
-      <div className="run-summary">
-        <div className="run-summary-text">
-          <span className="run-eyebrow">Последний запуск</span>
-          <strong>{LAST_STATUS[last.status] ?? last.status}</strong>
-          {bits && <span className="run-meta">{bits}</span>}
-        </div>
-      </div>
-      {job.error && <p className="device-error">{job.error.split('\n').filter(Boolean).pop()}</p>}
-      <Sources roots={job.roots} paths={job.paths} />
-      <Pipeline phases={last.phases} compact />
-    </section>
   );
 }
 

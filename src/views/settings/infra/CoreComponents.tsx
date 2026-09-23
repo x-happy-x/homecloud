@@ -1,15 +1,15 @@
 import {useState} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
-import {fileSize} from '../../lib/format';
+import {fileSize} from '../../../lib/format';
 import {
   getCoreComponents, startCoreComponent, stopCoreComponent,
   type ComponentOperation, type CoreComponent, type Device,
-} from '../../services/endpoints/backends';
-import {qk} from '../../services/queryKeys';
-import {useStore} from '../../store';
-import {Button} from '../../ui/Button/Button';
-import {Icon} from '../../ui/Icon/Icon';
-import {Progress} from '../../ui/Progress/Progress';
+} from '../../../services/endpoints/backends';
+import {qk} from '../../../services/queryKeys';
+import {useStore} from '../../../store';
+import {Button} from '../../../ui/Button/Button';
+import {Icon} from '../../../ui/Icon/Icon';
+import {Progress} from '../../../ui/Progress/Progress';
 import './CoreComponents.scss';
 
 const ACTIONS: Record<string, string> = {

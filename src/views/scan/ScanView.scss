@@ -82,115 +82,6 @@
 .collect-row { display: flex; }
 
 
-/* ---------- устройство ---------- */
-
-.device-list, .source-list { display: grid; gap: var(--gap); }
-.source-list + .empty-state, .device-list + .empty-state { margin-bottom: var(--gap); }
-.source-list { margin-bottom: calc(var(--gap) * 2); }
-.source-card { gap: 12px; }
-.source-metrics { display: flex; flex-wrap: wrap; gap: 6px 16px; }
-.source-tested { margin: 0; color: var(--patina); font-size: .82rem; overflow-wrap: anywhere; }
-.source-picker { display: flex; flex-wrap: wrap; gap: 6px; }
-.root-chip.active { border-color: var(--patina); background: var(--patina-soft); color: var(--ink); }
-.core-picker { display: flex; align-items: center; gap: 8px; margin-right: auto; font-size: .82rem; color: var(--muted); }
-.core-picker select { min-width: 140px; }
-.collect-row { flex-wrap: wrap; gap: 8px; }
-.core-update {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-  padding: 10px 14px;
-  border: 1px solid color-mix(in srgb, var(--brass) 35%, var(--line-soft));
-  border-radius: var(--r-m);
-  background: color-mix(in srgb, var(--brass) 8%, var(--surface));
-  font-size: .84rem;
-}
-.core-update.legacy { border-color: var(--line-soft); background: var(--surface); }
-.core-key { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.core-key code {
-  flex: 1;
-  min-width: 0;
-  padding: 6px 8px;
-  border-radius: var(--r-s);
-  background: var(--ground);
-  font: .7rem var(--mono);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.install-log {
-  max-height: 220px;
-  margin: 0;
-  padding: 10px 12px;
-  overflow: auto;
-  border-radius: var(--r-s);
-  background: var(--ground);
-  color: var(--ink-2);
-  font: .72rem/1.45 var(--mono);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  cursor: pointer;
-}
-
-.device-card {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-  padding: clamp(14px, 2.4vw, 22px);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-l);
-  background: var(--surface-2);
-  box-shadow: var(--shadow);
-}
-.device-card.running { border-color: color-mix(in srgb, var(--patina) 35%, var(--line-soft)); }
-.device-card.offline { background: var(--surface); }
-
-.device-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.device-mark {
-  width: 42px; height: 42px;
-  flex: none;
-  display: grid; place-items: center;
-  border-radius: 12px;
-  background: var(--patina-soft);
-  color: var(--patina);
-}
-.device-mark svg { width: 22px; height: 22px; fill: currentColor; }
-.offline .device-mark { background: var(--ground); color: var(--muted); }
-.running .device-mark { animation: task-pulse 1.8s ease-in-out infinite; }
-.device-id { flex: 1; min-width: 0; }
-.device-id h3 { display: flex; align-items: center; gap: 8px; margin: 0; font: 650 1.08rem var(--sans); }
-.device-primary {
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--ground);
-  color: var(--muted);
-  font-size: .66rem;
-  font-weight: 500;
-}
-.device-address {
-  display: block;
-  color: var(--muted);
-  font: .72rem var(--mono);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.device-head .pill { flex: none; }
-.device-head-actions { flex: none; display: flex; align-items: center; gap: 4px; }
-.device-head-actions .button { gap: 6px; }
-.device-error { margin: 0; color: var(--rose); font-size: .82rem; overflow-wrap: anywhere; }
-.menu button.danger, .menu button.danger svg { color: var(--rose); }
-
-.device-empty {
-  display: grid;
-  gap: 3px;
-  padding: 14px 16px;
-  border: 1px dashed var(--line);
-  border-radius: var(--r-m);
-  color: var(--muted);
-  font-size: .8rem;
-}
-.device-empty strong { color: var(--ink-2); font-size: .88rem; }
-
 /* ---------- задание: сводка ---------- */
 
 .device-run {
@@ -357,56 +248,13 @@
 .run-file span { color: var(--ink-2); font: 500 .74rem var(--mono); }
 .run-file small { color: var(--muted); font: .66rem var(--mono); }
 
-/* ---------- сведения об устройстве ---------- */
+/* ---------- окно задания: выбор источника и ядра ---------- */
 
-.device-facts { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 14px; }
-.fact-block { display: grid; align-content: start; gap: 8px; min-width: 0; }
-.fact-block h4 { margin: 0; color: var(--muted); font-size: .68rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
-.fact-empty { margin: 0; color: var(--muted); font-size: .76rem; }
-
-.device-metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 6px; }
-.device-metrics span {
-  display: grid;
-  gap: 1px;
-  min-width: 0;
-  padding: 8px 10px;
-  border-radius: var(--r-s);
-  background: var(--surface);
-  color: var(--muted);
-  font-size: .7rem;
-}
-.device-metrics b { color: var(--ink); font-size: .95rem; font-variant-numeric: tabular-nums; }
-
-.drive-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.drive-list li {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: 8px;
-  row-gap: 5px;
-  padding: 8px 10px;
-  border-radius: var(--r-s);
-  background: var(--surface);
-  font-size: .78rem;
-}
-.drive-list svg { fill: currentColor; color: var(--muted); }
-.drive-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.drive-free { color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
-.drive-bar { grid-column: 1 / -1; height: 3px; }
-.drive-bar.full span { background: var(--rose); }
-
-.capability-list { display: flex; flex-wrap: wrap; gap: 6px; }
-.feature-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: var(--patina-soft);
-  color: var(--patina);
-  font-size: .72rem;
-}
-.feature-badge svg { fill: currentColor; }
+.source-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.root-chip.active { border-color: var(--patina); background: var(--patina-soft); color: var(--ink); }
+.core-picker { display: flex; align-items: center; gap: 8px; margin-right: auto; font-size: .82rem; color: var(--muted); }
+.core-picker select { min-width: 140px; }
+.collect-row { flex-wrap: wrap; gap: 8px; }
 
 /* ---------- окно задания ---------- */
 
@@ -511,6 +359,104 @@
 .root-chip-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .root-chip:hover { border-color: var(--rose); color: var(--rose); background: var(--rose-soft); }
 
+/* ---------- экран: шапка и блоки ---------- */
+
+.scan-screen { display: grid; gap: 28px; }
+.scan-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 20px; }
+.scan-top h2 { margin: 0 0 4px; font: 650 1.35rem var(--sans); }
+.scan-top p { margin: 0; color: var(--muted); font-size: .86rem; }
+.scan-top-actions { display: flex; align-items: center; gap: 8px; }
+.scan-top-actions .button { gap: 6px; }
+.scan-block { display: grid; gap: 12px; min-width: 0; }
+.scan-block-head { display: flex; align-items: baseline; gap: 12px; }
+.scan-block-head h3 { margin: 0; font: 650 .78rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+.scan-block-head span { color: var(--muted); font-size: .78rem; }
+.scan-empty { margin: 0; padding: 18px; border: 1px dashed var(--line-soft); border-radius: var(--r-m); color: var(--muted); font-size: .84rem; text-align: center; }
+.link-button { padding: 0; border: 0; background: none; color: var(--patina); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+
+/* ---------- «Сейчас»: ядра ---------- */
+
+.activity-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 12px; }
+.activity-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-l);
+  background: var(--surface-2);
+}
+.activity-card.running { grid-column: 1 / -1; border-color: color-mix(in srgb, var(--patina) 40%, var(--line-soft)); }
+.activity-card.offline { background: var(--surface); }
+.activity-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.activity-head .button { gap: 6px; }
+.activity-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--patina); }
+.activity-dot.running { box-shadow: 0 0 0 4px var(--patina-soft); animation: task-pulse 1.8s ease-in-out infinite; }
+.activity-dot.error { background: var(--rose); }
+.activity-id { flex: 1; display: grid; gap: 1px; min-width: 0; }
+.activity-id h3 { margin: 0; font: 650 1rem var(--sans); }
+.activity-id span { color: var(--muted); font-size: .72rem; }
+.activity-note { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.5; }
+.activity-card .device-run { padding: 12px 14px; }
+
+/* ---------- источники: сводка ---------- */
+
+.summary-table { display: grid; border: 1px solid var(--line-soft); border-radius: var(--r-l); background: var(--surface-2); overflow: hidden; }
+.summary-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.6fr) minmax(110px, .8fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(90px, .7fr) 140px;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line-soft);
+  font-size: .84rem;
+}
+.summary-row.muted { opacity: .6; }
+.summary-header { border-top: 0; background: var(--surface); color: var(--muted); font-size: .7rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; padding-block: 8px; }
+.summary-source { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.summary-source > svg { flex: none; width: 20px; height: 20px; fill: currentColor; color: var(--patina); }
+.summary-source > span { display: grid; min-width: 0; }
+.summary-source small, .summary-files small, .summary-faces small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: .72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.summary-source small { font-family: var(--mono); }
+.summary-files, .summary-faces { display: grid; gap: 1px; font-variant-numeric: tabular-nums; }
+.summary-action { display: flex; justify-content: flex-end; }
+.summary-action .button { gap: 6px; }
+.coverage { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 8px; font-variant-numeric: tabular-nums; }
+.coverage small { grid-column: 2; justify-self: end; color: var(--muted); font-size: .7rem; }
+.coverage-bar { grid-column: 1 / -1; grid-row: 2; height: 4px; border-radius: 999px; background: var(--ground); overflow: hidden; }
+.coverage-bar span { display: block; height: 100%; border-radius: inherit; background: var(--patina); }
+.coverage small { grid-row: 1; }
+
+/* ---------- недавние запуски ---------- */
+
+.run-list { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line-soft); border-radius: var(--r-l); background: var(--surface-2); overflow: hidden; }
+.run-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line-soft);
+}
+.run-row:first-child { border-top: 0; }
+.run-status { justify-self: start; padding: 2px 9px; border-radius: 999px; background: var(--ground); color: var(--muted); font-size: .72rem; }
+.run-status.ok { background: var(--patina-soft); color: var(--patina); }
+.run-status.bad { background: var(--rose-soft); color: var(--rose); }
+.run-status.warn { background: color-mix(in srgb, var(--brass) 18%, var(--surface)); color: var(--brass); }
+.run-what { display: grid; gap: 2px; min-width: 0; }
+.run-what strong, .run-what small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-what strong { font: 600 .84rem var(--mono); }
+.run-what small { color: var(--muted); font-size: .74rem; }
+.run-when { color: var(--muted); font-size: .76rem; white-space: nowrap; }
+.run-actions { display: flex; align-items: center; gap: 4px; }
+
 @include reduced-motion {
   .running .device-mark, .pipe-spinner { animation: none; }
 }
@@ -588,3 +534,20 @@
 }
 .parallel-parts .progress-track { grid-column: 1 / -1; }
 .parallel-phase { color: var(--muted); font-size: .76rem; }
+
+@include bp-lg {
+  .summary-row { grid-template-columns: minmax(160px, 1.4fr) repeat(4, minmax(90px, 1fr)) auto; gap: 12px; }
+  .activity-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@include bp-md {
+  .summary-header { display: none; }
+  .summary-row { grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+  .summary-source, .summary-action { grid-column: 1 / -1; }
+  .summary-action .button { flex: 1; justify-content: center; }
+  .run-row { grid-template-columns: auto minmax(0, 1fr); }
+  .run-when { grid-column: 2; }
+  .run-actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .scan-top-actions { width: 100%; }
+  .scan-top-actions .button { flex: 1; justify-content: center; }
+}

@@ -3,6 +3,7 @@ import {useMutation, useQuery} from '@tanstack/react-query';
 import './SettingsView.scss';
 import {FolderPickerDialog} from '../../components/FolderPicker/FolderPickerDialog';
 import {formatNumber, plural} from '../../lib/format';
+import type {Device} from '../../services/endpoints/backends';
 import {getSettings, saveSettings, type SettingsResponse} from '../../services/endpoints/settings';
 import {qk} from '../../services/queryKeys';
 import {queryClient} from '../../services/queryClient';
@@ -13,11 +14,11 @@ import {Button} from '../../ui/Button/Button';
 import {EmptyState} from '../../ui/EmptyState/EmptyState';
 import {Icon} from '../../ui/Icon/Icon';
 import {InlineSearch} from '../../ui/InlineSearch/InlineSearch';
-import {SegmentNav} from '../../ui/SegmentNav/SegmentNav';
 import {Switch} from '../../ui/Switch/Switch';
 import {ViewHeader} from '../../ui/ViewHeader/ViewHeader';
 import {SettingRow, type VisualModel} from './SettingRow';
 import {StorageCard} from './StorageCard';
+import {CoresPanel, SourcesPanel} from './infra/InfraPanels';
 import {appendLines, changedKeys, isVisible, searchSections, type SettingsValues} from './settingsModel';
 import {
   SETTINGS_GROUPS, SETTINGS_SECTIONS,
@@ -30,7 +31,9 @@ const SECTION_BY_KEY = new Map(
   SETTINGS_SECTIONS.flatMap(section => section.fields.map(field => [field.key, section] as const)),
 );
 
-export function SettingsView({excluded = 0}: {excluded?: number}) {
+const GROUP_IDS = new Set<string>(SETTINGS_GROUPS.map(item => item.id));
+
+export function SettingsView({excluded = 0, devices}: {excluded?: number; devices?: Device[]}) {
   const canEdit = useStore(state => state.session.canEdit);
   const draft = useStore(state => state.settings.draft);
   const loadDraft = useStore(state => state.loadSettingsDraft);
@@ -42,7 +45,10 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
   const adultMode = useStore(state => state.prefs.adultMode);
   const setAdultMode = useStore(state => state.setAdultMode);
 
-  const [group, setGroup] = useState<SettingsGroupId>('recognition');
+  // Раздел живёт в ссылке (#/settings?s=cores): на него ведут кнопки других экранов.
+  const routeSection = useStore(state => state.routeSection);
+  const setGroup = useStore(state => state.setRouteSection);
+  const group = (GROUP_IDS.has(routeSection) ? routeSection : SETTINGS_GROUPS[0].id) as SettingsGroupId;
   const [query, setQuery] = useState('');
   const [pickKey, setPickKey] = useState<string | null>(null);
 
@@ -154,50 +160,66 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
         </p>
       )}
 
-      {searching
-        ? (
-          <div className="settings-found">
-            <span>
-              {sections.length
-                ? `Нашлось в ${sections.length} ${plural(sections.length, 'разделе', 'разделах', 'разделах')}`
-                : 'Ничего не нашлось'}
-            </span>
-            <Button small variant="ghost" onClick={() => setQuery('')}>Показать все</Button>
-          </div>
-        )
-        : (
-          <SegmentNav
-            label="Разделы настроек"
-            active={group}
-            items={SETTINGS_GROUPS.map(item => ({
-              id: item.id,
-              icon: item.icon,
-              label: item.title,
-              note: item.note,
-              // Сколько правок ждёт сохранения — чтобы не потерять их на другой вкладке.
-              count: changedIn(item.id) || undefined,
-            }))}
-            onSelect={next => setGroup(next)}
-          />
+      <div className="settings-layout">
+        {!searching && (
+          <nav className="settings-nav" aria-label="Разделы настроек">
+            {SETTINGS_GROUPS.map(item => {
+              const count = changedIn(item.id);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={item.id === group ? 'active' : ''}
+                  aria-current={item.id === group ? 'page' : undefined}
+                  onClick={() => setGroup(item.id)}
+                >
+                  <Icon name={item.icon} />
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>{item.note}</small>
+                  </span>
+                  {/* Сколько правок ждёт сохранения — чтобы не потерять их в другом разделе. */}
+                  {count > 0 && <b className="settings-nav-count">{count}</b>}
+                </button>
+              );
+            })}
+          </nav>
         )}
 
-      {settings.isError && sections.some(section => !section.browser) && (
-        <div className="settings-error">
-          <EmptyState title="Настройки каталога не загрузились">
-            Бэкенд фототеки не ответил. Раздел «Вид» работает и без него.
-          </EmptyState>
-          <Button onClick={() => settings.refetch()}>Повторить</Button>
+        <div className="settings-content">
+          {searching && (
+            <div className="settings-found">
+              <span>
+                {sections.length
+                  ? `Нашлось в ${sections.length} ${plural(sections.length, 'разделе', 'разделах', 'разделах')}`
+                  : 'Ничего не нашлось'}
+              </span>
+              <Button small variant="ghost" onClick={() => setQuery('')}>Показать все</Button>
+            </div>
+          )}
+
+          {settings.isError && sections.some(section => !section.browser) && (
+            <div className="settings-error">
+              <EmptyState title="Настройки каталога не загрузились">
+                Бэкенд фототеки не ответил. Раздел «Вид» работает и без него.
+              </EmptyState>
+              <Button onClick={() => settings.refetch()}>Повторить</Button>
+            </div>
+          )}
+
+          {!searching && group === 'sources' && <SourcesPanel devices={devices ?? []} />}
+          {!searching && group === 'cores' && <CoresPanel devices={devices} />}
+          {searching && !sections.length
+            ? <EmptyState title="Такой настройки нет">Попробуйте другое слово: «видео», «папка», «тема».</EmptyState>
+            : sections.length > 0 && (
+              <div className="settings-stack">
+                {!searching && group === 'data' && <StorageCard />}
+                {sections.map(renderSection)}
+              </div>
+            )}
+          {!searching && group === 'data' && !sections.length && <StorageCard />}
         </div>
-      )}
-
-      {searching && !sections.length
-        ? <EmptyState title="Такой настройки нет">Попробуйте другое слово: «видео», «папка», «тема».</EmptyState>
-        : (
-          <div className="settings-stack">
-            {!searching && group === 'data' && <StorageCard />}
-            {sections.map(renderSection)}
-          </div>
-        )}
+      </div>
 
       <FolderPickerDialog
         open={Boolean(pickKey)}
@@ -211,7 +233,6 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
         }}
       />
 
-      {/* Полоса сохранения появляется только когда есть что сохранять. */}
       {canEdit && (changed.length > 0 || save.isPending) && (
         <div className="settings-bar" role="region" aria-label="Несохранённые изменения">
           <strong>

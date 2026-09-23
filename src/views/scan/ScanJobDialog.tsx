@@ -17,7 +17,7 @@ import {Icon} from '../../ui/Icon/Icon';
 import {IconButton} from '../../ui/IconButton/IconButton';
 import {FileTree} from './FileTree';
 import {ScanHistory} from './ScanHistory';
-import {insidePath} from './SourceCard';
+import {insidePath} from '../../lib/sources';
 import {useInventory} from './useInventory';
 
 /**

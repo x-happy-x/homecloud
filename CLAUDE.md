@@ -65,9 +65,16 @@ src/
 «Настройки» и «Анализ», внутри которого вкладками лежат проверка, обучение,
 сканирование и дубликаты (`app/navItems.ts`, `ANALYSIS_VIEWS` в `app/routes.ts`).
 
-«Сканирование» (`views/scan`) — источники (`SourceCard`, `SourceDialog`) и ядра
-(`DeviceCard`, `CoreDialog`); окно задания выбирает источник, папки и ядро.
-Клиент всех этих адресов — `services/endpoints/backends.ts`. Путь снимка —
+«Сканирование» (`views/scan`) — только работа: «Сейчас» (`CoreActivity` —
+ход задания или последний запуск каждого ядра, `ParallelStatus` — задание на
+нескольких ядрах), сводка по источникам (`SourceSummary`: превью, индекс,
+лица) и недавние запуски (`RecentRuns`, «Повторить»); окно задания
+(`ScanJobDialog`) выбирает источник, папки и ядро. Подключение источников и
+ядер — в «Настройки → Источники / Ядра» (`views/settings/infra`: `SourceItem`,
+`SourceDialog`, `CoreCard`, `CoreDialog`, `CoreComponents`). Раздел настроек
+лежит в ссылке: `#/settings?s=cores`, с других экранов — `openSettings('cores')`.
+Клиент всех этих адресов — `services/endpoints/backends.ts`, общие функции
+путей источников — `lib/sources.ts`. Путь снимка —
 ключ `источник:путь` (`netcraze:/HDD/a.jpg`, `pc-x:D:\Фото\b.jpg`): папки,
 крошки и «копировать путь» отрезают id источника, а подпись берут из
 `source_name` карточки. «Настройки → Данные» (`views/settings/StorageCard.tsx`) —

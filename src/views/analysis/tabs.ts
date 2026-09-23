@@ -13,7 +13,7 @@ export interface AnalysisTabSpec {
 export const ANALYSIS_TABS: AnalysisTabSpec[] = [
   {view: 'review', icon: 'review', label: 'Проверка', note: 'Шум и спорные группы лиц'},
   {view: 'training', icon: 'training', label: 'Обучение', note: 'Разметка и версии модели'},
-  {view: 'scan', icon: 'scan', label: 'Сканирование', note: 'Источники и ядра'},
+  {view: 'scan', icon: 'scan', label: 'Сканирование', note: 'Задания и ход по ядрам'},
   {view: 'duplicates', icon: 'duplicates', label: 'Дубликаты', note: 'Повторы и лишние копии'},
 ];
 

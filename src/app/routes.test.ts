@@ -47,6 +47,14 @@ describe('buildHash', () => {
   });
 });
 
+describe('настройки', () => {
+  test('раздел — в ссылке и только на экране настроек', () => {
+    expect(buildHash(route({view: 'settings', section: 'cores'}))).toBe('#/settings?s=cores');
+    expect(buildHash(route({view: 'scan', section: 'cores'}))).toBe('#/scan');
+    expect(parseHash('#/settings?s=sources').section).toBe('sources');
+  });
+});
+
 describe('подборки', () => {
   test('открытая подборка — в ссылке и только на своём экране', () => {
     expect(buildHash(route({view: 'highlights', highlight: 'month:2019-12'})))

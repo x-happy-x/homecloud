@@ -2,7 +2,6 @@
 
 // Одна колонка карточек: настройки читаются сверху вниз, как список, а не
 // раскладываются мозаикой, где соседние карточки разной высоты спорят друг с другом.
-.settings-view { max-width: 960px; }
 
 .settings-search .inline-search { min-width: 280px; margin: 0; }
 
@@ -473,4 +472,68 @@
     .settings-bar strong { width: 100%; }
     .settings-bar strong small { display: none; }
     .settings-bar .button { flex: 1; }
+}
+
+/* ---------- раскладка: разделы слева, содержимое справа ---------- */
+
+.settings-view { max-width: 1240px; }
+.settings-layout {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  align-items: start;
+  gap: 28px;
+}
+.settings-content { display: grid; gap: 16px; min-width: 0; }
+.settings-nav {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 2px;
+}
+.settings-nav button {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--r-m);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.settings-nav button:hover { background: var(--surface-2); color: var(--ink); }
+.settings-nav button.active { background: var(--patina-soft); color: var(--ink); }
+.settings-nav svg { width: 18px; height: 18px; fill: currentColor; color: var(--muted); }
+.settings-nav button.active svg { color: var(--patina); }
+.settings-nav span { display: grid; gap: 1px; min-width: 0; }
+.settings-nav strong { font-size: .88rem; font-weight: 600; }
+.settings-nav small { overflow: hidden; color: var(--muted); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.settings-nav-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--brass);
+  color: var(--ground);
+  font-size: .7rem;
+  text-align: center;
+}
+
+@include bp-md {
+  // На телефоне разделы — лентой сверху, как раньше вкладки.
+  .settings-layout { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .settings-nav {
+    position: static;
+    display: flex;
+    gap: 6px;
+    margin: 0 -14px;
+    padding: 0 14px 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .settings-nav button { flex: none; grid-template-columns: 18px auto auto; border: 1px solid var(--line-soft); }
+  .settings-nav small { display: none; }
 }

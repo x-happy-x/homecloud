@@ -1,130 +1,121 @@
-import {useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import './ScanView.scss';
-import {getCores, getSources, type Device, type Source} from '../../services/endpoints/backends';
+import {formatNumber} from '../../lib/format';
+import {pickCore} from '../../lib/sources';
+import {getSources, type Device, type ScanRun, type Source} from '../../services/endpoints/backends';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
 import {Button} from '../../ui/Button/Button';
-import {Icon} from '../../ui/Icon/Icon';
 import {EmptyState} from '../../ui/EmptyState/EmptyState';
-import {SectionHead} from '../../ui/ViewHeader/ViewHeader';
-import {CoreDialog} from './CoreDialog';
-import {DeviceCard} from './DeviceCard';
+import {Icon} from '../../ui/Icon/Icon';
+import {CoreActivity} from './CoreActivity';
 import {ParallelStatus} from './ParallelStatus';
+import {RecentRuns} from './RecentRuns';
 import {ScanJobDialog} from './ScanJobDialog';
-import {SourceCard} from './SourceCard';
-import {SourceDialog} from './SourceDialog';
+import {SourceSummary} from './SourceSummary';
 
 export interface ScanViewProps {
   /** Ядра из общего опроса; undefined — ещё не загружены. */
   devices: Device[] | undefined;
 }
 
-/** Ядро для задания по источнику: у своего диска — его хозяин, иначе основное в сети. */
-export function pickCore(devices: Device[], source: Source | null): Device | null {
-  const ready = devices.filter(device => device.online && !device.legacy);
-  if (source?.type === 'device') {
-    const own = ready.find(device => device.id === source.device);
-    if (own) return own;
-  }
-  return ready.find(device => device.primary) ?? ready[0] ?? null;
-}
-
+/**
+ * «Сканирование» — только работа: что считается сейчас, что есть по
+ * источникам, недавние задания и запуск нового. Подключение источников и
+ * ядер, установка и модели — в «Настройки → Источники / Ядра».
+ */
 export function ScanView({devices}: ScanViewProps) {
   const canEdit = useStore(state => state.session.canEdit);
   const openScan = useStore(state => state.openScan);
+  const openSettings = useStore(state => state.openSettings);
   const toast = useStore(state => state.toast);
-  const [editingCore, setEditingCore] = useState<{device: Device | null} | null>(null);
-  const [editingSource, setEditingSource] = useState<{source: Source | null} | null>(null);
   const list = devices ?? [];
 
   const sources = useQuery({queryKey: qk.sources(), queryFn: getSources, refetchInterval: 15_000});
-  // Пакет ядра и ключ хаба меняются редко — отдельно от опроса статуса.
-  const overview = useQuery({queryKey: ['cores-overview'], queryFn: getCores, staleTime: 30_000});
   const sourceList = sources.data?.sources ?? [];
+  const busy = list.filter(device => device.job?.active).length;
 
-  const scanWith = (device: Device | null, source: Source | null) => {
+  const scanWith = (device: Device | null, source: Source | null, roots?: string[]) => {
     if (!device) {
-      toast('Нет включённого ядра: запустите PC-X или PC-A');
+      toast('Нет включённого ядра: запустите его в «Настройки → Ядра»');
       return;
     }
     const info = device.device;
     const model = info?.visual_model || info?.visual_models.find(item => item.installed)?.id || '';
     const chosen = source ?? sourceList.find(item => item.type === 'device' && item.device === device.id)
       ?? sourceList[0] ?? null;
-    openScan(device.id, info?.capabilities ?? {}, model, chosen?.id ?? '',
-      source ? source.roots : []);
+    openScan(device.id, info?.capabilities ?? {}, model, chosen?.id ?? '', roots ?? (source ? source.roots : []));
+  };
+
+  const repeat = (run: ScanRun) => {
+    const source = sourceList.find(item => run.roots[0]?.startsWith(`${item.id}:`)) ?? null;
+    scanWith(pickCore(list, source), source, run.roots);
   };
 
   return (
-    <section className="analysis-panel">
-      <SectionHead
-        title="Источники"
-        note="Где лежат сами фотографии и видео: диски компьютеров, сетевые папки, SSH, FTP, WebDAV. В источниках ничего не создаётся — превью, лица и описания хранятся на сервере HomeCloud."
-        actions={canEdit && (
-          <Button small onClick={() => setEditingSource({source: null})}>
-            <Icon name="plus" size={16} />
-            <span>Источник</span>
+    <section className="analysis-panel scan-screen">
+      <header className="scan-top">
+        <div>
+          <h2>Сканирование</h2>
+          <p>Распознавание папок источников на ядрах: запуск, ход и что уже посчитано.</p>
+        </div>
+        <div className="scan-top-actions">
+          <Button variant="ghost" small onClick={() => openSettings('sources')}>
+            <Icon name="settings" size={16} />
+            <span>Источники и ядра</span>
           </Button>
-        )}
-      />
-      <div className="source-list">
-        {sourceList.map(source => (
-          <SourceCard
-            key={source.id}
-            source={source}
-            devices={list}
-            onScan={item => scanWith(pickCore(list, item), item)}
-            onEdit={item => setEditingSource({source: item})}
-          />
-        ))}
-      </div>
-      {sources.data && sourceList.length === 0 && (
-        <EmptyState mark="⌁" title="Нет источников">
-          Добавьте диск компьютера или сетевую папку, где лежат снимки.
-        </EmptyState>
-      )}
+          {canEdit && (
+            <Button variant="primary" onClick={() => scanWith(pickCore(list, null), null)}>
+              <Icon name="plus" size={18} />
+              <span>Новое задание</span>
+            </Button>
+          )}
+        </div>
+      </header>
 
-      <SectionHead
-        title="Ядра"
-        note="Компьютеры с видеокартой, которые распознают снимки. Каталог живёт на сервере, поэтому уже обработанное видно, даже когда ядра выключены."
-        actions={canEdit && (
-          <Button small onClick={() => setEditingCore({device: null})}>
-            <Icon name="plus" size={16} />
-            <span>Ядро</span>
-          </Button>
-        )}
-      />
-      <ParallelStatus />
-      <div className="device-list">
-        {list.map(device => (
-          <DeviceCard
-            key={device.id}
-            device={device}
-            sources={sourceList}
-            corePackage={overview.data?.package ?? null}
-            onScan={item => scanWith(item, null)}
-            onEdit={item => setEditingCore({device: item})}
-          />
-        ))}
-      </div>
-      {devices && list.length === 0 && (
-        <EmptyState mark="⌁" title="Нет ядер">Подключите компьютер с видеокартой.</EmptyState>
-      )}
+      <section className="scan-block" aria-labelledby="scan-now">
+        <div className="scan-block-head">
+          <h3 id="scan-now">Сейчас</h3>
+          <span>{busy ? `считают ${formatNumber(busy)} из ${formatNumber(list.length)}` : 'ядра свободны'}</span>
+        </div>
+        <ParallelStatus />
+        {list.length > 0
+          ? (
+            <div className="activity-grid">
+              {list.map(device => (
+                <CoreActivity key={device.id} device={device} onScan={item => scanWith(item, null)} />
+              ))}
+            </div>
+          )
+          : devices && (
+            <EmptyState mark="⌁" title="Нет ядер">
+              Подключите компьютер с видеокартой в «Настройки → Ядра».
+            </EmptyState>
+          )}
+      </section>
 
-      <CoreDialog
-        open={Boolean(editingCore)}
-        device={editingCore?.device ?? null}
-        publicKey={overview.data?.publicKey ?? ''}
-        onClose={() => setEditingCore(null)}
-      />
-      <SourceDialog
-        open={Boolean(editingSource)}
-        source={editingSource?.source ?? null}
-        devices={sources.data?.devices ?? list.map(item => ({id: item.id, name: item.name}))}
-        types={sources.data?.types}
-        onClose={() => setEditingSource(null)}
-      />
+      <section className="scan-block" aria-labelledby="scan-sources">
+        <div className="scan-block-head">
+          <h3 id="scan-sources">Источники</h3>
+          <span>что уже посчитано по каждому</span>
+        </div>
+        {sourceList.length > 0
+          ? <SourceSummary sources={sourceList} devices={list} onScan={item => scanWith(pickCore(list, item), item)} />
+          : sources.data && (
+            <EmptyState mark="⌁" title="Нет источников">
+              Добавьте диск компьютера или сетевую папку в «Настройки → Источники».
+            </EmptyState>
+          )}
+      </section>
+
+      <section className="scan-block" aria-labelledby="scan-runs">
+        <div className="scan-block-head">
+          <h3 id="scan-runs">Недавние запуски</h3>
+          <span>повторить с теми же папками</span>
+        </div>
+        <RecentRuns onRepeat={repeat} />
+      </section>
+
       <ScanJobDialog devices={devices} sources={sourceList} />
     </section>
   );
