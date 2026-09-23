@@ -18,6 +18,7 @@ import {IconButton} from '../../ui/IconButton/IconButton';
 import {Pill} from '../../ui/Pill/Pill';
 import {Popover} from '../../ui/Popover/Popover';
 import {Progress} from '../../ui/Progress/Progress';
+import {CoreComponents} from './CoreComponents';
 import {Pipeline} from './Pipeline';
 import {insidePath} from './SourceCard';
 
@@ -431,43 +432,54 @@ function DeviceFacts({device}: {device: Device}) {
   const drives = info?.drives ?? [];
   const available = Object.entries(FEATURE_INFO).filter(([key]) => capabilities[key]);
   const missing = Object.entries(FEATURE_INFO).filter(([key]) => !capabilities[key]);
+  const [components, setComponents] = useState(false);
+  const isCore = !device.legacy;
 
   return (
-    <div className="device-facts">
-      <section className="fact-block">
-        <h4>Диски</h4>
-        {drives.length
-          ? (
-            <ul className="drive-list">
-              {drives.map(drive => {
-                const used = drive.total && drive.free != null ? 1 - drive.free / drive.total : null;
-                return (
-                  <li key={drive.path} title={drive.path}>
-                    <Icon name="drive" size={16} />
-                    <span className="drive-name">{drive.name || drive.path}</span>
-                    <span className="drive-free">
-                      {drive.free == null ? '—' : `${formatNumber(Math.round(drive.free / GIB))} ГБ свободно`}
-                    </span>
-                    {used !== null && <Progress value={used} className={`drive-bar${used > .9 ? ' full' : ''}`} />}
-                  </li>
-                );
-              })}
-            </ul>
-          )
-          : <p className="fact-empty">Диски не найдены</p>}
-      </section>
+    <>
+      <div className="device-facts">
+        <section className="fact-block">
+          <h4>Диски</h4>
+          {drives.length
+            ? (
+              <ul className="drive-list">
+                {drives.map(drive => {
+                  const used = drive.total && drive.free != null ? 1 - drive.free / drive.total : null;
+                  return (
+                    <li key={drive.path} title={drive.path}>
+                      <Icon name="drive" size={16} />
+                      <span className="drive-name">{drive.name || drive.path}</span>
+                      <span className="drive-free">
+                        {drive.free == null ? '—' : `${formatNumber(Math.round(drive.free / GIB))} ГБ свободно`}
+                      </span>
+                      {used !== null && <Progress value={used} className={`drive-bar${used > .9 ? ' full' : ''}`} />}
+                    </li>
+                  );
+                })}
+              </ul>
+            )
+            : <p className="fact-empty">Диски не найдены</p>}
+        </section>
 
-      <section className="fact-block">
-        <h4>Что умеет</h4>
-        <div className="capability-list">
-          {available.map(([key, [title, note]]) => (
-            <span key={key} className="feature-badge" title={note}><Icon name="check" size={13} />{title}</span>
-          ))}
-        </div>
-        {missing.length > 0 && (
-          <p className="fact-empty">Не установлено: {missing.map(([, [title]]) => title).join(', ')}</p>
-        )}
-      </section>
-    </div>
+        <section className="fact-block">
+          <h4>Что умеет</h4>
+          <div className="capability-list">
+            {available.map(([key, [title, note]]) => (
+              <span key={key} className="feature-badge" title={note}><Icon name="check" size={13} />{title}</span>
+            ))}
+          </div>
+          {missing.length > 0 && (
+            <p className="fact-empty">Не установлено: {missing.map(([, [title]]) => title).join(', ')}</p>
+          )}
+          {isCore && (
+            <Button small aria-expanded={components} onClick={() => setComponents(value => !value)}>
+              <Icon name="layers" size={16} />
+              <span>{components ? 'Скрыть окружения и модели' : 'Окружения и модели'}</span>
+            </Button>
+          )}
+        </section>
+      </div>
+      {isCore && components && <CoreComponents device={device} />}
+    </>
   );
 }

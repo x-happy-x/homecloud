@@ -184,6 +184,55 @@ export const startCoreSsh = (id: string) => post<InstallState>(core(id, 'start')
 export const installCore = (id: string, action: 'install' | 'update' | 'key') =>
   post<InstallState>(core(id, 'install'), {action});
 
+/** Окружение (venv) или модель на ядре. */
+export interface CoreComponent {
+  id: string;
+  kind: 'venv' | 'model';
+  title: string;
+  /** Возможности ядра, которым это нужно: visual, caption, speech… */
+  features: string[];
+  installed: boolean;
+  bytes?: number;
+  /** Модель качается с Hugging Face. */
+  downloadable?: boolean;
+  /** Закрыта лицензией: качается только с hf-token.txt. */
+  gated?: boolean;
+  note?: string;
+  /** Другие ядра в сети, где эта модель уже есть: с них её можно скопировать. */
+  peers?: Array<{id: string; name: string}>;
+}
+
+/** Установка окружения, загрузка или копия модели — идёт на ядре в фоне, одна за раз. */
+export interface ComponentOperation {
+  id: string;
+  action: 'install' | 'download' | 'copy';
+  status: 'running' | 'completed' | 'error' | string;
+  started_at: number;
+  finished_at: number | null;
+  error: string;
+  /** Байты копии: сколько пришло из скольких. */
+  done: number;
+  total: number;
+  log: string[];
+}
+
+export interface CoreComponents {
+  venvs: CoreComponent[];
+  models: CoreComponent[];
+  operation: ComponentOperation | null;
+}
+
+export const getCoreComponents = (id: string) => api<CoreComponents>(core(id, 'components'));
+
+export const startCoreComponent = (id: string, payload: {
+  id: string;
+  action: 'install' | 'download' | 'copy';
+  /** Для copy — id ядра, с которого копировать. */
+  from?: string;
+}) => post<ComponentOperation>(core(id, 'components/start'), payload);
+
+export const stopCoreComponent = (id: string) => post(core(id, 'components/stop'));
+
 export interface ExportState {
   status: 'idle' | 'running' | 'completed' | 'error' | string;
   step?: string;

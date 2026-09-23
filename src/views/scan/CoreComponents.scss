@@ -1,0 +1,37 @@
+.core-components { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.component-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.component-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: .8rem;
+}
+.component-mark { display: inline-flex; color: var(--patina); }
+.component-mark svg { fill: currentColor; }
+.component-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.component-row:not(.installed) .component-title { color: var(--muted); }
+.component-state { color: var(--muted); font-size: .72rem; text-align: right; }
+.component-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; grid-column: 2 / -1; }
+
+.component-progress { display: grid; grid-column: 1 / -1; gap: 8px; }
+.component-progress-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.component-progress-head > span:first-child { display: grid; flex: 1; min-width: 0; }
+.component-progress-state { color: var(--muted); font-size: .76rem; }
+.component-progress.failed .component-progress-state { color: var(--rose); }
+.component-log {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--paper);
+  border: 1px solid var(--line-soft);
+  font-size: .7rem;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 760px) {
+  .core-components { grid-template-columns: 1fr; }
+}

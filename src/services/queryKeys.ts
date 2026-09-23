@@ -36,6 +36,8 @@ export const qk = {
 
   /** Ядра — компьютеры, которые считают. */
   devices: () => ['devices'] as const,
+  /** Окружения и модели одного ядра. */
+  coreComponents: (id: string) => ['core-components', id] as const,
   /** Источники — где лежат оригиналы. */
   sources: () => ['sources'] as const,
   /** Что хранит хаб по каждому источнику. */
