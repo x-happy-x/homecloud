@@ -259,6 +259,46 @@ export const startJob = (coreId: string, payload: {
 
 export const stopJob = (coreId: string) => post(core(coreId, 'job/stop'));
 
+/** Доля параллельного задания на одном ядре. */
+export interface ParallelPart {
+  core: string;
+  name: string;
+  shard?: {index: number; count: number} | null;
+  status: string;
+  phase?: string;
+  completed?: number;
+  total?: number;
+}
+
+/**
+ * Одно задание на несколько ядер: опись на хозяине источника, пофайловые
+ * этапы долями на всех подходящих ядрах, подборки — один раз в конце.
+ */
+export interface ParallelJob {
+  status: 'idle' | 'running' | 'completed' | 'error' | 'stopped' | string;
+  step?: 'inventory' | 'shards' | 'highlights' | 'done' | string;
+  cores?: string[];
+  owner?: string;
+  /** Ядра, которые не взяли, и почему: «PC-A: занято». */
+  skipped?: string[];
+  parts?: ParallelPart[];
+  error?: string;
+  started_at?: number;
+  finished_at?: number | null;
+}
+
+export const getParallel = () => api<ParallelJob>('/api/hub/parallel');
+
+export const startParallel = (payload: {
+  roots: string[];
+  features: Record<string, boolean>;
+  video_features?: Record<string, boolean>;
+  force?: boolean;
+  visual_model?: string;
+}) => post<ParallelJob>('/api/hub/parallel', payload);
+
+export const stopParallel = () => post<ParallelJob>('/api/hub/parallel/stop');
+
 // ---------- источники ----------
 
 export type SourceType = 'device' | 'smb' | 'sftp' | 'ftp' | 'webdav' | 'local';
