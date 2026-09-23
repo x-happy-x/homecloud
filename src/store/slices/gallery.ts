@@ -4,7 +4,7 @@ import {emptyRoute} from '../../app/routes';
 import type {Store} from '../index';
 
 /** Фильтры галереи — они же содержимое ссылки, поэтому лежат одним объектом. */
-export type GalleryFilters = Omit<RouteState, 'view' | 'photo' | 'group' | 'highlight'>;
+export type GalleryFilters = Omit<RouteState, 'view' | 'photo' | 'group' | 'highlight' | 'section'>;
 
 /** Группа, из которой открыт снимок: просмотрщик листает внутри неё. */
 export interface PhotoScope {
@@ -21,6 +21,8 @@ export interface GallerySlice {
   routeGroup: string;
   /** Открытая автоматическая подборка. */
   routeHighlight: string;
+  /** Раздел настроек из ссылки. */
+  routeSection: string;
   photoScope: PhotoScope | null;
   /** Панель «Подборки и фильтры». */
   sidepageOpen: boolean;
@@ -39,6 +41,9 @@ export interface GallerySlice {
   openPhoto(path: string, scope: PhotoScope | null): void;
   setRouteGroup(key: string): void;
   setRouteHighlight(key: string): void;
+  /** Раздел настроек; с другого экрана — сразу туда. */
+  openSettings(section: string): void;
+  setRouteSection(section: string): void;
   openSidepage(): void;
   closeSidepage(): void;
   openProcess(paths: string[]): void;
@@ -48,7 +53,7 @@ export interface GallerySlice {
 }
 
 const filtersOf = (route: RouteState): GalleryFilters => {
-  const {view: _view, photo: _photo, group: _group, highlight: _highlight, ...rest} = route;
+  const {view: _view, photo: _photo, group: _group, highlight: _highlight, section: _section, ...rest} = route;
   return rest;
 };
 
@@ -58,6 +63,7 @@ export const createGallerySlice: StateCreator<Store, [], [], GallerySlice> = set
   routePhoto: '',
   routeGroup: '',
   routeHighlight: '',
+  routeSection: '',
   photoScope: null,
   sidepageOpen: false,
   processPaths: null,
@@ -68,6 +74,7 @@ export const createGallerySlice: StateCreator<Store, [], [], GallerySlice> = set
     routePhoto: view === 'photos' ? state.routePhoto : '',
     routeGroup: view === 'people' || view === 'review' ? state.routeGroup : '',
     routeHighlight: view === 'highlights' ? state.routeHighlight : '',
+    routeSection: view === 'settings' ? state.routeSection : '',
   })),
   setFilters: part => set(state => ({filters: {...state.filters, ...part}})),
   setQuery: query => set(state => ({filters: {...state.filters, query}})),
@@ -94,6 +101,8 @@ export const createGallerySlice: StateCreator<Store, [], [], GallerySlice> = set
   openPhoto: (routePhoto, photoScope) => set({routePhoto, photoScope}),
   setRouteGroup: routeGroup => set({routeGroup}),
   setRouteHighlight: routeHighlight => set({routeHighlight}),
+  openSettings: routeSection => set({view: 'settings', routeSection, routePhoto: '', routeGroup: ''}),
+  setRouteSection: routeSection => set({routeSection}),
 
   // Панель подборок и уведомления выезжают с одного края — открыта одна.
   openSidepage: () => set(state => ({
@@ -115,6 +124,7 @@ export const createGallerySlice: StateCreator<Store, [], [], GallerySlice> = set
     routePhoto: route.photo,
     routeGroup: route.group,
     routeHighlight: route.highlight,
+    routeSection: route.section,
     photoScope: route.photo && route.photo === state.routePhoto ? state.photoScope : null,
   })),
 });

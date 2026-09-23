@@ -2,7 +2,7 @@ import {Fragment, type CSSProperties} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import {formatNumber} from '../../lib/format';
 import {getTree, setExclusions, type TreeCounts} from '../../services/endpoints/backends';
-import {insidePath} from './SourceCard';
+import {insidePath} from '../../lib/sources';
 import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';

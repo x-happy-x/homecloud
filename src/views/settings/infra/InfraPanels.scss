@@ -1,0 +1,207 @@
+@use '../../../styles/mixins' as *;
+
+/* ---------- устройство ---------- */
+
+.core-update {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--brass) 35%, var(--line-soft));
+  border-radius: var(--r-m);
+  background: color-mix(in srgb, var(--brass) 8%, var(--surface));
+  font-size: .84rem;
+}
+.core-update.legacy { border-color: var(--line-soft); background: var(--surface); }
+.core-key { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.core-key code {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: var(--r-s);
+  background: var(--ground);
+  font: .7rem var(--mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.install-log {
+  max-height: 220px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: var(--r-s);
+  background: var(--ground);
+  color: var(--ink-2);
+  font: .72rem/1.45 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.device-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: clamp(14px, 2.4vw, 22px);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-l);
+  background: var(--surface-2);
+  box-shadow: var(--shadow);
+}
+.device-card.running { border-color: color-mix(in srgb, var(--patina) 35%, var(--line-soft)); }
+.device-card.offline { background: var(--surface); }
+
+.device-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.device-mark {
+  width: 42px; height: 42px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  background: var(--patina-soft);
+  color: var(--patina);
+}
+.device-mark svg { width: 22px; height: 22px; fill: currentColor; }
+.offline .device-mark { background: var(--ground); color: var(--muted); }
+.running .device-mark { animation: task-pulse 1.8s ease-in-out infinite; }
+.device-id { flex: 1; min-width: 0; }
+.device-id h3 { display: flex; align-items: center; gap: 8px; margin: 0; font: 650 1.08rem var(--sans); }
+.device-primary {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ground);
+  color: var(--muted);
+  font-size: .66rem;
+  font-weight: 500;
+}
+.device-address {
+  display: block;
+  color: var(--muted);
+  font: .72rem var(--mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.device-head .pill { flex: none; }
+.device-head-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+.device-head-actions .button { gap: 6px; }
+.device-error { margin: 0; color: var(--rose); font-size: .82rem; overflow-wrap: anywhere; }
+.menu button.danger, .menu button.danger svg { color: var(--rose); }
+
+/* ---------- сведения об устройстве ---------- */
+
+.device-facts { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 14px; }
+.fact-block { display: grid; align-content: start; gap: 8px; min-width: 0; }
+.fact-block h4 { margin: 0; color: var(--muted); font-size: .68rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.fact-empty { margin: 0; color: var(--muted); font-size: .76rem; }
+
+.device-metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 6px; }
+.device-metrics span {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--r-s);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: .7rem;
+}
+.device-metrics b { color: var(--ink); font-size: .95rem; font-variant-numeric: tabular-nums; }
+
+.drive-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.drive-list li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 5px;
+  padding: 8px 10px;
+  border-radius: var(--r-s);
+  background: var(--surface);
+  font-size: .78rem;
+}
+.drive-list svg { fill: currentColor; color: var(--muted); }
+.drive-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drive-free { color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
+.drive-bar { grid-column: 1 / -1; height: 3px; }
+.drive-bar.full span { background: var(--rose); }
+
+.capability-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.feature-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--patina-soft);
+  color: var(--patina);
+  font-size: .72rem;
+}
+.feature-badge svg { fill: currentColor; }
+
+/* ---------- панели «Источники» и «Ядра» ---------- */
+
+.infra-panel { display: grid; gap: 14px; min-width: 0; }
+.infra-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.infra-head h2 { margin: 0 0 4px; font: 650 1.2rem var(--sans); }
+.infra-head p { max-width: 64ch; margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.5; }
+.infra-head .button { flex: none; gap: 6px; }
+.infra-package { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: .8rem; }
+.infra-package svg { fill: currentColor; }
+.infra-package b { color: var(--ink-2); font: .76rem var(--mono); }
+.infra-list { display: grid; gap: 12px; }
+
+.infra-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-l);
+  background: var(--surface-2);
+}
+.infra-item.muted { opacity: .7; }
+.infra-mark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--patina-soft);
+  color: var(--patina);
+}
+.infra-mark svg { width: 20px; height: 20px; fill: currentColor; }
+.infra-main { display: grid; gap: 4px; min-width: 0; }
+.infra-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.infra-title h3 { margin: 0; font: 650 1rem var(--sans); }
+.infra-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ground);
+  color: var(--muted);
+  font-size: .7rem;
+}
+.infra-address { overflow: hidden; color: var(--muted); font: .74rem var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.infra-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.infra-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--ground);
+  color: var(--ink-2);
+  font: .72rem var(--mono);
+}
+.infra-chip svg { fill: currentColor; color: var(--muted); }
+.infra-side { display: flex; align-items: center; gap: 6px; }
+.infra-side .button { gap: 6px; }
+
+// Карточка ядра в настройках плоская: секции разделены линией, а не рамками.
+.infra-panel .device-card { gap: 14px; padding: 16px 18px; box-shadow: none; }
+
+@include bp-md {
+  .infra-head { flex-direction: column; }
+  .infra-item { grid-template-columns: auto minmax(0, 1fr); }
+  .infra-side { grid-column: 1 / -1; justify-content: flex-end; }
+}

@@ -1,14 +1,14 @@
 import {useEffect, useState, type ChangeEvent} from 'react';
 import {useMutation} from '@tanstack/react-query';
-import {copyText} from '../../lib/clipboard';
-import {saveCore, type Device} from '../../services/endpoints/backends';
-import {queryClient} from '../../services/queryClient';
-import {qk} from '../../services/queryKeys';
-import {useStore} from '../../store';
-import {Button} from '../../ui/Button/Button';
-import {ToggleChip} from '../../ui/Chip/Chip';
-import {Dialog, Sheet} from '../../ui/Dialog/Dialog';
-import {HintLine} from '../../ui/Hint/Hint';
+import {copyText} from '../../../lib/clipboard';
+import {saveCore, type Device} from '../../../services/endpoints/backends';
+import {queryClient} from '../../../services/queryClient';
+import {qk} from '../../../services/queryKeys';
+import {useStore} from '../../../store';
+import {Button} from '../../../ui/Button/Button';
+import {ToggleChip} from '../../../ui/Chip/Chip';
+import {Dialog, Sheet} from '../../../ui/Dialog/Dialog';
+import {HintLine} from '../../../ui/Hint/Hint';
 
 export interface CoreDialogProps {
   open: boolean;

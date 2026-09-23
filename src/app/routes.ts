@@ -54,6 +54,8 @@ export interface RouteState {
   group: string;
   /** Открытая автоматическая подборка: ключ вида month:2019-12. */
   highlight: string;
+  /** Раздел настроек: recognition, sources, cores… */
+  section: string;
 }
 
 export const emptyRoute = (): RouteState => ({
@@ -73,6 +75,7 @@ export const emptyRoute = (): RouteState => ({
   photo: '',
   group: '',
   highlight: '',
+  section: '',
 });
 
 /**
@@ -105,6 +108,7 @@ export function buildHash(route: RouteState): string {
     params.set('group', route.group);
   }
   if (route.highlight && route.view === 'highlights') params.set('h', route.highlight);
+  if (route.section && route.view === 'settings') params.set('s', route.section);
   const serialized = params.toString();
   return `#/${route.view}${serialized ? `?${serialized}` : ''}`;
 }
@@ -130,6 +134,7 @@ export function parseHash(hash: string): RouteState {
     photo: params.get('photo') || '',
     group: params.get('group') || '',
     highlight: params.get('h') || '',
+    section: params.get('s') || '',
   };
 }
 

@@ -73,7 +73,7 @@ export function ViewOutlet({status, onOpenGroup}: ViewOutletProps) {
           />
         );
       case 'settings':
-        return <SettingsView excluded={state?.stats.excluded ?? 0} />;
+        return <SettingsView excluded={state?.stats.excluded ?? 0} devices={status.devices} />;
     }
   };
 
