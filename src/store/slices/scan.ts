@@ -64,8 +64,10 @@ export const anyFeature = (features: Record<MediaKind, FeatureFlags>): boolean =
 
 export interface ScanSlice {
   scan: {
-    /** Устройство, для которого открыто окно задания; null — окно закрыто. */
+    /** Ядро, которое выполнит задание; null — окно закрыто. */
     deviceId: string | null;
+    /** Источник, в котором выбираются папки. */
+    sourceId: string;
     browsePath: string;
     /** Развёрнутые узлы дерева «что найдено». */
     treeOpen: Set<string>;
@@ -75,9 +77,15 @@ export interface ScanSlice {
     force: boolean;
     visualModel: string;
   };
-  /** Открыть окно задания: всё с чистого листа, этапы — по возможностям устройства. */
-  openScan(deviceId: string, capabilities: Record<string, boolean>, visualModel: string): void;
+  /**
+   * Открыть окно задания: всё с чистого листа, этапы — по возможностям ядра.
+   * sourceId и roots — если окно открыли с карточки источника.
+   */
+  openScan(deviceId: string, capabilities: Record<string, boolean>, visualModel: string,
+    sourceId?: string, roots?: string[]): void;
   closeScan(): void;
+  setScanCore(deviceId: string): void;
+  setScanSource(sourceId: string): void;
   setBrowsePath(path: string): void;
   toggleTreeNode(path: string): void;
   openTreeNodes(paths: string[]): void;
@@ -93,24 +101,26 @@ export const createScanSlice: StateCreator<Store, [], [], ScanSlice> = set => {
 
   return {
     scan: {
-      deviceId: null, browsePath: '', treeOpen: new Set(), selectedPaths: [],
+      deviceId: null, sourceId: '', browsePath: '', treeOpen: new Set(), selectedPaths: [],
       features: {photos: initialFeatures('photos'), videos: initialFeatures('videos')},
       force: false, visualModel: '',
     },
 
-    openScan: (deviceId, capabilities, visualModel) => set(state => ({
+    openScan: (deviceId, capabilities, visualModel, sourceId = '', roots = []) => set(state => ({
       scan: {
-        deviceId, browsePath: '', treeOpen: new Set(), selectedPaths: [],
+        deviceId, sourceId, browsePath: '', treeOpen: new Set(), selectedPaths: [],
         features: {
           photos: initialFeatures('photos', capabilities),
           videos: initialFeatures('videos', capabilities),
         },
         force: false, visualModel,
       },
-      selection: {...state.selection, roots: new Set()},
+      selection: {...state.selection, roots: new Set(roots)},
     })),
 
     closeScan: () => patch({deviceId: null}),
+    setScanCore: deviceId => patch({deviceId}),
+    setScanSource: sourceId => patch({sourceId, browsePath: ''}),
     setBrowsePath: browsePath => patch({browsePath}),
 
     toggleTreeNode: path => set(state => {

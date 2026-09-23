@@ -67,7 +67,7 @@ export interface JobPlan {
  * обходят папки.
  */
 const ORDER = [
-  'inventory', 'faces', 'visual', 'ocr', 'adult', 'caption', 'speech', 'authenticity', 'diarize',
+  'inventory', 'thumbs', 'faces', 'visual', 'ocr', 'adult', 'caption', 'speech', 'authenticity', 'diarize',
   'curation', 'highlights',
 ];
 const ANALYSIS = ['visual', 'ocr', 'caption', 'adult', 'speech', 'diarize', 'authenticity', 'curation'];
@@ -86,11 +86,11 @@ export function plannedKeys(job: Pick<DeviceJob, 'features' | 'plan'>): string[]
 
 /** До первых замеров: секунд на снимок и на загрузку модели. */
 const PER_FILE: Record<string, number> = {
-  inventory: .003, faces: .09, visual: .07, ocr: .8, adult: .16, caption: 20,
+  inventory: .003, thumbs: .05, faces: .09, visual: .07, ocr: .8, adult: .16, caption: 20,
   speech: 25, authenticity: .05, diarize: 20, curation: .01, highlights: 0,
 };
 const LOAD: Record<string, number> = {
-  inventory: 0, faces: 8, visual: 25, ocr: 15, adult: 20, caption: 60,
+  inventory: 0, thumbs: 1, faces: 8, visual: 25, ocr: 15, adult: 20, caption: 60,
   speech: 30, authenticity: 10, diarize: 30, curation: 2, highlights: 2,
 };
 

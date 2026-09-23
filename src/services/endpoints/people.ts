@@ -1,13 +1,19 @@
 import {api, post, query} from '../api';
 import type {CandidateFace} from '../../types/api';
+import type {CatalogState} from './catalog';
+
+export interface CatalogChangeReply {
+  ok: boolean;
+  state: CatalogState;
+}
 
 export const assignGroups = (payload: Record<string, unknown>) =>
-  post('/api/assign-groups', payload);
+  post<CatalogChangeReply>('/api/assign-groups', payload);
 
 export const assignFaces = (payload: Record<string, unknown>) =>
-  post('/api/assign-faces', payload);
+  post<CatalogChangeReply>('/api/assign-faces', payload);
 
-export const excludeFaces = (payload: Record<string, unknown>) => post('/api/exclude', payload);
+export const excludeFaces = (payload: Record<string, unknown>) => post<CatalogChangeReply>('/api/exclude', payload);
 
 /** Исключить сразу все лица одного файла (`folder: false`) или всей папки. */
 export const excludePath = (path: string, folder: boolean) =>

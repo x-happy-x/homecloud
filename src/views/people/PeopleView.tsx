@@ -17,12 +17,14 @@ import type {Group, KinPerson, NamedPerson} from '../../types/api';
 import {ActionBar} from '../../ui/ActionBar/ActionBar';
 import {Avatar} from '../../ui/Avatar/Avatar';
 import {Button} from '../../ui/Button/Button';
+import {ToggleChip} from '../../ui/Chip/Chip';
 import {EmptyState} from '../../ui/EmptyState/EmptyState';
 import {Icon} from '../../ui/Icon/Icon';
 import {InlineSearch} from '../../ui/InlineSearch/InlineSearch';
 import {PersonPicker, type PickerValue} from '../../ui/PersonPicker/PersonPicker';
 import {Skeleton} from '../../ui/Skeleton/Skeleton';
 import {PeopleAlbumTree} from './PeopleAlbumTree';
+import {automaticPeopleAlbums} from './automaticAlbums';
 
 const EMPTY_PICK: PickerValue = {name: '', bigfamId: null};
 const lower = (value: string) => value.toLocaleLowerCase('ru');
@@ -56,6 +58,7 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
   const namedOnly = useStore(store => store.prefs.peopleNamedOnly);
   const setNamedOnly = useStore(store => store.setPeopleNamedOnly);
   const [search, setSearch] = useState('');
+  const [hideAlbumed, setHideAlbumed] = useState(false);
   const [pick, setPick] = useState(EMPTY_PICK);
   // «Только с именами» помнится между заходами, «только без имени» — нет:
   // это разовая разборка, а не привычный вид.
@@ -68,10 +71,15 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
 
   const data = state.data;
   const kinById = useMemo(() => new Map((kin ?? []).map(person => [person.id, person])), [kin]);
+  const albums = useMemo(() => [
+    ...automaticPeopleAlbums(data?.groups ?? [], kin ?? []),
+    ...(data?.people_albums ?? []),
+  ], [data?.groups, data?.people_albums, kin]);
+  const albumedKeys = useMemo(() => new Set(albums.flatMap(album => album.member_keys)), [albums]);
   const needle = lower((search || query).trim());
 
   const visible = useMemo(() => {
-    const album = peopleAlbum ? data?.people_albums.find(item => item.id === peopleAlbum) : undefined;
+    const album = peopleAlbum ? albums.find(item => item.id === peopleAlbum) : undefined;
     const inAlbum = album ? new Set(album.member_keys) : null;
     // Люди из скрытого альбома нигде не показываются — только внутри самого
     // скрытого альбома (админу; обычному зрителю сервер их вовсе не отдаёт).
@@ -80,8 +88,9 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
       .filter(group => !REVIEW_KINDS.has(group.kind))
       .filter(group => insideHidden || !group.hidden)
       .filter(group => !inAlbum || inAlbum.has(group.key))
+      .filter(group => peopleAlbum || !hideAlbumed || !albumedKeys.has(group.key))
       .filter(group => !needle || lower(`${group.title} ${group.name ?? ''}`).includes(needle));
-  }, [data, peopleAlbum, needle]);
+  }, [data, albums, peopleAlbum, hideAlbumed, albumedKeys, needle]);
   const named = useMemo(() => visible.filter(group => group.kind === 'person'), [visible]);
   const unnamed = useMemo(() => visible.filter(group => group.kind !== 'person'), [visible]);
 
@@ -234,9 +243,15 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
             </button>
           ))}
         </div>
+        {!peopleAlbum && (
+          <ToggleChip checked={hideAlbumed} onChange={setHideAlbumed}
+            title="Скрыть людей, которые уже входят в ручные или автоматические альбомы">
+            Скрыть из альбомов
+          </ToggleChip>
+        )}
       </div>
 
-      {data && <PeopleAlbumTree albums={data.people_albums} groups={data.groups} />}
+      {data && <PeopleAlbumTree albums={albums} groups={data.groups} />}
 
       {canEdit && mode !== 'named' && !needle && !peopleAlbum && rail.length > 0 && (
         <section className="guess-rail" aria-label="Похожие на знакомых">
@@ -274,6 +289,7 @@ export function PeopleView({onOpenGroup}: {onOpenGroup(key: string): void}) {
                 key={group.key}
                 group={group}
                 kin={group.bigfam_id ? kinById.get(group.bigfam_id) ?? null : null}
+                isSelf={Boolean(group.bigfam_id && kinById.get(group.bigfam_id)?.isSelf)}
                 onOpen={onOpenGroup}
                 onSelect={selectGroup}
               />

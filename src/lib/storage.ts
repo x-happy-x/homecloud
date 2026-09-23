@@ -43,4 +43,5 @@ export const KEYS = {
   galleryGrouping: 'homecloud-gallery-grouping',
   galleryCollapsed: 'homecloud-gallery-collapsed',
   peopleNamedOnly: 'homecloud-people-named-only',
+  showSource: 'homecloud-show-source',
 } as const;

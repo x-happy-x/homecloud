@@ -11,6 +11,8 @@ export function FiltersSection() {
   const filters = useStore(state => state.filters);
   const setFilters = useStore(state => state.setFilters);
   const clearFilters = useStore(state => state.clearFilters);
+  const showSource = useStore(state => state.prefs.showSource);
+  const setShowSource = useStore(state => state.setShowSource);
 
   return (
     <>
@@ -32,6 +34,13 @@ export function FiltersSection() {
         </Chip>
       </Chips>
       <HintLine>Показ снимков 18+ настраивается в разделе «Настройки».</HintLine>
+      <div className="section-label">Плитки</div>
+      <Chips label="Плитки">
+        <Chip active={showSource} onClick={() => setShowSource(!showSource)}>
+          Подписывать источник
+        </Chip>
+      </Chips>
+      <HintLine>Где лежит оригинал: Netcraze, PC-X, PC-A. Отбор по источнику — во вкладке «Папки».</HintLine>
       {/* Поиск остаётся: сбрасываются только подборки и фильтры. */}
       <div className="reset-filters">
         <Button small onClick={clearFilters}>Сбросить всё</Button>

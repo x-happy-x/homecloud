@@ -1,11 +1,14 @@
 import {confirmAction} from '../../services/dialogs';
-import {useCallback, useRef, useState} from 'react';
-import {useMutation} from '@tanstack/react-query';
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {useMutation, useQuery} from '@tanstack/react-query';
 import {planSteps} from '../../hooks/useDeviceJobNotifications';
-import {formatNumber, roughDuration, runMoment} from '../../lib/format';
+import {fileSize, formatNumber, roughDuration, runMoment} from '../../lib/format';
 import {FEATURE_INFO} from '../../lib/jobs';
 import {lastRun, planJob, planMeta} from '../../lib/scanPlan';
-import {removeBackend, startBackendSsh, stopJob, type Device} from '../../services/endpoints/backends';
+import {
+  exportLegacy, getExportLegacy, installCore, mergeImport, removeCore, startCoreSsh, stopJob,
+  type CorePackage, type Device, type Source,
+} from '../../services/endpoints/backends';
 import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
@@ -16,6 +19,7 @@ import {Pill} from '../../ui/Pill/Pill';
 import {Popover} from '../../ui/Popover/Popover';
 import {Progress} from '../../ui/Progress/Progress';
 import {Pipeline} from './Pipeline';
+import {insidePath} from './SourceCard';
 
 const GIB = 1073741824;
 
@@ -23,16 +27,29 @@ const LAST_STATUS: Record<string, string> = {
   completed: 'Готово', stopped: 'Остановлено', error: 'Ошибка', interrupted: 'Прервано',
 };
 
+const INSTALL_STEPS: Record<string, string> = {
+  connect: 'Подключаюсь по SSH', upload: 'Загружаю пакет ядра', install: 'Устанавливаю',
+  wait: 'Жду, пока ядро ответит', start: 'Запускаю ядро', key: 'Записываю ключ хаба',
+  verify: 'Проверяю вход по ключу', done: 'Готово',
+};
+
+const INSTALL_ACTIONS: Record<string, string> = {
+  install: 'Установка', update: 'Обновление', start: 'Запуск', key: 'Переход на ключ',
+};
+
 export interface DeviceCardProps {
   device: Device;
+  sources: Source[];
+  corePackage: CorePackage | null;
   onScan(device: Device): void;
   onEdit(device: Device): void;
 }
 
 /** Путь источника коротко: последняя папка, полный путь — в подсказке. */
-const shortPath = (path: string) => path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path;
+const shortPath = (path: string) =>
+  insidePath(path).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path;
 
-export function DeviceCard({device, onScan, onEdit}: DeviceCardProps) {
+export function DeviceCard({device, sources, corePackage, onScan, onEdit}: DeviceCardProps) {
   const canEdit = useStore(state => state.session.canEdit);
   const toast = useStore(state => state.toast);
   const refresh = () => queryClient.invalidateQueries({queryKey: qk.devices()});
@@ -42,33 +59,74 @@ export function DeviceCard({device, onScan, onEdit}: DeviceCardProps) {
     onSuccess: () => { toast('Остановка запрошена — этап доработает текущий файл'); void refresh(); },
   });
   const remove = useMutation({
-    mutationFn: () => removeBackend(device.id),
-    onSuccess: () => { toast('Устройство удалено'); void refresh(); },
+    mutationFn: () => removeCore(device.id),
+    onSuccess: () => { toast('Ядро удалено из HomeCloud'); void refresh(); },
   });
   const sshStart = useMutation({
-    mutationFn: () => startBackendSsh(device.id),
-    onSuccess: () => { toast('Команда отправлена — бэкенд поднимается, статус обновится через пару секунд'); void refresh(); },
+    mutationFn: () => startCoreSsh(device.id),
+    onSuccess: () => { toast('Запускаю ядро по SSH — статус обновится через пару секунд'); void refresh(); },
     onError: (error: Error) => toast(`Не удалось запустить по SSH: ${error.message}`),
+  });
+  const install = useMutation({
+    mutationFn: (action: 'install' | 'update') => installCore(device.id, action),
+    onSuccess: (_state, action) => {
+      toast(action === 'install' ? 'Ставлю ядро — это надолго, ход виден на карточке'
+        : 'Обновляю ядро — ход виден на карточке');
+      void refresh();
+    },
+    onError: (error: Error) => toast(error.message),
+  });
+  const trustKey = useMutation({
+    mutationFn: () => installCore(device.id, 'key'),
+    onSuccess: () => { toast('Ставлю ключ хаба — ход виден на карточке'); void refresh(); },
+    onError: (error: Error) => toast(error.message),
   });
 
   const job = device.job ?? {active: false};
-  const running = device.online && job.active;
+  const running = device.online && !device.legacy && job.active;
   const plan = running ? planJob(device) : null;
-  const last = device.online && !job.active ? lastRun(job) : null;
+  const last = device.online && !device.legacy && !job.active ? lastRun(job) : null;
+  const installing = device.install?.status === 'running';
+  const version = device.version || device.device?.version || '';
 
-  const status = !device.online ? 'Не в сети'
+  const status = installing ? `${INSTALL_ACTIONS[device.install?.action ?? ''] ?? 'Установка'}…`
+    : !device.online ? 'Не в сети'
+    : device.legacy ? 'Старый бэкенд'
     : running ? (job.stop_requested ? 'Останавливается' : 'Идёт задание')
     : 'Готово к работе';
+  const tone = installing || running ? 'running' : !device.online || device.legacy ? 'error' : 'default';
+
+  const confirmInstall = async (action: 'install' | 'update') => {
+    const text = action === 'install'
+      ? `Поставить ядро на «${device.name}» с нуля? Сервер загрузит пакет ${corePackage?.version ?? ''}, `
+        + 'создаст окружение Python и автозапуск. Это может занять больше часа.'
+      : `Обновить ядро на «${device.name}» до ${corePackage?.version ?? 'текущей версии'}? `
+        + 'Код заменится, служба перезапустится; идущее задание прервётся.';
+    if (await confirmAction(text, {title: action === 'install' ? 'Установка ядра' : 'Обновление ядра'})) {
+      install.mutate(action);
+    }
+  };
+
+  const confirmKey = async () => {
+    const text = `Хаб войдёт на «${device.name}» по сохранённому паролю, добавит свой ключ SSH `
+      + 'в authorized_keys и проверит вход по нему. Если вход по ключу сработает, пароль '
+      + 'удалится из настроек хаба; если нет — останется как был.';
+    if (await confirmAction(text, {title: 'Перейти на ключ'})) {
+      trustKey.mutate();
+    }
+  };
 
   return (
-    <article className={`device-card${device.online ? '' : ' offline'}${running ? ' running' : ''}`}>
+    <article className={`device-card${device.online ? '' : ' offline'}${running || installing ? ' running' : ''}`}>
       <header className="device-head">
         <span className="device-mark" aria-hidden="true"><Icon name="scan" /></span>
         <div className="device-id">
           <h3>{device.name}{device.primary && <span className="device-primary">основное</span>}</h3>
-          <span className="device-address" title={device.url}>{device.url}</span>
+          <span className="device-address" title={device.url}>
+            {device.url}{version && ` · ${version}`}
+          </span>
         </div>
-        <Pill tone={!device.online ? 'error' : running ? 'running' : 'default'}>{status}</Pill>
+        <Pill tone={tone}>{status}</Pill>
         {canEdit && (
           <div className="device-head-actions">
             {running
@@ -76,6 +134,15 @@ export function DeviceCard({device, onScan, onEdit}: DeviceCardProps) {
                 <Button variant="danger" small disabled={stop.isPending || job.stop_requested} onClick={() => stop.mutate()}>
                   <Icon name="stop" size={16} />
                   <span>Остановить</span>
+                </Button>
+              )
+              : installing
+              ? <Button small disabled>Идёт {INSTALL_ACTIONS[device.install?.action ?? '']?.toLowerCase() ?? 'установка'}…</Button>
+              : device.online && device.legacy && device.ssh
+              ? (
+                <Button variant="primary" small disabled={install.isPending} onClick={() => confirmInstall('update')}>
+                  <Icon name="process" size={16} />
+                  <span>Перевести на хаб</span>
                 </Button>
               )
               : !device.online && device.ssh
@@ -86,15 +153,20 @@ export function DeviceCard({device, onScan, onEdit}: DeviceCardProps) {
                 </Button>
               )
               : (
-                <Button variant="primary" small disabled={!device.online} onClick={() => onScan(device)}>
+                <Button variant="primary" small disabled={!device.online || device.legacy} onClick={() => onScan(device)}>
                   <Icon name="plus" size={16} />
                   <span>Новое задание</span>
                 </Button>
               )}
             <DeviceMenu
+              canInstall={Boolean(device.ssh && corePackage)}
+              canTrustKey={Boolean(device.ssh?.hasPassword) && !installing}
               onEdit={() => onEdit(device)}
+              onTrustKey={() => void confirmKey()}
+              onUpdate={() => void confirmInstall('update')}
+              onInstall={() => void confirmInstall('install')}
               onRemove={async () => {
-                if (await confirmAction(`Удалить устройство «${device.name}» из HomeCloud?\nКаталог на самом устройстве не тронется.`)) {
+                if (await confirmAction(`Убрать ядро «${device.name}» из HomeCloud?\nНа самом устройстве ничего не удаляется.`)) {
                   remove.mutate();
                 }
               }}
@@ -103,25 +175,49 @@ export function DeviceCard({device, onScan, onEdit}: DeviceCardProps) {
         )}
       </header>
 
-      {!device.online && (
-        <p className="device-error">{device.error || 'Устройство не отвечает — проверьте, запущен ли backend.'}</p>
+      {!device.online && !installing && (
+        <p className="device-error">{device.error || 'Ядро не отвечает — проверьте, включён ли компьютер.'}</p>
       )}
-
-      {running && plan && <RunningJob device={device} plan={plan} />}
-      {last && <LastJob device={device} last={last} />}
-      {device.online && !running && !last && (
-        <div className="device-empty">
-          <strong>Заданий ещё не было</strong>
-          <span>Выберите папки на устройстве и этапы — прогресс появится здесь пайплайном.</span>
+      {device.outdated && corePackage && !installing && (
+        <div className="core-update">
+          <span>Есть новая версия ядра: <b>{corePackage.version}</b></span>
+          {canEdit && device.ssh && (
+            <Button small disabled={install.isPending} onClick={() => void confirmInstall('update')}>Обновить</Button>
+          )}
         </div>
       )}
+      {!device.ssh && (device.legacy || !device.online) && (
+        <p className="fact-empty">Чтобы ставить, обновлять и запускать ядро отсюда, включите доступ по SSH в «Подключении».</p>
+      )}
 
+      {device.install && <InstallProgress device={device} />}
+      {running && plan && <RunningJob device={device} plan={plan} />}
+      {last && <LastJob device={device} last={last} />}
+      {device.online && !device.legacy && !running && !last && (
+        <div className="device-empty">
+          <strong>Заданий ещё не было</strong>
+          <span>Выберите источник и папки — прогресс появится здесь пайплайном.</span>
+        </div>
+      )}
+      {device.online && device.device?.legacy && !device.legacyMerged && (
+        <LegacyCatalog device={device} sources={sources} />
+      )}
       {device.online && <DeviceFacts device={device} />}
     </article>
   );
 }
 
-function DeviceMenu({onEdit, onRemove}: {onEdit(): void; onRemove(): void}) {
+interface DeviceMenuProps {
+  canInstall: boolean;
+  canTrustKey: boolean;
+  onEdit(): void;
+  onTrustKey(): void;
+  onUpdate(): void;
+  onInstall(): void;
+  onRemove(): void;
+}
+
+function DeviceMenu({canInstall, canTrustKey, onEdit, onTrustKey, onUpdate, onInstall, onRemove}: DeviceMenuProps) {
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLSpanElement>(null);
   const close = useCallback(() => setOpen(false), []);
@@ -134,11 +230,120 @@ function DeviceMenu({onEdit, onRemove}: {onEdit(): void; onRemove(): void}) {
         <button type="button" onClick={() => { close(); onEdit(); }}>
           <Icon name="settings" />Подключение
         </button>
+        {canTrustKey && (
+          <button type="button" onClick={() => { close(); onTrustKey(); }}>
+            <Icon name="check" />Перейти на ключ
+          </button>
+        )}
+        {canInstall && (
+          <>
+            <button type="button" onClick={() => { close(); onUpdate(); }}>
+              <Icon name="process" />Обновить ядро
+            </button>
+            <button type="button" onClick={() => { close(); onInstall(); }}>
+              <Icon name="layers" />Установить с нуля
+            </button>
+          </>
+        )}
         <button type="button" className="danger" onClick={() => { close(); onRemove(); }}>
-          <Icon name="trash" />Удалить устройство
+          <Icon name="trash" />Убрать ядро
         </button>
       </Popover>
     </>
+  );
+}
+
+/** Ход установки, обновления или запуска по SSH: шаг и хвост журнала. */
+function InstallProgress({device}: {device: Device}) {
+  const state = device.install!;
+  const [open, setOpen] = useState(false);
+  const failed = state.status === 'error';
+  const done = state.status === 'completed';
+  // Удачный запуск старше минуты уже не новость.
+  if (done && state.action === 'start' && state.finished_at && Date.now() / 1000 - state.finished_at > 60) {
+    return null;
+  }
+  const lines = open ? state.log : state.log.slice(-4);
+  return (
+    <section className={`device-run last${failed ? ' status-error' : done ? ' status-completed' : ''}`}>
+      <div className="run-summary">
+        <div className="run-summary-text">
+          <span className="run-eyebrow">{INSTALL_ACTIONS[state.action] ?? state.action} ядра</span>
+          <strong>{failed ? 'Ошибка' : done ? 'Готово' : INSTALL_STEPS[state.step] ?? state.step}</strong>
+          {state.finished_at && <span className="run-meta">{runMoment(state.finished_at * 1000)}</span>}
+        </div>
+      </div>
+      {state.status === 'running' && <Progress value={null} />}
+      {failed && state.error && <p className="device-error">{state.error}</p>}
+      {lines.length > 0 && (
+        <pre className="install-log" onClick={() => setOpen(value => !value)}>{lines.join('\n')}</pre>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Старый каталог устройства: до хаба ядро держало свой. Его переносят в
+ * общий — лица, имена и анализ остаются, пути становятся ключами источника.
+ */
+function LegacyCatalog({device, sources}: {device: Device; sources: Source[]}) {
+  const toast = useStore(state => state.toast);
+  const canEdit = useStore(state => state.session.canEdit);
+  const legacy = device.device!.legacy!;
+  const target = sources.find(source => source.type === 'device' && source.device === device.id);
+  const [running, setRunning] = useState(false);
+
+  const status = useQuery({
+    queryKey: ['export-legacy', device.id],
+    queryFn: () => getExportLegacy(device.id),
+    enabled: running,
+    refetchInterval: 2000,
+  });
+  const merge = useMutation({
+    mutationFn: ({catalog, thumbnails}: {catalog: string; thumbnails?: string}) =>
+      mergeImport(catalog, thumbnails, target!.id),
+    onSuccess: () => toast('Каталог переносится в общий — через несколько минут он появится в галерее'),
+    onError: (error: Error) => toast(`Перенос не удался: ${error.message}`),
+  });
+  const start = useMutation({
+    mutationFn: () => exportLegacy(device.id),
+    onSuccess: () => { setRunning(true); toast('Отправляю старый каталог на сервер…'); },
+    onError: (error: Error) => toast(error.message),
+  });
+
+  const state = status.data;
+  useEffect(() => {
+    if (!running || !state) return;
+    if (state.status === 'completed' && state.catalog) {
+      setRunning(false);
+      merge.mutate({catalog: state.catalog, thumbnails: state.thumbnails});
+    } else if (state.status === 'error') {
+      setRunning(false);
+      toast(`Не удалось отправить каталог: ${state.error}`);
+    }
+  }, [running, state, merge, toast]);
+
+  return (
+    <div className="core-update legacy">
+      <span>
+        На устройстве старый каталог: {formatNumber(legacy.photos ?? 0)} фото,
+        {' '}{formatNumber(legacy.faces ?? 0)} лиц, {formatNumber(legacy.people ?? 0)} людей
+        {' '}({fileSize(legacy.bytes)}).
+        {!target && ' Сначала заведите источник «Диск устройства» для него.'}
+        {running && state?.step && ` Шаг: ${state.step}…`}
+      </span>
+      {canEdit && target && (
+        <Button small disabled={running || start.isPending || merge.isPending}
+          onClick={async () => {
+            if (await confirmAction(
+              `Перенести каталог «${device.name}» в общий? Имена, лица и анализ останутся, `
+              + `снимки станут снимками источника «${target.name}».`,
+              {title: 'Перенос каталога'})) start.mutate();
+          }}>
+          {running || merge.isPending ? 'Переношу…' : 'Перенести в общий'}
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -189,7 +394,7 @@ function RunningJob({device, plan}: {device: Device; plan: NonNullable<ReturnTyp
           {step.file && (
             <code className="run-file" title={step.file}>
               <span>{shortPath(step.file)}</span>
-              <small>{step.file.slice(0, Math.max(0, step.file.length - shortPath(step.file).length - 1))}</small>
+              <small>{insidePath(step.file).slice(0, Math.max(0, insidePath(step.file).length - shortPath(step.file).length - 1))}</small>
             </code>
           )}
         </div>
@@ -221,36 +426,14 @@ function LastJob({device, last}: {device: Device; last: NonNullable<ReturnType<t
 }
 
 function DeviceFacts({device}: {device: Device}) {
-  const job = device.job ?? {active: false};
   const info = device.device;
   const capabilities = info?.capabilities ?? {};
   const drives = info?.drives ?? [];
-  // Старые бэкенды отдают счётчики каталога россыпью, а не объектом.
-  const catalog = job.catalog ?? {
-    photos: job.catalog_photos ?? 0, faces: job.catalog_faces ?? 0,
-    videos: job.catalog_videos ?? 0, indexed: job.catalog_indexed ?? 0,
-    ocr: job.catalog_ocr ?? 0, captioned: job.catalog_captioned ?? 0,
-    adult: job.catalog_adult_analyzed ?? 0,
-  };
-  const metrics: Array<[string, number | undefined]> = [
-    ['фото', catalog.photos], ['видео', catalog.videos], ['лиц', catalog.faces],
-    ['в индексе', catalog.indexed], ['с текстом', catalog.ocr], ['с описанием', catalog.captioned],
-    ['проверено 18+', catalog.adult],
-  ];
   const available = Object.entries(FEATURE_INFO).filter(([key]) => capabilities[key]);
   const missing = Object.entries(FEATURE_INFO).filter(([key]) => !capabilities[key]);
 
   return (
     <div className="device-facts">
-      <section className="fact-block">
-        <h4>Каталог на устройстве</h4>
-        <div className="device-metrics">
-          {metrics.map(([label, value]) => (
-            <span key={label}><b>{formatNumber(value)}</b>{label}</span>
-          ))}
-        </div>
-      </section>
-
       <section className="fact-block">
         <h4>Диски</h4>
         {drives.length

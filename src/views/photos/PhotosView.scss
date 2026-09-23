@@ -48,6 +48,19 @@
   font-size: .62rem; font-weight: 700;
   backdrop-filter: blur(3px);
 }
+.tile-source {
+  position: absolute;
+  right: 6px; top: 6px;
+  max-width: calc(100% - 12px);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgb(10 16 15 / 55%);
+  color: #fff;
+  font-size: .6rem; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+}
 .tile-check {
   position: absolute;
   right: 6px; bottom: 6px;
@@ -134,6 +147,8 @@
   font-size: .7rem;
   font-weight: 700;
 }
+.photo-grid, .tile { user-select: none; }
+.tile img { -webkit-user-drag: none; }
 
 @include bp-md {
     /* галерея под палец: от края до края и три колонки */

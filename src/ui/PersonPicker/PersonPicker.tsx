@@ -1,7 +1,7 @@
 import {useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {Avatar} from '../Avatar/Avatar';
 import {plural} from '../../lib/format';
-import type {BigfamId, KinPerson, NamedPerson} from '../../types/api';
+import type {BigfamId, KinPerson, KinRelative, NamedPerson} from '../../types/api';
 
 export interface PickerValue {
   name: string;
@@ -12,6 +12,7 @@ export interface PickerOption extends PickerValue {
   source: 'catalog' | 'kin';
   meta: string;
   avatar?: string;
+  person?: KinPerson;
 }
 
 export interface PersonPickerProps {
@@ -29,21 +30,30 @@ const MAX_OPTIONS = 60;
 const lower = (value: string) => value.toLocaleLowerCase('ru');
 
 function buildOptions(people: NamedPerson[], kin: KinPerson[], search: string): PickerOption[] {
-  const known: PickerOption[] = people.map(person => ({
+  const kinById = new Map(kin.map(person => [person.id, person]));
+  const kinByName = new Map(kin.map(person => [lower(person.name), person]));
+  const known: PickerOption[] = people.map(person => {
+    const profile = person.bigfam_id ? kinById.get(person.bigfam_id) : kinByName.get(lower(person.name));
+    return ({
     bigfamId: person.bigfam_id ?? null,
     name: person.name,
     source: 'catalog',
-    meta: `${person.count} ${plural(person.count, 'лицо', 'лица', 'лиц')} в каталоге`,
-    avatar: person.bigfam_id ? `/media/bigfam/${person.bigfam_id}` : '',
-  }));
+    meta: [profile?.birth ? formatDate(profile.birth) : '',
+      `${person.count} ${plural(person.count, 'лицо', 'лица', 'лиц')} в каталоге`]
+      .filter(Boolean).join(' · '),
+    avatar: person.bigfam_id ? `/media/bigfam/${person.bigfam_id}` : profile?.avatar,
+    person: profile,
+  });
+  });
 
   const relatives: PickerOption[] = kin.map(person => ({
     bigfamId: person.id,
     name: person.name,
     source: 'kin',
-    meta: [person.birth, person.deceased ? `† ${person.death || ''}` : '']
+    meta: [person.birth ? formatDate(person.birth) : '', person.deceased ? 'Умер' : '']
       .filter(Boolean).join(' · ') || 'из картотеки',
     avatar: person.avatar,
+    person,
   }));
 
   // Кто уже есть в HomeCloud, того не показываем второй раз из картотеки.
@@ -62,6 +72,7 @@ export function PersonPicker({
 }: PersonPickerProps) {
   const [open, setOpen] = useState(false);
   const [cursor, setCursor] = useState(-1);
+  const [relativesFor, setRelativesFor] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
   // Поле в верхней половине экрана — список раскрывается вниз, иначе вверх.
@@ -77,6 +88,7 @@ export function PersonPicker({
     onChange({name: option.name, bigfamId: option.bigfamId});
     setOpen(false);
     setCursor(-1);
+    setRelativesFor('');
   };
 
   const move = (step: number) => {
@@ -163,24 +175,45 @@ export function PersonPicker({
               ? (option.source === 'catalog' ? 'Уже в HomeCloud' : 'Картотека BiGFaM')
               : '';
             lastSource = option.source;
+            const relativesOpen = relativesFor === optionKey(option);
             return (
               <div key={`${option.source}-${option.bigfamId ?? option.name}-${index}`}>
                 {head && <div className="picker-head">{head}</div>}
-                <button
-                  type="button"
-                  className={`picker-option${index === cursor ? ' cursor' : ''}`}
-                  onMouseDown={event => { event.preventDefault(); pick(option); }}
-                >
-                  <Avatar srcs={[option.avatar]} name={option.name}
-                    className="kin-avatar" letterClassName="kin-dot" />
-                  <span className="body">
-                    <span className="name">{option.name}</span>
-                    <span className="meta">{option.meta}</span>
-                  </span>
-                  {option.bigfamId !== null && option.bigfamId === value.bigfamId && (
-                    <span className="tick">✓</span>
+                <div className={`picker-card${relativesOpen ? ' expanded' : ''}`}>
+                  <button
+                    type="button"
+                    className={`picker-option${index === cursor ? ' cursor' : ''}`}
+                    onMouseDown={event => { event.preventDefault(); pick(option); }}
+                  >
+                    <Avatar srcs={[option.avatar]} name={option.name}
+                      className="kin-avatar" letterClassName="kin-dot" />
+                    <span className="body">
+                      <span className="name">{option.name}</span>
+                      <span className="meta">{option.meta}</span>
+                    </span>
+                    {option.bigfamId !== null && option.bigfamId === value.bigfamId && (
+                      <span className="tick">✓</span>
+                    )}
+                  </button>
+                  {option.person && (
+                    <button type="button" className="picker-relatives-toggle" aria-expanded={relativesOpen}
+                      onMouseDown={event => {
+                        event.preventDefault();
+                        setRelativesFor(current => current === optionKey(option) ? '' : optionKey(option));
+                      }}>
+                      {relativesOpen ? 'Скрыть' : 'Близкие'}
+                    </button>
                   )}
-                </button>
+                  {option.person && relativesOpen && (
+                    <PickerRelatives person={option.person} onPick={relative => pick({
+                      bigfamId: relative.id,
+                      name: relative.name,
+                      source: 'kin',
+                      meta: 'из близких',
+                      avatar: relative.avatar,
+                    })} />
+                  )}
+                </div>
               </div>
             );
           })}
@@ -188,4 +221,41 @@ export function PersonPicker({
       )}
     </div>
   );
+}
+
+const optionKey = (option: PickerOption) => `${option.source}:${option.bigfamId ?? lower(option.name)}`;
+
+function PickerRelatives({person, onPick}: {person: KinPerson; onPick(relative: KinRelative): void}) {
+  const groups: Array<[string, KinRelative[]]> = [
+    ['Супруги', person.relatives?.spouses ?? []],
+    ['Родители', person.relatives?.parents ?? []],
+    ['Братья и сёстры', person.relatives?.siblings ?? []],
+    ['Дети', person.relatives?.children ?? []],
+  ];
+  const visible = groups.filter(([, relatives]) => relatives.length > 0);
+  return <div className="picker-relatives">
+    {visible.length ? visible.map(([label, relatives]) => <section key={label}>
+      <small>{label}</small>
+      <div>{relatives.map(relative => <button key={relative.id} type="button"
+        className="picker-relative" title={`Назначить: ${relative.name}`}
+        onMouseDown={event => { event.preventDefault(); onPick(relative); }}>
+        <Avatar srcs={[relative.avatar]} name={relative.name}
+          className="picker-relative-avatar" letterClassName="picker-relative-letter" />
+        <b>{shortRelativeName(relative.name)}</b>
+      </button>)}</div>
+    </section>) : <small>Ближайшие родственники не указаны</small>}
+  </div>;
+}
+
+function shortRelativeName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return name;
+  const [, first, middle] = parts;
+  const initials = [parts[0], middle].filter(Boolean).map(part => `${part[0].toUpperCase()}.`).join('');
+  return `${first} ${initials}`;
+}
+
+function formatDate(value: string): string {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('ru-RU');
 }

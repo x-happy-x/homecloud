@@ -31,6 +31,8 @@ export interface PersonSuggestion {
 export interface PersonCardProps {
   group: PersonGroup;
   kin?: KinPerson | null;
+  /** Человек, к которому привязана текущая учётная запись BiGFaM. */
+  isSelf?: boolean;
   /** Безымянные группы мельче: главное на экране — названные люди. */
   compact?: boolean;
   /** На «Проверке» карточки не выбираются — там другой сценарий. */
@@ -51,7 +53,7 @@ export function avatarSources(group: PersonGroup): string[] {
 }
 
 export const PersonCard = memo(function PersonCard({
-  group, kin, compact = false, selectable = true, suggestion, onOpen, onSelect, onAccept,
+  group, kin, isSelf = false, compact = false, selectable = true, suggestion, onOpen, onSelect, onAccept,
 }: PersonCardProps) {
   // Подписка на свой бит выделения: иначе щелчок по одной карточке
   // перерисовывал бы всю сетку.
@@ -79,6 +81,7 @@ export const PersonCard = memo(function PersonCard({
   if (compact) classes.push('compact');
   if (selected) classes.push('selected');
   if (suggestion) classes.push('guessed');
+  if (isSelf) classes.push('is-self');
 
   return (
     <article className={classes.join(' ')} {...hold}>
@@ -89,6 +92,7 @@ export const PersonCard = memo(function PersonCard({
         {group.hidden && (
           <span className="hidden-badge" title="В скрытом альбоме — видно только админу">🔒</span>
         )}
+        {isSelf && <span className="self-badge" title="Это вы">ВЫ</span>}
         <span className="tick-mark" aria-hidden="true">✓</span>
       </div>
       <button className="person-label" type="button" title={group.title} onClick={click}>

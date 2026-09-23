@@ -74,6 +74,14 @@ describe('parseHash', () => {
     expect(parseHash('#/photos?person=A&person=B').people).toEqual(['A', 'B']);
   });
 
+  test('точная ссылка из BiGFaM сохраняет id человека и снимок', () => {
+    const hash = '#/photos?bigfam_id=p-17&photo=D%3A%5Cphoto.jpg';
+    const parsed = parseHash(hash);
+    expect(parsed.bigfamId).toBe('p-17');
+    expect(parsed.photo).toBe(`D:${BS}photo.jpg`);
+    expect(buildHash(parsed)).toBe(hash);
+  });
+
   test('folderDeep по умолчанию включён', () => {
     expect(parseHash('#/photos?folder=D%3A%5C').folderDeep).toBe(true);
     expect(parseHash('#/photos?folder=D%3A%5C&folder_deep=0').folderDeep).toBe(false);

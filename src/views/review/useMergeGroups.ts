@@ -9,7 +9,7 @@ import {mergeTarget, type SimilarGroup} from './similar';
  * Объединение двух групп с подтверждением: и на «Проверке», и в карточке
  * группы. Сливаем в ту, у которой есть имя.
  */
-export function useMergeGroups(onMerged?: () => void) {
+export function useMergeGroups(onMerged?: (target: SimilarGroup) => void) {
   const toast = useStore(state => state.toast);
 
   const merge = useMutation({
@@ -26,8 +26,9 @@ export function useMergeGroups(onMerged?: () => void) {
       void queryClient.invalidateQueries({queryKey: ['state']});
       void queryClient.invalidateQueries({queryKey: ['similar-pairs']});
       void queryClient.invalidateQueries({queryKey: ['similar']});
+      void queryClient.invalidateQueries({queryKey: ['group']});
       toast(`Объединено: ${target.title}`, 'success');
-      onMerged?.();
+      onMerged?.(target);
     },
   });
 

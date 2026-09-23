@@ -24,6 +24,8 @@ export interface SessionResponse {
 
 export interface KinPerson {
   id: BigfamId;
+  /** Человек, к которому привязана текущая учётная запись BiGFaM. */
+  isSelf?: boolean;
   name: string;
   first?: string;
   last?: string;
@@ -33,6 +35,19 @@ export interface KinPerson {
   deceased?: boolean;
   sex?: string;
   /** Пусто, если портрета в картотеке нет — тогда и запрашивать нечего. */
+  avatar?: string;
+  relatives?: {
+    parents: KinRelative[];
+    siblings: KinRelative[];
+    children: KinRelative[];
+    spouses: KinRelative[];
+  };
+}
+
+export interface KinRelative {
+  id: BigfamId;
+  name: string;
+  deceased?: boolean;
   avatar?: string;
 }
 
@@ -72,6 +87,9 @@ export interface GroupFace {
   kind: PhotoKind;
   /** Секунда кадра, если лицо найдено в видео. */
   frame_time: number | null;
+  /** Размер исходника, в системе координат которого сохранена рамка лица. */
+  width?: number | null;
+  height?: number | null;
   /** Промежуток трека в ролике: с какой секунды по какую лицо было в кадре. */
   track_start?: number | null;
   track_stop?: number | null;
@@ -136,6 +154,9 @@ export interface PeopleAlbum {
   effectively_hidden?: boolean;
   /** id вложенных альбомов. */
   children?: number[];
+  /** Рассчитывается по BiGFaM и не редактируется вручную. */
+  automatic?: boolean;
+  description?: string;
 }
 
 export interface Album {
@@ -167,6 +188,8 @@ export interface PhotoFace {
   name: string | null;
   bigfam_id: BigfamId | null;
   group: string;
+  /** Рамка лица в координатах оригинала: left, top, right, bottom. */
+  box?: [number, number, number, number] | null;
 }
 
 export interface RouterLabel {
@@ -193,6 +216,9 @@ export interface PhotoSummary {
   kind?: PhotoKind;
   /** Время файла в миллисекундах. */
   taken?: number | null;
+  /** Источник, где лежит оригинал: id и имя для подписи. */
+  source?: string;
+  source_name?: string;
   size?: number;
   width?: number;
   height?: number;

@@ -65,7 +65,7 @@ export function galleryContext(filters: GalleryFilters, albums: Album[] = []): C
 /** Снять один фильтр: какую часть фильтров записать. */
 export function dropFilter(filters: GalleryFilters, drop: ContextDrop): Partial<GalleryFilters> {
   switch (drop.kind) {
-    case 'person': return {people: filters.people.filter(name => name !== drop.name)};
+    case 'person': return {people: filters.people.filter(name => name !== drop.name), bigfamId: ''};
     case 'folder': return {folder: ''};
     case 'folderExclude': return {folderExclude: ''};
     case 'album': return {album: 0};
@@ -87,7 +87,18 @@ export interface FolderCrumb {
  * их строит бэкенд (PurePath): корень диска — «D:\», ниже — «D:\Фото». Прежний
  * код давал «D:» и «D:\\Фото», и щелчок по такой крошке не находил папку.
  */
-export function folderCrumbs(folder: string): FolderCrumb[] {
+export function folderCrumbs(folder: string, sourceName = ''): FolderCrumb[] {
+  // Ключ источника: первая крошка — сам источник («Netcraze», «PC-X · D:»).
+  const keyed = /^([a-z0-9][a-z0-9_-]{1,31}):(.*)$/s.exec(folder);
+  if (keyed) {
+    const [, source, inner] = keyed;
+    const nested = folderCrumbs(inner).map(crumb => ({name: crumb.name, path: `${source}:${crumb.path}`}));
+    const label = sourceName || source;
+    if (/^[A-Za-z]:/.test(inner) && nested.length) {
+      return [{name: `${label} · ${nested[0].name}`, path: nested[0].path}, ...nested.slice(1)];
+    }
+    return [{name: label, path: `${source}:/`}, ...nested];
+  }
   const separator = folder.includes('\\') ? '\\' : '/';
   const parts = folder.split(/[\\/]/).filter(Boolean);
   let walked = '';

@@ -16,8 +16,8 @@ const runTitle = (run: ScanRun) => run.roots.length
   ? run.roots.join(' · ')
   : `${formatNumber(run.paths.length)} ${plural(run.paths.length, 'фотография', 'фотографии', 'фотографий')}`;
 
-/** Прошлые источники: взять те же папки и включить другие этапы. */
-export function ScanHistory({deviceId}: {deviceId: string}) {
+/** Прошлые задания: взять те же папки и включить другие этапы. */
+export function ScanHistory() {
   const select = useStore(state => state.select);
   const setSelectedPaths = useStore(state => state.setSelectedPaths);
   const toast = useStore(state => state.toast);
@@ -25,17 +25,17 @@ export function ScanHistory({deviceId}: {deviceId: string}) {
   const [open, setOpen] = useState(false);
 
   const history = useQuery({
-    queryKey: qk.scanHistory(deviceId),
-    // Истории может не быть на старом бэкенде — это не повод для ошибки на экране.
-    queryFn: () => getScanHistory(deviceId).catch((error: Error) => {
+    queryKey: qk.scanHistory(),
+    // Недоступная история — не повод для ошибки на экране.
+    queryFn: () => getScanHistory().catch((error: Error) => {
       console.warn('История заданий недоступна:', error.message);
       return [] as ScanRun[];
     }),
   });
 
   const forget = useMutation({
-    mutationFn: (run: ScanRun) => forgetScanRun(deviceId, run.id),
-    onSuccess: () => queryClient.invalidateQueries({queryKey: qk.scanHistory(deviceId)}),
+    mutationFn: (run: ScanRun) => forgetScanRun(run.id),
+    onSuccess: () => queryClient.invalidateQueries({queryKey: qk.scanHistory()}),
   });
 
   const runs = history.data ?? [];

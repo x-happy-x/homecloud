@@ -44,6 +44,22 @@
   box-shadow: var(--shadow);
   overflow: clip;
 }
+.storage-body { display: grid; gap: 12px; padding: 0 20px 20px; }
+.storage-disk { display: grid; gap: 6px; color: var(--muted); font-size: .8rem; }
+.storage-source {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-m);
+  background: var(--surface);
+}
+.storage-source header { display: flex; align-items: baseline; gap: 8px; }
+.storage-source header small { color: var(--muted); font-size: .74rem; }
+.storage-metrics { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .78rem; color: var(--muted); }
+.storage-metrics b { margin-right: 4px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.storage-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.storage-actions .button { gap: 5px; }
 .settings-card.skeleton { height: 170px; border-color: transparent; background: var(--ground); box-shadow: none; }
 
 .settings-card-head {

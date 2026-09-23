@@ -1,5 +1,11 @@
 import {api, post, query} from '../api';
 
+/*
+ * Хаб HomeCloud: ядра (компьютеры с видеокартой, которые считают) и
+ * источники (где лежат оригиналы). Всё посчитанное — лица, превью, описания —
+ * живёт на хабе, поэтому галерея работает и без включённых ядер.
+ */
+
 export interface DeviceDrive {
   path: string;
   name: string;
@@ -14,6 +20,15 @@ export interface VisualModel {
   installed?: boolean;
 }
 
+/** Старый каталог, который ядро держало у себя до хаба. */
+export interface LegacyCatalog {
+  path: string;
+  bytes: number;
+  photos?: number;
+  faces?: number;
+  people?: number;
+}
+
 export interface DeviceInfo {
   id: string;
   name: string;
@@ -21,6 +36,10 @@ export interface DeviceInfo {
   visual_model: string;
   visual_models: VisualModel[];
   capabilities: Record<string, boolean>;
+  /** core — ядро при хабе; без него — старый бэкенд со своим каталогом. */
+  role?: string;
+  version?: string;
+  legacy?: LegacyCatalog | null;
 }
 
 /** Итог описи: сколько нашли и что изменилось с прошлого раза. */
@@ -40,7 +59,7 @@ export interface DeviceJob {
   stop_requested?: boolean;
   /** Файлов этапа, пропущенных из-за ошибок. */
   errors?: number;
-  /** Текущий этап: inventory, faces, visual… */
+  /** Текущий этап: inventory, thumbs, faces, visual… */
   phase?: string;
   error?: string;
   total?: number;
@@ -66,6 +85,7 @@ export interface DeviceJob {
   /** Замеры прошлых запусков по ключу «этап:вид». */
   timings?: Record<string, import('../../lib/scanPlan').PhaseTiming>;
   pid?: number;
+  /** Папки задания — ключи источников: «netcraze:/HDD/photo», «pc-x:D:\Фото». */
   roots?: string[];
   paths?: string[];
   features?: Record<string, boolean>;
@@ -82,47 +102,196 @@ export interface DeviceJob {
   catalog_adult_analyzed?: number;
 }
 
-/** Куда и как подключиться по SSH, чтобы поднять backend.ps1 на выключенной машине. */
+/** SSH до устройства: им хаб ставит, обновляет и запускает ядро. */
 export interface DeviceSsh {
   user: string;
   host: string;
   port: number;
+  hasPassword?: boolean;
 }
 
+/** Установка, обновление или запуск ядра по SSH — идёт на хабе в фоне. */
+export interface InstallState {
+  status: 'running' | 'completed' | 'error' | string;
+  action: 'install' | 'update' | 'start' | 'key' | string;
+  step: string;
+  log: string[];
+  error: string;
+  started_at: number;
+  finished_at: number | null;
+}
+
+/** Ядро — компьютер с видеокартой. */
 export interface Device {
   id: string;
   name: string;
   url: string;
+  host?: string;
+  port?: number;
   online: boolean;
   primary?: boolean;
-  hasToken?: boolean;
-  /** Нет или null — SSH-запуск не настроен. */
+  installDir?: string;
+  version?: string;
+  /** Версия ядра отстаёт от пакета на хабе. */
+  outdated?: boolean;
+  /** Отвечает старый бэкенд со своим каталогом: ядро ещё не установлено. */
+  legacy?: boolean;
+  /** Старый каталог устройства уже перенесён в общий. */
+  legacyMerged?: boolean;
+  /** Нет или null — SSH не настроен. */
   ssh?: DeviceSsh | null;
   error?: string;
   device?: DeviceInfo;
   job?: DeviceJob;
+  install?: InstallState | null;
 }
 
-export const getDevices = () =>
-  api<{backends: Device[]}>('/api/backends').then(data => data.backends ?? []);
+export interface CorePackage {
+  version: string;
+  file: string;
+  sha256?: string;
+  built_at?: string;
+}
 
-export const saveBackend = (payload: {
-  id: string; name: string; url: string; token: string; primary: boolean;
-  /** Пусто — не менять (как и token); sshClear — убрать SSH-запуск совсем. */
-  sshUser?: string; sshHost?: string; sshPort?: string; sshCommand?: string; sshClear?: boolean;
-}) => post('/api/backends/save', payload);
+export interface CoresOverview {
+  cores: Device[];
+  /** Текущий пакет ядра на хабе: его ставят и им обновляют. */
+  package: CorePackage | null;
+  /** Открытый ключ хаба — его кладут в authorized_keys устройства. */
+  publicKey: string;
+}
 
-export const removeBackend = (id: string) => post('/api/backends/remove', {id});
+export const getCores = () => api<CoresOverview>('/api/cores');
+export const getDevices = () => getCores().then(data => data.cores ?? []);
 
-const device = (id: string, tail: string) => `/api/backends/${encodeURIComponent(id)}/${tail}`;
+export const saveCore = (payload: {
+  id: string; name: string; host: string; port?: string; primary: boolean; installDir?: string;
+  /** Пусто — не менять; sshClear — убрать SSH совсем. */
+  sshUser?: string; sshPort?: string; sshPassword?: string; sshClear?: boolean;
+}) => post('/api/cores/save', payload);
 
-/** Запускает backend.ps1 на устройстве по SSH; возвращается после того, как ssh отработал. */
-export const startBackendSsh = (id: string) => post<{ok: boolean; output?: string}>(device(id, 'ssh-start'));
+export const removeCore = (id: string) => post('/api/cores/remove', {id});
 
-/** Без пути — список дисков; с путём — вложенные папки. */
-export const browseDevice = (id: string, path: string) =>
-  api<{path: string; parent: string | null; directories: Array<{name?: string; path: string}>}>(
-    device(id, `browse${query({path})}`));
+const core = (id: string, tail: string) => `/api/cores/${encodeURIComponent(id)}/${tail}`;
+
+/** Поднимает службу ядра по SSH (start-remote.ps1). */
+export const startCoreSsh = (id: string) => post<InstallState>(core(id, 'start'));
+
+/**
+ * Ставит ядро на устройство или обновляет его до пакета с хаба; `key` —
+ * положить ключ хаба в authorized_keys и забыть пароль SSH.
+ */
+export const installCore = (id: string, action: 'install' | 'update' | 'key') =>
+  post<InstallState>(core(id, 'install'), {action});
+
+export interface ExportState {
+  status: 'idle' | 'running' | 'completed' | 'error' | string;
+  step?: string;
+  error?: string;
+  catalog?: string;
+  thumbnails?: string;
+}
+
+/** Ядро отправляет свой старый каталог на хаб, чтобы влить его в общий. */
+export const exportLegacy = (id: string) => post<ExportState>(core(id, 'export-legacy'));
+export const getExportLegacy = (id: string) => api<ExportState>(core(id, 'export-legacy'));
+
+export const startJob = (coreId: string, payload: {
+  /** Папки и файлы — ключи источников. */
+  roots: string[];
+  paths?: string[];
+  /** Возможности для снимков. */
+  features: Record<string, boolean>;
+  /** Возможности для роликов; не задано — тот же набор, что и для снимков. */
+  video_features?: Record<string, boolean>;
+  force?: boolean;
+  visual_model?: string;
+}) => post(core(coreId, 'job/start'), payload);
+
+export const stopJob = (coreId: string) => post(core(coreId, 'job/stop'));
+
+// ---------- источники ----------
+
+export type SourceType = 'device' | 'smb' | 'sftp' | 'ftp' | 'webdav' | 'local';
+
+export interface SourceStats {
+  photos: number;
+  videos: number;
+  missing: number;
+  faces: number;
+  named_faces: number;
+  thumbs: number;
+  thumb_bytes: number;
+  analysis: number;
+  captions: number;
+  face_bytes: number;
+}
+
+export interface Source {
+  id: string;
+  name: string;
+  type: SourceType;
+  typeName: string;
+  host: string;
+  port: number;
+  user: string;
+  share: string;
+  path: string;
+  /** У диска устройства — id ядра, на котором он стоит. */
+  device: string;
+  secure: boolean;
+  enabled: boolean;
+  /** Папки, которые обычно сканируют. */
+  roots: string[];
+  hasPassword: boolean;
+  /** Ключ корня источника, с него начинается выбор папок. */
+  rootKey: string;
+  stats: Partial<SourceStats>;
+}
+
+export interface SourcesOverview {
+  sources: Source[];
+  types: Record<SourceType, string>;
+  devices: Array<{id: string; name: string}>;
+}
+
+export interface SourcePayload {
+  id: string;
+  name: string;
+  type: SourceType;
+  host?: string;
+  port?: string | number;
+  user?: string;
+  /** Пусто — оставить прежний пароль. */
+  password?: string;
+  clearPassword?: boolean;
+  share?: string;
+  path?: string;
+  device?: string;
+  secure?: boolean;
+  roots?: string[];
+}
+
+export const getSources = () => api<SourcesOverview>('/api/sources');
+export const saveSource = (payload: SourcePayload) => post('/api/sources/save', payload);
+/** purge — заодно удалить с хаба всё, что посчитано по этому источнику. */
+export const removeSource = (id: string, purge: boolean) => post('/api/sources/remove', {id, purge});
+export const testSource = (payload: SourcePayload) =>
+  post<{ok: boolean; roots: string[]}>('/api/sources/test', payload);
+
+export interface BrowseResult {
+  source: string;
+  /** Пусто — корни источника (шары, диски). */
+  path: string;
+  parent: string | null;
+  /** Снимков и роликов прямо в этой папке. */
+  media?: number;
+  directories: Array<{name?: string; path: string}>;
+}
+
+/** Без пути — корни источника; с путём — вложенные папки. */
+export const browseSource = (source: string, path: string) =>
+  api<BrowseResult>(`/api/sources/browse${query({source, path})}`);
 
 export interface TreeCounts {
   files?: number;
@@ -156,23 +325,10 @@ export interface TreeNode {
   truncated?: boolean;
 }
 
-export const getTree = (id: string, path = '') => api<TreeNode>(device(id, `tree${query({path})}`));
+export const getTree = (path = '') => api<TreeNode>(`/api/sources/tree${query({path})}`);
 
-export const setExclusions = (id: string, payload: {add?: string[]; remove?: string[]}) =>
-  post(device(id, 'exclusions'), payload);
-
-export const startJob = (id: string, payload: {
-  roots: string[];
-  paths?: string[];
-  /** Возможности для снимков. */
-  features: Record<string, boolean>;
-  /** Возможности для роликов; не задано — тот же набор, что и для снимков. */
-  video_features?: Record<string, boolean>;
-  force?: boolean;
-  visual_model?: string;
-}) => post(device(id, 'job/start'), payload);
-
-export const stopJob = (id: string) => post(device(id, 'job/stop'));
+export const setExclusions = (payload: {add?: string[]; remove?: string[]}) =>
+  post('/api/sources/exclusions', payload);
 
 export interface ScanRun {
   id: number;
@@ -185,9 +341,44 @@ export interface ScanRun {
   photos: number;
 }
 
-export const getScanHistory = (id: string) =>
-  api<{runs: ScanRun[]}>(device(id, 'history')).then(data => data.runs ?? []);
+export const getScanHistory = () =>
+  api<{runs: ScanRun[]}>('/api/scan/history').then(data => data.runs ?? []);
 
-// Бэкенд ищет запуск по полю id: с полем run «забыть» ничего не забывало.
-export const forgetScanRun = (id: string, runId: number) =>
-  post(device(id, 'history/forget'), {id: runId});
+// Хаб ищет запуск по полю id: с полем run «забыть» ничего не забывало.
+export const forgetScanRun = (runId: number) => post('/api/scan/history/forget', {id: runId});
+
+// ---------- данные на хабе по источникам ----------
+
+export interface StorageSource extends SourceStats {
+  id: string;
+  name: string;
+  /** Источник заведён; иначе это данные удалённого или старого источника. */
+  known: boolean;
+}
+
+export interface StorageOverview {
+  sources: StorageSource[];
+  catalog_bytes: number;
+  disk_free: number;
+  disk_total: number;
+}
+
+export type StoragePart = 'thumbs' | 'analysis' | 'faces' | 'catalog' | 'previews';
+
+export const getStorage = () => api<StorageOverview>('/api/storage');
+export const cleanStorage = (source: string, what: StoragePart[]) =>
+  post<StorageOverview & {removed: Record<string, unknown>}>('/api/storage/clean', {source, what});
+
+// ---------- перенос старых каталогов ----------
+
+export interface MergeState {
+  status: 'running' | 'completed' | 'error' | string;
+  source: string;
+  error?: string;
+  result?: Record<string, unknown>;
+}
+
+export const getImports = () =>
+  api<{files: string[]; merges: Record<string, MergeState>}>('/api/imports');
+export const mergeImport = (catalog: string, thumbnails: string | undefined, source: string) =>
+  post<MergeState>('/api/imports/merge', {catalog, thumbnails, source});

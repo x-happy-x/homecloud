@@ -51,11 +51,21 @@ export interface DuplicatesStatus {
 
 export const getDuplicatesStatus = () => api<DuplicatesStatus>('/api/duplicates/status');
 export const startDuplicatesScan = (similar: boolean) => post('/api/duplicates/scan', {similar});
+export const startCrossDuplicatesScan = (similar: boolean) =>
+  post<{devices: Array<{id: string; name: string; started: boolean; error?: string}>}>(
+    '/api/duplicates/cross/scan', {similar});
 export const stopDuplicatesScan = () => post('/api/duplicates/stop');
 
 export interface DuplicatePhoto extends PhotoSummary {
   folder?: string;
   filename?: string;
+  /** Для межустройственного режима path — составной ключ, source_path — путь на компьютере. */
+  source_path?: string;
+  device_id?: string;
+  device_name?: string;
+  /** Источник снимка в общем каталоге. */
+  source?: string;
+  source_name?: string;
 }
 
 export interface DuplicateGroup {
@@ -72,6 +82,8 @@ export interface DuplicateGroup {
   paths: string[];
   /** Карточки первых путей — не больше дюжины. */
   photos: DuplicatePhoto[];
+  /** Полный маршрут каждой копии нужен для удаления не показанных карточек. */
+  sources?: Array<{ref: string; device_id: string; device_name: string; path: string}>;
 
 }
 
@@ -94,6 +106,7 @@ export interface DuplicatesPage {
   total: number;
   /** Сводка по группам выбранной папки, до фильтров вида и размера. */
   summary?: DuplicatesSummary;
+  devices?: Array<{id: string; name: string; online: boolean; error?: string}>;
 }
 
 export const getDuplicates = (
@@ -102,7 +115,8 @@ export const getDuplicates = (
   limit: number,
   offset: number,
   signal?: AbortSignal,
-) => api<DuplicatesPage>(`/api/duplicates${query({
+  cross = false,
+) => api<DuplicatesPage>(`${cross ? '/api/duplicates/cross' : '/api/duplicates'}${query({
   similar: similar ? 1 : 0, kind: filters.kind, sort: filters.sort, folder: filters.folder,
   hide_small: filters.hideSmall ? 1 : 0, limit, offset,
 })}`, {signal});

@@ -9,7 +9,7 @@ import {useLongPress} from '../../hooks/useLongPress';
 import {formatNumber, percent, plural, timecode} from '../../lib/format';
 import {getGroup} from '../../services/endpoints/catalog';
 import {
-  assignFaces, assignGroups, excludeFaces, getPersonCandidates, getSimilar,
+  assignFaces, assignGroups, excludeFaces, getPersonCandidates, getSimilar, type CatalogChangeReply,
 } from '../../services/endpoints/people';
 import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
@@ -42,8 +42,10 @@ interface SimilarReply {
 }
 
 interface GroupChange {
-  call(): Promise<unknown>;
+  call(): Promise<CatalogChangeReply>;
   message: string;
+  /** После назначения всей группы открыть получившегося человека в том же окне. */
+  target?: PickerValue;
 }
 
 export interface GroupDialogProps {
@@ -71,7 +73,7 @@ export function GroupDialog({onOpenFace}: GroupDialogProps) {
 
   const data = key ? group.data : undefined;
   return (
-    <Dialog open={Boolean(data)} onClose={close} closeThroughHistory>
+    <Dialog open={Boolean(data)} onClose={close} closeThroughHistory className="group-dialog">
       {data && <GroupSheet key={data.key} group={data} onClose={close} onOpenFace={onOpenFace} />}
     </Dialog>
   );
@@ -84,6 +86,7 @@ interface GroupSheetProps {
 }
 
 function GroupSheet({group, onClose, onOpenFace}: GroupSheetProps) {
+  const setRouteGroup = useStore(state => state.setRouteGroup);
   const canEdit = useStore(state => state.session.canEdit);
   const view = useStore(state => state.view);
   const selected = useStore(state => state.selection.faces);
@@ -109,17 +112,22 @@ function GroupSheet({group, onClose, onOpenFace}: GroupSheetProps) {
 
   const change = useMutation({
     mutationFn: ({call}: GroupChange) => call(),
-    onSuccess: (_data, {message}) => {
+    onSuccess: (data, {message, target}) => {
       clear('faces');
       clear('groups');
+      if (target) {
+        const next = data.state.groups.find(item => target.bigfamId
+          ? item.bigfam_id === target.bigfamId
+          : item.name === target.name);
+        if (next) setRouteGroup(next.key);
+      }
       void queryClient.invalidateQueries({queryKey: ['state']});
       void queryClient.invalidateQueries({queryKey: ['group']});
       toast(message);
-      onClose();
     },
   });
 
-  const merge = useMergeGroups(onClose);
+  const merge = useMergeGroups(target => setRouteGroup(target.key));
 
   const similar = useQuery({
     queryKey: qk.similar(group.key),
@@ -163,6 +171,7 @@ function GroupSheet({group, onClose, onOpenFace}: GroupSheetProps) {
     <>
       <Sheet
         className="group-sheet"
+        bodyClassName="group-sheet-body"
         eyebrow={KINDS[group.kind] || 'Группа'}
         title={group.title}
         note={meta}
@@ -177,43 +186,50 @@ function GroupSheet({group, onClose, onOpenFace}: GroupSheetProps) {
         )}
         toolbar={canEdit && (
           <>
-            <PersonPicker value={pick} onChange={setPick} placeholder="Имя человека" people={people} kin={kin} />
-            <Button
-              variant="primary"
-              disabled={change.isPending}
-              onClick={() => change.mutate({
-                call: () => assignGroups({group_keys: [group.key], name: pick.name, bigfam_id: pick.bigfamId}),
-                message: 'Имя сохранено',
-              })}
-            >
-              Назначить всей группе
-            </Button>
-            <span className="toolbar-spacer" />
-            <span className="count">{selected.size} выбрано</span>
-            <Button small onClick={() => (all ? clear('faces') : select('faces', group.faces.map(face => face.id)))}>
-              {all ? 'Снять выбор' : 'Выбрать все'}
-            </Button>
-            <Button
-              small
-              disabled={!selected.size || change.isPending}
-              onClick={() => change.mutate({
-                call: () => assignFaces({face_ids: [...selected], name: pick.name, bigfam_id: pick.bigfamId}),
-                message: 'Выбранные лица назначены',
-              })}
-            >
-              Назначить выбранным
-            </Button>
-            <Button
-              variant="danger"
-              small
-              disabled={!selected.size || change.isPending}
-              onClick={() => change.mutate({
-                call: () => excludeFaces({face_ids: [...selected]}),
-                message: 'Лица перемещены в проверку',
-              })}
-            >
-              Исключить
-            </Button>
+            <div className="group-assign">
+              <span className="group-toolbar-label">Кому принадлежат лица</span>
+              <div>
+                <PersonPicker value={pick} onChange={setPick} placeholder="Имя человека" people={people} kin={kin} />
+                <Button
+                  variant="primary"
+                  disabled={change.isPending}
+                  onClick={() => change.mutate({
+                    call: () => assignGroups({group_keys: [group.key], name: pick.name, bigfam_id: pick.bigfamId}),
+                    message: 'Имя сохранено',
+                    target: pick,
+                  })}
+                >
+                  Назначить группу
+                </Button>
+              </div>
+            </div>
+            <div className={`group-selection${selected.size ? ' active' : ''}`}>
+              <span className="group-selection-count"><b>{selected.size}</b><small>выбрано</small></span>
+              <Button small onClick={() => (all ? clear('faces') : select('faces', group.faces.map(face => face.id)))}>
+                {all ? 'Снять выбор' : 'Выбрать все'}
+              </Button>
+              <Button
+                small
+                disabled={!selected.size || change.isPending}
+                onClick={() => change.mutate({
+                  call: () => assignFaces({face_ids: [...selected], name: pick.name, bigfam_id: pick.bigfamId}),
+                  message: 'Выбранные лица назначены',
+                })}
+              >
+                Назначить
+              </Button>
+              <Button
+                variant="danger"
+                small
+                disabled={!selected.size || change.isPending}
+                onClick={() => change.mutate({
+                  call: () => excludeFaces({face_ids: [...selected]}),
+                  message: 'Лица перемещены в проверку',
+                })}
+              >
+                Исключить
+              </Button>
+            </div>
           </>
         )}
       >

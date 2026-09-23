@@ -32,7 +32,8 @@ export function useInventory(devices: Device[] | undefined) {
 
   const finish = useCallback((current: DeviceJob | undefined, finished: InventoryRun) => {
     setRun(null);
-    void queryClient.invalidateQueries({queryKey: ['tree', finished.deviceId]});
+    void queryClient.invalidateQueries({queryKey: qk.tree()});
+    void queryClient.invalidateQueries({queryKey: qk.sources()});
     openTreeNodes(finished.roots);
     if (current?.status === 'error') console.error('Сбор списка файлов упал:', current.error);
     const outcome = inventoryOutcome(current);
@@ -70,7 +71,7 @@ export function useInventory(devices: Device[] | undefined) {
 
   const collect = (deviceId: string, roots: string[]) => {
     if (!roots.length) {
-      toast('Сначала выберите диск или папку');
+      toast('Сначала выберите папку источника');
       return;
     }
     if (run || start.isPending) return;

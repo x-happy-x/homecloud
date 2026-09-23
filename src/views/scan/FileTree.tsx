@@ -2,6 +2,7 @@ import {Fragment, type CSSProperties} from 'react';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import {formatNumber} from '../../lib/format';
 import {getTree, setExclusions, type TreeCounts} from '../../services/endpoints/backends';
+import {insidePath} from './SourceCard';
 import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
@@ -16,7 +17,7 @@ const FILE_STATES: Record<string, string> = {
   new: 'новый', changed: 'изменился', missing: 'пропал', excluded: 'исключён', known: '',
 };
 
-const baseName = (path: string) => path.split(/[\/]/).filter(Boolean).pop() ?? path;
+const baseName = (path: string) => insidePath(path).split(/[\\/]/).filter(Boolean).pop() ?? path;
 
 function Counters({counts}: {counts: TreeCounts}) {
   const badge = (value: number | undefined, kind: string, title: string) => value
@@ -34,17 +35,16 @@ function Counters({counts}: {counts: TreeCounts}) {
 }
 
 export interface FileTreeProps {
-  deviceId: string;
   /** Идёт опись: обновлять корень ещё раз нельзя. */
   busy: boolean;
   onCollect(roots: string[]): void;
 }
 
-/** Что нашла опись: папки по уровням, откуда можно исключить лишнее. */
-export function FileTree({deviceId, busy, onCollect}: FileTreeProps) {
+/** Что нашла опись: папки источников по уровням, откуда можно исключить лишнее. */
+export function FileTree({busy, onCollect}: FileTreeProps) {
   const open = useStore(state => state.scan.treeOpen);
   const toggle = useStore(state => state.toggleTreeNode);
-  const base = useQuery({queryKey: qk.tree(deviceId, ''), queryFn: () => getTree(deviceId, '')});
+  const base = useQuery({queryKey: qk.tree(''), queryFn: () => getTree('')});
   const roots = base.data?.roots ?? [];
 
   if (!roots.length) {
@@ -63,25 +63,25 @@ export function FileTree({deviceId, busy, onCollect}: FileTreeProps) {
             <Counters counts={{...root, subtree: root.files}} />
             <Button small disabled={busy} onClick={() => onCollect([root.path])}>Обновить</Button>
           </div>
-          {open.has(root.path) && <TreeLevel deviceId={deviceId} path={root.path} depth={1} />}
+          {open.has(root.path) && <TreeLevel path={root.path} depth={1} />}
         </div>
       ))}
     </div>
   );
 }
 
-function TreeLevel({deviceId, path, depth}: {deviceId: string; path: string; depth: number}) {
+function TreeLevel({path, depth}: {path: string; depth: number}) {
   const open = useStore(state => state.scan.treeOpen);
   const toggle = useStore(state => state.toggleTreeNode);
   const toast = useStore(state => state.toast);
 
-  const node = useQuery({queryKey: qk.tree(deviceId, path), queryFn: () => getTree(deviceId, path)});
+  const node = useQuery({queryKey: qk.tree(path), queryFn: () => getTree(path)});
 
   const exclusion = useMutation({
     mutationFn: (item: {path: string; off: boolean}) =>
-      setExclusions(deviceId, item.off ? {remove: [item.path]} : {add: [item.path]}),
+      setExclusions(item.off ? {remove: [item.path]} : {add: [item.path]}),
     onSuccess: async (_data, item) => {
-      await queryClient.invalidateQueries({queryKey: ['tree', deviceId]});
+      await queryClient.invalidateQueries({queryKey: qk.tree()});
       toast(item.off ? 'Вернули в обработку' : 'Исключено из обработки');
     },
   });
@@ -111,7 +111,7 @@ function TreeLevel({deviceId, path, depth}: {deviceId: string; path: string; dep
             <Counters counts={item} />
             {offButton(item)}
           </div>
-          {open.has(item.path) && <TreeLevel deviceId={deviceId} path={item.path} depth={depth + 1} />}
+          {open.has(item.path) && <TreeLevel path={item.path} depth={depth + 1} />}
         </Fragment>
       ))}
       {node.data.files.map(item => (

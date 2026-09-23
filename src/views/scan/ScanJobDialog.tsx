@@ -1,7 +1,7 @@
 import {keepPreviousData, useMutation, useQuery} from '@tanstack/react-query';
 import {FeaturePicker} from '../../components/features/FeaturePicker';
 import {formatNumber, plural} from '../../lib/format';
-import {browseDevice, startJob, type Device} from '../../services/endpoints/backends';
+import {browseSource, startJob, type Device, type Source} from '../../services/endpoints/backends';
 import {queryClient} from '../../services/queryClient';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
@@ -14,13 +14,15 @@ import {Icon} from '../../ui/Icon/Icon';
 import {IconButton} from '../../ui/IconButton/IconButton';
 import {FileTree} from './FileTree';
 import {ScanHistory} from './ScanHistory';
+import {insidePath} from './SourceCard';
 import {useInventory} from './useInventory';
 
 /**
- * Окно задания на устройстве. Опись живёт на уровне окна, а не формы: если
- * закрыть окно посреди сбора списка, итог всё равно придёт уведомлением.
+ * Окно задания: источник, папки в нём и ядро, которое будет считать. Опись
+ * живёт на уровне окна, а не формы: если закрыть окно посреди сбора
+ * списка, итог всё равно придёт уведомлением.
  */
-export function ScanJobDialog({devices}: {devices: Device[] | undefined}) {
+export function ScanJobDialog({devices, sources}: {devices: Device[] | undefined; sources: Source[]}) {
   const deviceId = useStore(state => state.scan.deviceId);
   const closeScan = useStore(state => state.closeScan);
   const inventory = useInventory(devices);
@@ -28,18 +30,23 @@ export function ScanJobDialog({devices}: {devices: Device[] | undefined}) {
 
   return (
     <Dialog open={deviceId !== null} onClose={closeScan}>
-      {device && <ScanJobForm device={device} inventory={inventory} onClose={closeScan} />}
+      {device && (
+        <ScanJobForm device={device} devices={devices ?? []} sources={sources}
+          inventory={inventory} onClose={closeScan} />
+      )}
     </Dialog>
   );
 }
 
 interface ScanJobFormProps {
   device: Device;
+  devices: Device[];
+  sources: Source[];
   inventory: ReturnType<typeof useInventory>;
   onClose(): void;
 }
 
-function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
+function ScanJobForm({device, devices, sources, inventory, onClose}: ScanJobFormProps) {
   const roots = useStore(state => state.selection.roots);
   const select = useStore(state => state.select);
   const selectedPaths = useStore(state => state.scan.selectedPaths);
@@ -48,9 +55,14 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
   const force = useStore(state => state.scan.force);
   const setForce = useStore(state => state.setScanForce);
   const visualModel = useStore(state => state.scan.visualModel);
+  const sourceId = useStore(state => state.scan.sourceId);
+  const setScanSource = useStore(state => state.setScanSource);
+  const setScanCore = useStore(state => state.setScanCore);
   const toast = useStore(state => state.toast);
 
   const capabilities = device.device?.capabilities ?? {};
+  const source = sources.find(item => item.id === sourceId) ?? null;
+  const cores = devices.filter(item => item.online && !item.legacy);
 
   const submit = useMutation({
     mutationFn: () => startJob(device.id, {
@@ -64,13 +76,13 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
     onSuccess: async () => {
       onClose();
       await queryClient.invalidateQueries({queryKey: qk.devices()});
-      toast('Задание запущено на устройстве');
+      toast(`Задание запущено на ${device.name}`);
     },
   });
 
   const onSubmit = () => {
     if (!roots.size && !selectedPaths.length) {
-      toast('Выберите диск, папку или источник из прошлого запуска');
+      toast('Выберите папку источника или источник из прошлого запуска');
       return;
     }
     if (!anyFeature(features)) {
@@ -81,11 +93,11 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
   };
 
   const addRoot = (path: string) => select('roots', [...roots, path]);
-  const sources = roots.size + (selectedPaths.length ? 1 : 0);
+  const count = roots.size + (selectedPaths.length ? 1 : 0);
   const stages = new Set((['photos', 'videos'] as const)
     .flatMap(kind => Object.entries(features[kind]).filter(([, on]) => on).map(([key]) => key))).size;
   const summary = [
-    sources ? `${formatNumber(sources)} ${plural(sources, 'источник', 'источника', 'источников')}` : 'Нет источников',
+    count ? `${formatNumber(count)} ${plural(count, 'папка', 'папки', 'папок')}` : 'Нет папок',
     stages ? `${formatNumber(stages)} ${plural(stages, 'этап', 'этапа', 'этапов')}` : 'нет этапов',
   ].join(' · ');
 
@@ -94,17 +106,35 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
       className="scan-device-sheet"
       bodyClassName="scan-device-body"
       eyebrow="Новое задание"
-      title={`Сканирование · ${device.name}`}
-      note="Три шага: откуда брать файлы, при желании — проверить список, и что с ними делать."
+      title={`Сканирование${source ? ` · ${source.name}` : ''}`}
+      note="Откуда брать файлы, при желании — проверить список, и что с ними делать. Превью для галереи обновляются при каждом обходе."
       onClose={onClose}
       onSubmit={onSubmit}
     >
       <section className="scan-step">
-        <StepHead number={1} title="Откуда брать файлы" note="Диски и папки на устройстве" />
-        <ScanHistory deviceId={device.id} />
-        <BrowsePanel deviceId={device.id} onAdd={addRoot} />
+        <StepHead number={1} title="Откуда брать файлы" note="Источник и папки в нём" />
+        <div className="source-picker">
+          {sources.map(item => (
+            <button key={item.id} type="button"
+              className={`root-chip${item.id === sourceId ? ' active' : ''}`}
+              onClick={() => setScanSource(item.id)}>
+              <Icon name={item.type === 'device' ? 'drive' : 'folder'} size={14} />
+              <span>{item.name}</span>
+            </button>
+          ))}
+        </div>
+        <ScanHistory />
+        {source
+          ? <BrowsePanel source={source} onAdd={addRoot} />
+          : <HintLine>Выберите источник — появятся его папки.</HintLine>}
         <SelectedRoots />
         <div className="collect-row">
+          <label className="core-picker">
+            Считает
+            <select value={device.id} onChange={event => setScanCore(event.target.value)}>
+              {cores.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </label>
           <Button disabled={inventory.busy} onClick={() => inventory.collect(device.id, [...roots])}>
             Собрать список файлов
           </Button>
@@ -114,7 +144,6 @@ function ScanJobForm({device, inventory, onClose}: ScanJobFormProps) {
       <section className="scan-step tree-section">
         <StepHead number={2} title="Проверить список" note="Необязательно: исключите лишние папки" />
         <FileTree
-          deviceId={device.id}
           busy={inventory.busy}
           onCollect={paths => inventory.collect(device.id, paths)}
         />
@@ -152,17 +181,18 @@ function StepHead({number, title, note}: {number: number; title: string; note: s
   );
 }
 
-function BrowsePanel({deviceId, onAdd}: {deviceId: string; onAdd(path: string): void}) {
+function BrowsePanel({source, onAdd}: {source: Source; onAdd(path: string): void}) {
   const path = useStore(state => state.scan.browsePath);
   const setBrowsePath = useStore(state => state.setBrowsePath);
 
   const browse = useQuery({
-    queryKey: qk.browse(deviceId, path),
-    queryFn: () => browseDevice(deviceId, path),
+    queryKey: qk.browse(source.id, path),
+    queryFn: () => browseSource(source.id, path),
     // Недоступная папка не должна стирать уже показанный список.
     placeholderData: keepPreviousData,
+    retry: false,
   });
-  const data = browse.data;
+  const data = browse.data?.source === source.id ? browse.data : undefined;
   const entries = data?.directories ?? [];
 
   return (
@@ -172,14 +202,16 @@ function BrowsePanel({deviceId, onAdd}: {deviceId: string; onAdd(path: string): 
           <Icon name="chevronLeft" size={16} />
           <span>Выше</span>
         </Button>
-        <code>{data?.path || 'Диски'}</code>
+        <code>{data?.path ? insidePath(data.path) : source.name}</code>
         <Button small disabled={!data?.path} onClick={() => data?.path && onAdd(data.path)}>
           <Icon name="plus" size={16} />
           <span>Эту папку</span>
         </Button>
       </div>
       <div className="folder-list">
-        {!data
+        {browse.isError
+          ? <div className="folder-empty">Источник не открылся: {(browse.error as Error).message}</div>
+          : !data
           ? <div className="folder-empty">Загрузка…</div>
           : entries.length
             ? entries.map(entry => (
@@ -192,7 +224,9 @@ function BrowsePanel({deviceId, onAdd}: {deviceId: string; onAdd(path: string): 
                   <IconButton icon="plus" label="Добавить в задание" onClick={() => onAdd(entry.path)} />
                 </div>
               ))
-            : <div className="folder-empty">Нет доступных папок</div>}
+            : <div className="folder-empty">
+                {data.media ? `Вложенных папок нет, снимков и роликов здесь: ${formatNumber(data.media)}` : 'Нет доступных папок'}
+              </div>}
       </div>
     </>
   );

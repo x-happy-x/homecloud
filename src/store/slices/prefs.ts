@@ -26,6 +26,8 @@ export interface PrefsSlice {
     grouping: Grouping;
     /** Свёрнутые группы — по виду группировки. */
     collapsed: Record<string, CollapseRule>;
+    /** Подпись источника (Netcraze, PC-X) на плитках галереи. */
+    showSource: boolean;
   };
   setAdultMode(mode: AdultMode): void;
   setZoom(zoom: ZoomLevel): void;
@@ -34,6 +36,7 @@ export interface PrefsSlice {
   setAnalysisTab(tab: AnalysisView): void;
   setSimilarNamedOnly(only: boolean): void;
   setPeopleNamedOnly(only: boolean): void;
+  setShowSource(show: boolean): void;
   setGroupBy(by: GroupBy): void;
   setGroupOrder(order: GroupOrder): void;
   toggleGroup(by: GroupBy, key: string): void;
@@ -86,6 +89,7 @@ export const createPrefsSlice: StateCreator<Store, [], [], PrefsSlice> = (set, g
       peopleNamedOnly: readLocal(KEYS.peopleNamedOnly) === '1',
       grouping: parseGrouping(readLocalJson(KEYS.galleryGrouping, null)),
       collapsed: savedCollapsed(),
+      showSource: readLocal(KEYS.showSource) !== '0',
     },
 
     setAdultMode: mode => { writeLocal(KEYS.adultMode, mode); patch({adultMode: mode}); },
@@ -98,6 +102,7 @@ export const createPrefsSlice: StateCreator<Store, [], [], PrefsSlice> = (set, g
       writeLocal(KEYS.peopleNamedOnly, only ? '1' : '');
       patch({peopleNamedOnly: only});
     },
+    setShowSource: show => { writeLocal(KEYS.showSource, show ? '1' : '0'); patch({showSource: show}); },
     // У нового вида свой естественный порядок: папки по названию, дни — свежие сверху.
     setGroupBy: by => saveGrouping(parseGrouping({by, order: defaultOrder(by)})),
     setGroupOrder: order => saveGrouping(parseGrouping({...get().prefs.grouping, order})),
