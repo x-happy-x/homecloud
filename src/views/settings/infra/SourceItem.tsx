@@ -9,6 +9,7 @@ import {Button} from '../../../ui/Button/Button';
 import {Icon} from '../../../ui/Icon/Icon';
 import {IconButton} from '../../../ui/IconButton/IconButton';
 import {Pill} from '../../../ui/Pill/Pill';
+import {DriveList} from './DriveList';
 
 export interface SourceItemProps {
   source: Source;
@@ -72,6 +73,13 @@ export function SourceItem({source, devices, onEdit}: SourceItemProps) {
           </div>
         )}
       </div>
+      {host && (
+        <div className="infra-drives">
+          {host.online && host.device
+            ? <DriveList drives={host.device.drives} used={source.roots.map(root => root.replace(/^[^:]+:/, ''))} />
+            : <p className="fact-empty">{host.name} не в сети — место на дисках неизвестно.</p>}
+        </div>
+      )}
       <div className="infra-side">
         {!reachable && <Pill tone="error">Устройство не в сети</Pill>}
         {canEdit && (

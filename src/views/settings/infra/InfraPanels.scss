@@ -205,3 +205,18 @@
   .infra-item { grid-template-columns: auto minmax(0, 1fr); }
   .infra-side { grid-column: 1 / -1; justify-content: flex-end; }
 }
+
+// У ядра остался один блок фактов — «Что умеет»; диски живут у источника.
+.device-facts.single { grid-template-columns: minmax(0, 1fr); }
+.infra-mark, .infra-main { grid-row: 1; }
+.infra-side { grid-row: 1; grid-column: 3; }
+.infra-drives { grid-row: 2; grid-column: 2 / -1; min-width: 0; }
+.infra-drives .drive-list { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+.drive-list li { border: 1px solid transparent; }
+.drive-list li.used { border-color: color-mix(in srgb, var(--patina) 45%, var(--line-soft)); }
+.drive-list li.used .drive-name { color: var(--patina); }
+
+@include bp-md {
+  .infra-drives { grid-column: 1 / -1; }
+  .infra-side { grid-row: 3; grid-column: 1 / -1; }
+}
