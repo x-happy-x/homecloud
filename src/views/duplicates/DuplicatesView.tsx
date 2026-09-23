@@ -5,9 +5,10 @@ import './DuplicatesView.scss';
 import {MediaContextMenu, mediaMenuAt, type MediaMenuItem, type MediaMenuState} from '../../components/media/MediaContextMenu';
 import {fileSize, formatNumber, photoDate, plural} from '../../lib/format';
 import {
-  getDuplicates, type DuplicateGroup, type DuplicatePhoto, type DuplicatesStatus, type DuplicatesSummary,
+  getDuplicates, startCrossDuplicatesScan, type DuplicateGroup, type DuplicatePhoto,
+  type DuplicatesStatus, type DuplicatesSummary,
 } from '../../services/endpoints/jobs';
-import {deletePhotos} from '../../services/endpoints/photos';
+import {deleteDevicePhotos, deletePhotos} from '../../services/endpoints/photos';
 import {photoMediaUrl} from '../../services/media';
 import {qk} from '../../services/queryKeys';
 import {loadAllDuplicates} from './loadAll';
@@ -62,18 +63,23 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
   const setKeep = useStore(state => state.setDupKeep);
   const openPhoto = useStore(state => state.setRoutePhoto);
   const [menu, setMenu] = useState<MediaMenuState | null>(null);
+  // Каталог теперь общий на все источники: копии на разных устройствах и так
+  // лежат в одной сводке, отдельный режим «между устройствами» не нужен.
+  const cross = false;
   const closeMenu = useCallback(() => setMenu(null), []);
   /** Удалённые из меню — прячем сразу, не дожидаясь перезапроса списка. */
   const [deleted, setDeleted] = useState<Set<string>>(() => new Set());
 
   const removeOne = useMutation({
-    mutationFn: (path: string) => deletePhotos([path]),
-    onSuccess: (data, path) => {
+    mutationFn: (photo: DuplicatePhoto) => photo.device_id
+      ? deleteDevicePhotos(photo.device_id, [photo.source_path || photo.path])
+      : deletePhotos([photo.path]),
+    onSuccess: (data, photo) => {
       if (data.errors.length) {
         toast('Не удалось удалить файл', 'error');
         return;
       }
-      setDeleted(current => new Set(current).add(path));
+      setDeleted(current => new Set(current).add(photo.path));
       toast('Файл перемещён в корзину', 'success');
       void queryClient.invalidateQueries({queryKey: ['duplicates']});
       void queryClient.invalidateQueries({queryKey: ['state']});
@@ -84,9 +90,9 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
     setMenu(mediaMenuAt(event, photo.path, photo.kind === 'video')), []);
 
   const groups = useInfiniteQuery({
-    queryKey: qk.duplicates(similar, {...filters}),
+    queryKey: qk.duplicates(similar, {...filters, cross}),
     initialPageParam: 0,
-    queryFn: ({pageParam}) => getDuplicates(similar, filters, PAGE, pageParam as number),
+    queryFn: ({pageParam}) => getDuplicates(similar, filters, PAGE, pageParam as number, undefined, cross),
     getNextPageParam: (last, pages) => {
       const loaded = pages.reduce((sum, page) => sum + (page.groups?.length ?? 0), 0);
       return loaded < (last.total ?? 0) && last.groups.length ? loaded : undefined;
@@ -106,9 +112,13 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
     .filter(group => group.paths.length > 1), [groups.data, deleted]);
   const total = groups.data?.pages[0]?.total ?? 0;
   const summary = groups.data?.pages[0]?.summary;
+  const crossDevices = groups.data?.pages[0]?.devices ?? [];
+  const unavailable = crossDevices.filter(device => !device.online);
 
   const keepOf = (group: DuplicateGroup) => keeperOf(group, keepChoice[group.key], filters.folder);
   const extrasOf = (group: DuplicateGroup) => doomedPaths(group, keepOf(group), filters.folder);
+  const sourceOf = (group: DuplicateGroup, ref: string) =>
+    group.sources?.find(source => source.ref === ref);
 
   const active = list.filter(group => !skipped.has(group.key));
   const extras = active.flatMap(extrasOf);
@@ -126,7 +136,7 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
             onProgress: (loaded, total) => dialog.update(
               `Проверено групп: ${formatNumber(loaded)} из ${formatNumber(total)}`,
               total ? loaded / total : 1),
-          });
+          }, cross);
         } catch (error) {
           if (dialog.signal.aborted) return null;
           throw error;
@@ -143,7 +153,12 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
           : 'В каждой группе останется отмеченный снимок.\n')
         + 'Файлы будут перемещены в корзину.';
       if (!await confirmAction(text, {title: 'Удалить дубликаты?', confirmLabel: 'Удалить', danger: true})) return null;
-      return deleteDuplicatesWithProgress(paths);
+      const targets = paths.map(ref => {
+        const group = targetGroups.find(item => item.paths.includes(ref));
+        const source = group && sourceOf(group, ref);
+        return source ? {path: source.path, deviceId: source.device_id} : ref;
+      });
+      return deleteDuplicatesWithProgress(targets);
     },
     onSuccess: result => {
       if (!result) return;
@@ -160,7 +175,10 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
   });
 
   const menuItems: MediaMenuItem[] = [
-    {label: menu?.video ? 'Открыть видео' : 'Открыть фото', icon: 'openExternal', onSelect: openPhoto},
+    {label: menu?.video ? 'Открыть видео' : 'Открыть фото', icon: 'openExternal', onSelect: path => {
+      const photo = list.flatMap(group => group.photos).find(item => item.path === path);
+      if (photo?.device_id) window.open(photo.preview, '_blank', 'noopener'); else openPhoto(path);
+    }},
     ...(canEdit ? [
       {
         label: 'Оставить этот файл',
@@ -175,12 +193,30 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
         icon: 'trash',
         danger: true,
         disabled: removeOne.isPending,
-        onSelect: (path: string) => removeOne.mutate(path),
+        onSelect: (path: string) => {
+          const photo = list.flatMap(group => group.photos).find(item => item.path === path);
+          if (photo) removeOne.mutate(photo);
+        },
       },
     ] satisfies MediaMenuItem[] : []),
   ];
 
   const running = ['counting', 'running'].includes(status?.status ?? '');
+  const crossScan = useMutation({
+    mutationFn: () => startCrossDuplicatesScan(similar),
+    onSuccess: data => {
+      const started = data.devices.filter(device => device.started).length;
+      toast(`Поиск запущен на устройствах: ${started} из ${data.devices.length}`);
+      for (const delay of [2000, 10000, 30000]) {
+        window.setTimeout(() => void queryClient.invalidateQueries({queryKey: ['duplicates']}), delay);
+      }
+    },
+  });
+  const runScan = () => cross ? crossScan.mutate() : onScan();
+  const openDuplicate = (path: string) => {
+    const photo = list.flatMap(group => group.photos).find(item => item.path === path);
+    if (photo?.device_id) window.open(photo.preview, '_blank', 'noopener'); else openPhoto(path);
+  };
 
   return (
     <section className="analysis-panel dup-view">
@@ -190,7 +226,7 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
         actions={canEdit && (
           <div className="dup-scan-actions">
             <ToggleChip checked={similar} onChange={setSimilar} disabled={running}>Искать похожие</ToggleChip>
-            <Button variant="primary" small disabled={running} onClick={onScan}>
+            <Button variant="primary" small disabled={running || crossScan.isPending} onClick={runScan}>
               <Icon name="search" size={16} />
               <span>{summary?.groups ? 'Искать заново' : 'Найти дубликаты'}</span>
             </Button>
@@ -198,7 +234,14 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
         )}
       />
 
-      {running && <ScanProgress status={status!} canStop={canEdit} onStop={onStop} />}
+      {cross && unavailable.length > 0 && (
+        <div className="dup-cross-note" role="status">
+          <Icon name="info" size={17} />
+          <span>Не участвуют в сравнении: {unavailable.map(device => device.name).join(', ')}.</span>
+        </div>
+      )}
+
+      {!cross && running && <ScanProgress status={status!} canStop={canEdit} onStop={onStop} />}
 
       {summary && summary.groups > 0 && (
         <Summary
@@ -294,7 +337,7 @@ export function DuplicatesView({status, onScan, onStop}: DuplicatesViewProps) {
             adultMode={adultMode}
             layout={layout}
             onMenu={onCardMenu}
-            onOpen={openPhoto}
+            onOpen={openDuplicate}
             folder={filters.folder}
           />
         ))}
@@ -552,6 +595,7 @@ function Mosaic({group, keep, size, canEdit, adultMode, onKeep, onMenu, onOpen, 
           photo.filename || baseName(photo.path),
           fileSize(photo.size),
           photo.width ? `${photo.width}×${photo.height}` : '',
+          photo.source_name ?? photo.device_name ?? '',
           photo.folder ?? '',
         ].filter(Boolean).join(' · ');
         return (
@@ -568,6 +612,9 @@ function Mosaic({group, keep, size, canEdit, adultMode, onKeep, onMenu, onOpen, 
           >
             <img src={photoMediaUrl(photo, adultMode, 360)} alt="" loading="lazy" decoding="async" />
             {kept && <span className="dup-mark"><Icon name="check" size={13} />Оставим</span>}
+            {(photo.source_name || photo.device_name) && (
+              <span className="dup-device">{photo.source_name || photo.device_name}</span>
+            )}
             {photo.kind === 'video' && <span className="dup-video"><Icon name="play" size={13} /></span>}
             <span className="dup-tile-size">{fileSize(photo.size)}</span>
             {last && <span className="dup-tile-rest">+{formatNumber(left)}</span>}
@@ -614,6 +661,9 @@ function DupCard({photo, keep, canEdit, adultMode, onKeep, onMenu, onOpen}: DupC
           <Icon name="folder" size={13} />
           {photo.folder ? baseName(photo.folder) : '—'}
         </span>
+        {(photo.source_name || photo.device_name) && (
+          <small className="dup-card-device">{photo.source_name || photo.device_name}</small>
+        )}
         {date && <small>{date}</small>}
       </figcaption>
     </figure>

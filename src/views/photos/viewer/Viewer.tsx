@@ -1,10 +1,12 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent} from 'react';
+import {createPortal} from 'react-dom';
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query';
 import './Viewer.scss';
 import {VIEW_TITLES} from '../../../app/routes';
 import {useDragScroll} from '../../../hooks/useDragScroll';
 import {useKeyboardShortcuts} from '../../../hooks/useKeyboardShortcuts';
+import {useKin} from '../../../hooks/useKin';
 import {formatNumber, photoDate, timecode} from '../../../lib/format';
 import {getGroup, getPhoto} from '../../../services/endpoints/catalog';
 import {clearAvatar, setAvatar} from '../../../services/endpoints/people';
@@ -13,11 +15,13 @@ import {density, photoMediaUrl, viewerSize} from '../../../services/media';
 import {queryClient} from '../../../services/queryClient';
 import {qk} from '../../../services/queryKeys';
 import {useStore} from '../../../store';
-import type {GroupDetail, GroupFace, PhotoCard} from '../../../types/api';
+import type {GroupDetail, GroupFace, KinPerson, PhotoCard, PhotoFace} from '../../../types/api';
 import type {AdultMode} from '../../../types/domain';
 import {Dialog} from '../../../ui/Dialog/Dialog';
+import {Avatar} from '../../../ui/Avatar/Avatar';
 import {Icon} from '../../../ui/Icon/Icon';
 import {videoStart} from '../../people/stacks';
+import {bigfamPersonUrl} from '../gallery';
 import {useGallery} from '../useGallery';
 import {usePhotoActions} from '../usePhotoActions';
 import {InfoPanel} from './InfoPanel';
@@ -43,6 +47,7 @@ const facePlaceholder = (face: GroupFace): PhotoCard => ({
   path: face.path, filename: face.filename, folder: '',
   preview: `${face.original}?face=1`,
   video: face.kind === 'video' ? face.original : '', kind: face.kind, duration: 0, taken: null,
+  width: face.width ?? 0, height: face.height ?? 0,
   caption: '', caption_short: '', caption_tags: [], ocr_text: '', adult_description: '',
   adult_regions: [], people: [], face_count: 0, faces: [], router_labels: [], albums: [],
   speech_text: '', hidden_owner: '',
@@ -72,15 +77,19 @@ function GalleryViewer() {
   const single = useQuery({
     queryKey: qk.photo(routePhoto),
     queryFn: () => getPhoto(routePhoto),
-    enabled: Boolean(routePhoto) && position < 0 && (!isPending || !inGallery),
+    // Страница галереи содержит размеры рабочей копии. Открытый снимок всегда
+    // уточняем отдельно: рамки лиц заданы в координатах оригинала.
+    enabled: Boolean(routePhoto),
   });
 
-  const list = position >= 0 || !single.data ? photos : [...photos, single.data];
+  const list = position >= 0
+    ? photos.map((photo, photoIndex) => photoIndex === position && single.data ? single.data : photo)
+    : single.data ? [...photos, single.data] : photos;
   const index = position >= 0 ? position : single.data ? photos.length : -1;
 
   useEffect(() => {
-    if (routePhoto && single.isError) setRoutePhoto('');
-  }, [routePhoto, single.isError, setRoutePhoto]);
+    if (routePhoto && position < 0 && single.isError) setRoutePhoto('');
+  }, [routePhoto, position, single.isError, setRoutePhoto]);
 
   useEffect(() => {
     if (index >= 0 && index >= list.length - PRELOAD_EDGE && hasNextPage && !isFetchingNextPage) {
@@ -166,11 +175,21 @@ interface SearchRequest {
   tab: Window | null;
 }
 
+interface ImageBounds {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  naturalWidth: number;
+  naturalHeight: number;
+}
+
 function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, onGo, onClose}: ViewerDialogProps) {
   const adultMode = useStore(state => state.prefs.adultMode);
   const canEdit = useStore(state => state.session.canEdit);
   const view = useStore(state => state.view);
   const hiddenAlbum = useStore(state => state.filters.hidden);
+  const bigfamUrl = useStore(state => state.session.bigfamUrl);
   const info = useStore(state => state.viewer.info);
   const chrome = useStore(state => state.viewer.chrome);
   const toggleInfo = useStore(state => state.toggleViewerInfo);
@@ -178,8 +197,10 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
   const openProcess = useStore(state => state.openProcess);
   const toast = useStore(state => state.toast);
   const actions = usePhotoActions();
+  const kin = useKin().data ?? [];
 
   const video = useRef<HTMLVideoElement>(null);
+  const image = useRef<HTMLImageElement>(null);
   /** Куда перемотать ролик, как только у него появятся метаданные. */
   const pendingStart = useRef<number | null>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -190,12 +211,13 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
     pinching: false,
     pinchDistance: 0,
     pinchScale: 1,
-  } as {start?: Point; last?: Point; moved: boolean; pinching: boolean; pinchDistance: number; pinchScale: number});
-  const ignoreClick = useRef(false);
+  } as {start?: Point; last?: Point; moved: boolean; pinching: boolean; pinchDistance: number; pinchScale: number; media?: boolean});
 
   const [mediaStatus, setMediaStatus] = useState<MediaStatus>('loading');
   const [retry, setRetry] = useState(0);
   const [transform, setTransform] = useState<MediaTransform>(() => resetTransform());
+  const [imageBounds, setImageBounds] = useState<ImageBounds | null>(null);
+  const [passportFace, setPassportFace] = useState<number | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [controlsHeld, setControlsHeld] = useState(false);
   const [player, setPlayer] = useState<PlayerState>({
@@ -225,11 +247,46 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
     if (!mediaKey) return;
     setMediaStatus('loading');
     setTransform(resetTransform());
+    setPassportFace(null);
     setMenuOpen(false);
     pointers.current.clear();
     video.current?.pause();
     setPlayer(state => ({...state, playing: false, current: 0, duration: photo?.duration ?? 0, buffering: false, seeking: false}));
   }, [mediaKey, photo?.duration]);
+
+  const measureImage = useCallback(() => {
+    const node = image.current;
+    const shell = node?.parentElement;
+    if (!node || !shell || !node.naturalWidth || !node.naturalHeight) {
+      setImageBounds(null);
+      return;
+    }
+    const mediaRect = node.getBoundingClientRect();
+    const shellRect = shell.getBoundingClientRect();
+    setImageBounds({
+      left: mediaRect.left - shellRect.left,
+      top: mediaRect.top - shellRect.top,
+      width: mediaRect.width,
+      height: mediaRect.height,
+      naturalWidth: node.naturalWidth,
+      naturalHeight: node.naturalHeight,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (movie || mediaStatus !== 'ready') {
+      setImageBounds(null);
+      return;
+    }
+    const frame = requestAnimationFrame(measureImage);
+    const observer = new ResizeObserver(measureImage);
+    if (image.current) observer.observe(image.current);
+    if (image.current?.parentElement) observer.observe(image.current.parentElement);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [movie, mediaStatus, mediaKey, transform, info, chrome, measureImage]);
 
   // Лица одного ролика — это один и тот же файл: при переходе между ними
   // видео не перезагружается, и перематывать надо уже загруженное.
@@ -408,11 +465,18 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     showChrome();
-    if (isUiTarget(event.target)) return;
+    if (isUiTarget(event.target)) {
+      pointers.current.delete(event.pointerId);
+      gesture.current = {moved: false, pinching: false, pinchDistance: 0, pinchScale: transform.scale};
+      return;
+    }
     pointers.current.set(event.pointerId, point(event));
     event.currentTarget.setPointerCapture?.(event.pointerId);
     if (pointers.current.size === 1) {
-      gesture.current = {start: point(event), last: point(event), moved: false, pinching: false, pinchDistance: 0, pinchScale: transform.scale};
+      gesture.current = {
+        start: point(event), last: point(event), moved: false, pinching: false,
+        pinchDistance: 0, pinchScale: transform.scale, media: isMediaElementTarget(event.target),
+      };
     } else if (pointers.current.size === 2) {
       const [first, second] = [...pointers.current.values()];
       gesture.current = {...gesture.current, pinching: true, pinchDistance: distance(first, second), pinchScale: transform.scale};
@@ -431,7 +495,6 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
       const midpoint = {x: (first.x + second.x) / 2 - (rect?.left ?? 0), y: (first.y + second.y) / 2 - (rect?.top ?? 0)};
       setTransform(current => zoomTransform({...current, scale: gesture.current.pinchScale}, gesture.current.pinchScale * factor, midpoint, stageBounds(stage.current)));
       gesture.current.moved = true;
-      ignoreClick.current = true;
       event.preventDefault();
       return;
     }
@@ -444,7 +507,6 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
     const totalY = nextPoint.y - start.y;
     if (Math.hypot(totalX, totalY) > 6) {
       gesture.current.moved = true;
-      ignoreClick.current = true;
     }
     if (transform.scale > 1.02) {
       setTransform(current => panTransform(current, {x: dx, y: dy}, stageBounds(stage.current)));
@@ -454,7 +516,9 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
   };
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!pointers.current.has(event.pointerId)) return;
     const start = gesture.current.start;
+    const moved = gesture.current.moved;
     const end = point(event);
     pointers.current.delete(event.pointerId);
     if (pointers.current.size === 0 && start && !gesture.current.pinching && transform.scale <= 1.02) {
@@ -462,11 +526,17 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
       const dy = end.y - start.y;
       if (shouldSwipe(dx, dy, transform.scale)) go(dx < 0 ? 1 : -1);
       else if (Math.abs(dy) >= 60 && Math.abs(dy) > Math.abs(dx)) {
-        if (dy > 0) onClose();
+        if (dy > 0) {
+          if (info) toggleInfo(false);
+          else onClose();
+        }
         else toggleInfo(true);
       }
     }
     if (pointers.current.size < 2) gesture.current.pinching = false;
+    if (pointers.current.size === 0) {
+      gesture.current = {moved: false, pinching: false, pinchDistance: 0, pinchScale: transform.scale};
+    }
   };
 
   const handleWheel = (event: ReactWheelEvent<HTMLElement>) => {
@@ -516,15 +586,16 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
             ref={stage}
             className="viewer-stage"
             onClick={event => {
-              if (ignoreClick.current) {
-                ignoreClick.current = false;
+              if (isUiTarget(event.target)) return;
+              const insidePhoto = Boolean(imageBounds
+                && event.clientX >= imageBounds.left
+                && event.clientX <= imageBounds.left + imageBounds.width
+                && event.clientY >= imageBounds.top
+                && event.clientY <= imageBounds.top + imageBounds.height);
+              if (insidePhoto) {
+                if (passportFace !== null) setPassportFace(null);
                 return;
               }
-              // Щелчок по самому кадру и по кнопкам поверх него закрывать
-              // просмотрщик не должен — закрывают только поля вокруг.
-              // Проверка обязана быть на всплытии: если гасить событие на
-              // перехвате, до кнопки под курсором оно уже не дойдёт.
-              if (isUiTarget(event.target) || isMediaElementTarget(event.target)) return;
               onClose();
             }}
             onDoubleClick={handleDoubleClick}
@@ -534,7 +605,11 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
             onPointerUp={handlePointerUp}
             onPointerCancel={event => {
               pointers.current.delete(event.pointerId);
-              gesture.current.pinching = false;
+              if (pointers.current.size === 0) {
+                gesture.current = {moved: false, pinching: false, pinchDistance: 0, pinchScale: transform.scale};
+              } else {
+                gesture.current.pinching = false;
+              }
             }}
             onMouseMove={showChrome}
           >
@@ -616,13 +691,30 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
                 : (
                     <img
                       key={mediaKey}
+                      ref={image}
                       src={src}
                       alt={photo.caption_short || photo.caption || photo.filename}
                       style={mediaStyle(transform)}
-                      onLoad={() => markReady(mediaKey)}
+                      onLoad={() => {
+                        markReady(mediaKey);
+                        requestAnimationFrame(measureImage);
+                      }}
                       onError={() => markError(mediaKey)}
                     />
                   )}
+              {!movie && imageBounds && photo.faces.length > 0 && (
+                <PhotoFaces
+                  faces={photo.faces}
+                  bounds={imageBounds}
+                  sourceWidth={photo.width || imageBounds.naturalWidth}
+                  sourceHeight={photo.height || imageBounds.naturalHeight}
+                  kin={kin}
+                  selected={passportFace}
+                  onSelect={faceId => setPassportFace(current => current === faceId ? null : faceId)}
+                  bigfamUrl={bigfamUrl}
+                  photoTaken={photo.taken}
+                />
+              )}
               {movie && (player.buffering || mediaStatus === 'loading') && <div className="viewer-buffering" />}
             </div>
 
@@ -884,8 +976,274 @@ function isUiTarget(target: EventTarget): boolean {
   return Boolean((target as HTMLElement).closest?.('.viewer-ui, button, a, input, .viewer-sheet'));
 }
 
+function PhotoFaces({faces, bounds, sourceWidth, sourceHeight, kin, selected, onSelect, bigfamUrl, photoTaken}: {
+  faces: PhotoFace[];
+  bounds: ImageBounds;
+  sourceWidth: number;
+  sourceHeight: number;
+  kin: KinPerson[];
+  selected: number | null;
+  onSelect(faceId: number): void;
+  bigfamUrl: string;
+  photoTaken?: number | null;
+}) {
+  const kinById = new Map(kin.map(person => [person.id, person]));
+  const [relativesOpen, setRelativesOpen] = useState(false);
+  useEffect(() => setRelativesOpen(false), [selected]);
+  return (
+    <div className="viewer-face-layer viewer-ui" style={{
+      left: bounds.left,
+      top: bounds.top,
+      width: bounds.width,
+      height: bounds.height,
+    }} aria-label="Лица на фотографии">
+      {faces.map(face => {
+        if (!face.box) return null;
+        const [left, top, right, bottom] = face.box;
+        const person = face.bigfam_id ? kinById.get(face.bigfam_id) : undefined;
+        const birthday = Boolean(person && !person.deceased && isBirthdayToday(person.birth));
+        const birthdayAge = birthday && person ? ageOnDate(person.birth, new Date()) : null;
+        const photoAge = person && photoTaken ? ageOnDate(person.birth, new Date(photoTaken)) : null;
+        const open = selected === face.id;
+        const faceTop = bounds.top + top / sourceHeight * bounds.height;
+        const faceBottom = bounds.top + bottom / sourceHeight * bounds.height;
+        const faceCenter = bounds.left + (left + right) / 2 / sourceWidth * bounds.width;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const passportWidth = Math.min(310, viewportWidth - 24);
+        const passportLeft = Math.max(12 + passportWidth / 2, Math.min(viewportWidth - 12 - passportWidth / 2, faceCenter));
+        const spaceAbove = faceTop - 24;
+        const spaceBelow = viewportHeight - faceBottom - 24;
+        const wantedHeight = relativesOpen ? Math.min(520, viewportHeight * .82) : 245;
+        const passportAbove = spaceBelow < wantedHeight && spaceAbove > spaceBelow;
+        const passportSpace = Math.max(170, passportAbove ? spaceAbove : spaceBelow);
+        const passportStyle = passportAbove
+          ? {left: passportLeft, bottom: viewportHeight - faceTop + 12, maxHeight: passportSpace}
+          : {left: passportLeft, top: faceBottom + 12, maxHeight: passportSpace};
+        const style = {
+          left: `${left / sourceWidth * 100}%`,
+          top: `${top / sourceHeight * 100}%`,
+          width: `${Math.max(0, right - left) / sourceWidth * 100}%`,
+          height: `${Math.max(0, bottom - top) / sourceHeight * 100}%`,
+        };
+        return (
+          <span
+            key={face.id}
+            className={`viewer-face-box${open ? ' selected' : ''}`}
+            style={style}
+            role="button"
+            tabIndex={0}
+            aria-label={`Открыть карточку: ${face.name || 'Без имени'}`}
+            aria-expanded={open}
+            onClick={event => { event.stopPropagation(); onSelect(face.id); }}
+            onKeyDown={event => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                event.stopPropagation();
+                onSelect(face.id);
+              }
+            }}
+          >
+            <span className="viewer-face-name">{face.name || 'Без имени'}</span>
+            {open && (
+              <span className={`viewer-face-passport ${passportAbove ? 'above' : 'below'}${person?.deceased ? ' is-deceased' : ''}${birthday ? ' is-birthday' : ''}`} style={passportStyle}>
+                {person?.deceased && <GhostPattern />}
+                {birthday && <ConfettiPattern />}
+                <span className="viewer-face-passport-head">
+                  <span className="viewer-face-passport-avatar-wrap">
+                    <Avatar
+                      srcs={[person?.avatar, face.bigfam_id ? `/media/bigfam/${face.bigfam_id}` : '', face.thumbnail]}
+                      name={face.name}
+                      className="viewer-face-passport-avatar"
+                      letterClassName="viewer-face-passport-letter"
+                    />
+                    {birthday && (
+                      <SmartTooltip text={birthdayAge === null ? 'Сегодня день рождения' : `Сегодня исполнилось ${ageLabel(birthdayAge)}`} className="viewer-birthday-hat-wrap">
+                        <span className="viewer-birthday-hat" aria-label={birthdayAge === null ? 'Сегодня день рождения' : `Сегодня исполнилось ${ageLabel(birthdayAge)}`}>🥳</span>
+                      </SmartTooltip>
+                    )}
+                  </span>
+                  <span>
+                    <strong>{person?.name || face.name || 'Без имени'}</strong>
+                    <small>{face.bigfam_id ? 'Профиль Bigfam' : 'Локальное распознавание'}</small>
+                    {birthdayAge !== null && <small className="viewer-birthday-age">Сегодня исполнилось {ageLabel(birthdayAge)}</small>}
+                  </span>
+                </span>
+                {person && (
+                  <span className="viewer-face-passport-data">
+                    {person.birth && <span><small>Дата рождения</small><b>{kinDate(person.birth)}</b></span>}
+                    {photoAge !== null && <span><small>Возраст на фото</small><b>{ageLabel(photoAge)}</b></span>}
+                    {person.sex && <span><small>Пол</small><b>{kinSex(person.sex)}</b></span>}
+                  </span>
+                )}
+                {person && (
+                  <span className="viewer-face-passport-actions">
+                    <SmartTooltip text="Открыть все связи в Bigfam">
+                      <a href={bigfamPersonUrl(bigfamUrl, person.id)} target="_blank" rel="noopener"
+                        onClick={event => event.stopPropagation()}>
+                        Все связи ↗
+                      </a>
+                    </SmartTooltip>
+                    <button type="button" aria-expanded={relativesOpen}
+                      onClick={event => { event.stopPropagation(); setRelativesOpen(value => !value); }}>
+                      {relativesOpen ? 'Скрыть близких' : 'Близкие'}
+                    </button>
+                  </span>
+                )}
+                {person && relativesOpen && <KinGraph person={person} bigfamUrl={bigfamUrl} />}
+                {person?.deceased && <SmartTooltip text={`Дата смерти: ${kinDate(person.death || '') || 'не указана'}`} className="viewer-deceased-mark-wrap">
+                  <span className="viewer-deceased-mark" role="img" aria-label={`Дата смерти: ${kinDate(person.death || '') || 'не указана'}`}>💀</span>
+                </SmartTooltip>}
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function KinGraph({person, bigfamUrl}: {person: KinPerson; bigfamUrl: string}) {
+  const groups = [
+    ['Супруги', person.relatives?.spouses ?? []],
+    ['Родители', person.relatives?.parents ?? []],
+    ['Братья и сёстры', person.relatives?.siblings ?? []],
+    ['Дети', person.relatives?.children ?? []],
+  ] as const;
+  const hasRelatives = groups.some(([, relatives]) => relatives.length > 0);
+  return (
+    <span className="viewer-kin-graph">
+      {hasRelatives ? groups.map(([title, relatives]) => relatives.length > 0 && (
+        <span className="viewer-kin-branch" key={title}>
+          <small>{title}</small>
+          <span>
+            {relatives.map(relative => (
+              <SmartTooltip key={relative.id} text={`Открыть ${shortKinName(relative.name)} в Bigfam`}>
+                <a href={bigfamPersonUrl(bigfamUrl, relative.id)} target="_blank" rel="noopener"
+                  onClick={event => event.stopPropagation()}>
+                  <Avatar srcs={[relative.avatar]} name={relative.name}
+                    className="viewer-kin-avatar" letterClassName="viewer-kin-letter" />
+                  <b>{shortKinName(relative.name)}</b>
+                </a>
+              </SmartTooltip>
+            ))}
+          </span>
+        </span>
+      )) : <small className="viewer-kin-empty">Ближайшие родственники в графе не указаны</small>}
+    </span>
+  );
+}
+
+function SmartTooltip({text, children, className = ''}: {text: string; children: React.ReactNode; className?: string}) {
+  const anchor = useRef<HTMLSpanElement>(null);
+  const tooltip = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({left: 0, top: 0, below: false});
+  const place = useCallback(() => {
+    const rect = anchor.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = tooltip.current?.offsetWidth ?? Math.min(340, text.length * 7 + 24);
+    const height = tooltip.current?.offsetHeight ?? 34;
+    const margin = 10;
+    const below = rect.top < height + margin + 8;
+    setPosition({
+      left: Math.max(margin, Math.min(window.innerWidth - width - margin, rect.left + rect.width / 2 - width / 2)),
+      top: below ? rect.bottom + 8 : rect.top - height - 8,
+      below,
+    });
+  }, [text]);
+  useEffect(() => {
+    if (!open) return;
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open, place]);
+  return <>
+    <span ref={anchor} className={`smart-tooltip-anchor ${className}`.trim()}
+      onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}>
+      {children}
+    </span>
+    {open && createPortal(
+      <span ref={tooltip} className={`smart-tooltip${position.below ? ' below' : ''}`} role="tooltip"
+        style={{left: position.left, top: position.top}}>{text}</span>,
+      anchor.current?.closest('.viewer') ?? document.body,
+    )}
+  </>;
+}
+
+function GhostPattern() {
+  return <span className="viewer-ghost-pattern" aria-hidden="true">
+    {Array.from({length: 22}, (_, index) => <span key={index}>👻</span>)}
+  </span>;
+}
+
+function ConfettiPattern() {
+  return <span className="viewer-confetti-pattern" aria-hidden="true">
+    {Array.from({length: 30}, (_, index) => <i key={index} style={{
+      left: `${(index * 37 + 7) % 96}%`,
+      top: `${(index * 61 + 5) % 94}%`,
+      background: `hsl(${(index * 47) % 360} 88% 62% / 42%)`,
+      transform: `rotate(${index * 29}deg)`,
+    }} />)}
+  </span>;
+}
+
+function isBirthdayToday(value?: string): boolean {
+  if (!value) return false;
+  const match = value.match(/(?:^|\D)(\d{1,2})-(\d{1,2})$/);
+  if (!match) return false;
+  const today = new Date();
+  return Number(match[1]) === today.getMonth() + 1 && Number(match[2]) === today.getDate();
+}
+
+function ageOnDate(birth: string | undefined, date: Date): number | null {
+  if (!birth || Number.isNaN(date.getTime())) return null;
+  const match = birth.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!year || !month || !day) return null;
+  let age = date.getFullYear() - year;
+  if (date.getMonth() + 1 < month || (date.getMonth() + 1 === month && date.getDate() < day)) age -= 1;
+  return age >= 0 ? age : null;
+}
+
+function ageLabel(age: number): string {
+  const mod100 = age % 100;
+  const mod10 = age % 10;
+  const suffix = mod100 >= 11 && mod100 <= 14 ? 'лет' : mod10 === 1 ? 'год' : mod10 >= 2 && mod10 <= 4 ? 'года' : 'лет';
+  return `${age} ${suffix}`;
+}
+
+function shortKinName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return name;
+  const [, first, middle] = parts;
+  const initials = [parts[0], middle].filter(Boolean).map(part => `${part[0].toUpperCase()}.`).join('');
+  return `${first} ${initials}`;
+}
+
+function kinDate(value: string): string {
+  if (!value) return '';
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('ru-RU');
+}
+
+function kinSex(value: string): string {
+  const normalized = value.toLowerCase();
+  if (['m', 'male', 'м', 'мужской'].includes(normalized)) return 'Мужской';
+  if (['f', 'female', 'ж', 'женский'].includes(normalized)) return 'Женский';
+  return value;
+}
+
 function isMediaElementTarget(target: EventTarget): boolean {
-  return Boolean((target as HTMLElement).closest?.('.viewer-media-shell img, .viewer-media-shell video'));
+  return Boolean((target as HTMLElement).closest?.('.viewer-media-shell > img, .viewer-media-shell > video'));
 }
 
 function withRetry(url: string, retry: number): string {

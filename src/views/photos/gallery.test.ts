@@ -47,7 +47,7 @@ describe('galleryContext и dropFilter', () => {
 
   test('снятие чипа убирает ровно свой фильтр', () => {
     const [first, , folder] = galleryContext(current, albums);
-    expect(dropFilter(current, first.drop)).toEqual({people: ['Анна']});
+    expect(dropFilter(current, first.drop)).toEqual({people: ['Анна'], bigfamId: ''});
     expect(dropFilter(current, folder.drop)).toEqual({folder: ''});
   });
 });
@@ -68,6 +68,19 @@ describe('folderCrumbs', () => {
   });
   test('пустой путь — без крошек', () => {
     expect(folderCrumbs('')).toEqual([]);
+  });
+  test('ключ сетевого источника: первая крошка — источник', () => {
+    expect(folderCrumbs('netcraze:/HDD/photo', 'Netcraze')).toEqual([
+      {name: 'Netcraze', path: 'netcraze:/'},
+      {name: 'HDD', path: 'netcraze:/HDD'},
+      {name: 'photo', path: 'netcraze:/HDD/photo'},
+    ]);
+  });
+  test('ключ диска устройства: источник вместе с диском', () => {
+    expect(folderCrumbs(`pc-x:D:${BS}Фото`, 'PC-X')).toEqual([
+      {name: 'PC-X · D:', path: `pc-x:D:${BS}`},
+      {name: 'Фото', path: `pc-x:D:${BS}Фото`},
+    ]);
   });
 });
 

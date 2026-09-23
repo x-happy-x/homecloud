@@ -84,7 +84,53 @@
 
 /* ---------- устройство ---------- */
 
-.device-list { display: grid; gap: var(--gap); }
+.device-list, .source-list { display: grid; gap: var(--gap); }
+.source-list + .empty-state, .device-list + .empty-state { margin-bottom: var(--gap); }
+.source-list { margin-bottom: calc(var(--gap) * 2); }
+.source-card { gap: 12px; }
+.source-metrics { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.source-tested { margin: 0; color: var(--patina); font-size: .82rem; overflow-wrap: anywhere; }
+.source-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.root-chip.active { border-color: var(--patina); background: var(--patina-soft); color: var(--ink); }
+.core-picker { display: flex; align-items: center; gap: 8px; margin-right: auto; font-size: .82rem; color: var(--muted); }
+.core-picker select { min-width: 140px; }
+.collect-row { flex-wrap: wrap; gap: 8px; }
+.core-update {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--brass) 35%, var(--line-soft));
+  border-radius: var(--r-m);
+  background: color-mix(in srgb, var(--brass) 8%, var(--surface));
+  font-size: .84rem;
+}
+.core-update.legacy { border-color: var(--line-soft); background: var(--surface); }
+.core-key { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.core-key code {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: var(--r-s);
+  background: var(--ground);
+  font: .7rem var(--mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.install-log {
+  max-height: 220px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: var(--r-s);
+  background: var(--ground);
+  color: var(--ink-2);
+  font: .72rem/1.45 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
 
 .device-card {
   display: flex;

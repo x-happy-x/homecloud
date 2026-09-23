@@ -1,11 +1,14 @@
 import {formatNumber} from '../../lib/format';
-import {deletePhotos} from '../../services/endpoints/photos';
+import {deleteDevicePhotos, deletePhotos} from '../../services/endpoints/photos';
 import {store} from '../../store';
 
 const DELETE_BATCH = 200;
 
 /** Карточка задачи остаётся в общем центре уведомлений при смене экрана. */
-export async function deleteDuplicatesWithProgress(paths: string[]) {
+export interface DuplicateDeleteTarget {path: string; deviceId?: string}
+
+export async function deleteDuplicatesWithProgress(targets: Array<string | DuplicateDeleteTarget>) {
+  const paths = targets.map(item => typeof item === 'string' ? {path: item} : item);
   const {setJob, finishJob} = store.getState();
   const id = `duplicates-delete-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   let deleted = 0;
@@ -24,9 +27,18 @@ export async function deleteDuplicatesWithProgress(paths: string[]) {
   try {
     for (let from = 0; from < paths.length; from += DELETE_BATCH) {
       const batch = paths.slice(from, from + DELETE_BATCH);
-      const data = await deletePhotos(batch);
-      deleted += data.deleted;
-      failed += data.errors.length;
+      const grouped = new Map<string, string[]>();
+      for (const item of batch) {
+        const key = item.deviceId || '';
+        grouped.set(key, [...(grouped.get(key) ?? []), item.path]);
+      }
+      for (const [deviceId, devicePaths] of grouped) {
+        const data = deviceId
+          ? await deleteDevicePhotos(deviceId, devicePaths)
+          : await deletePhotos(devicePaths);
+        deleted += data.deleted;
+        failed += data.errors.length;
+      }
       progress(from + batch.length);
     }
     finishJob(id, {

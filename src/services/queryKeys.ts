@@ -34,11 +34,16 @@ export const qk = {
   personCandidates: (key: string, hideAdult: boolean) => ['group', 'candidates', key, {hideAdult}] as const,
   compare: (a: string, b: string) => ['compare', a, b] as const,
 
+  /** Ядра — компьютеры, которые считают. */
   devices: () => ['devices'] as const,
-  browse: (deviceId: string, path: string) => ['browse', deviceId, path] as const,
-  tree: (deviceId: string, path?: string) =>
-    path === undefined ? (['tree', deviceId] as const) : (['tree', deviceId, path] as const),
-  scanHistory: (deviceId: string) => ['scan-history', deviceId] as const,
+  /** Источники — где лежат оригиналы. */
+  sources: () => ['sources'] as const,
+  /** Что хранит хаб по каждому источнику. */
+  storage: () => ['storage'] as const,
+  imports: () => ['imports'] as const,
+  browse: (sourceId: string, path: string) => ['browse', sourceId, path] as const,
+  tree: (path?: string) => (path === undefined ? (['tree'] as const) : (['tree', path] as const)),
+  scanHistory: () => ['scan-history'] as const,
 
   duplicates: (similar: boolean, filters: Record<string, unknown>) => ['duplicates', {similar, ...filters}] as const,
   duplicatesStatus: () => ['duplicates-status'] as const,

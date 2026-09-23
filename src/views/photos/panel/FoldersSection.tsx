@@ -6,7 +6,7 @@ import {qk} from '../../../services/queryKeys';
 import {useStore} from '../../../store';
 import {Crumbs} from '../../../ui/Crumbs/Crumbs';
 import {Icon} from '../../../ui/Icon/Icon';
-import {FolderPickerDialog, type PickedFolder} from '../../../components/FolderPicker/FolderPickerDialog';
+import {FolderPickerDialog, sourceOf, type PickedFolder} from '../../../components/FolderPicker/FolderPickerDialog';
 import {FolderContextMenu, type FolderMenuState} from '../FolderContextMenu';
 import {useFolderActions} from '../useFolderActions';
 
@@ -90,8 +90,9 @@ export function FoldersSection() {
       <FolderPickerDialog
         open={Boolean(moveFolder)}
         title="Куда переместить папку"
-        note="Выберите подключенный бэк и папку назначения без ручного ввода."
+        note="Папка назначения — в том же источнике. Медиа из исходной папки переедут внутрь выбранной."
         confirmLabel="Переместить сюда"
+        source={sourceOf(moveFolder)}
         onClose={() => setMoveFolder('')}
         onPick={movePicked}
       />

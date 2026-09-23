@@ -53,7 +53,8 @@ export function PeopleAlbumTree({albums, groups}: {albums: PeopleAlbum[]; groups
   const groupByKey = new Map(groups.map(group => [group.key, group]));
   const open = byId.get(current);
   const level = albums.filter(album => album.parent_id === (open ? current : 0));
-  const showRail = level.length > 0 || canEdit;
+  const canManage = canEdit && !open?.automatic;
+  const showRail = level.length > 0 || canManage;
   useSwipeScroll(rail, showRail);
   if (!level.length && !open && !canEdit) return null;
 
@@ -105,10 +106,11 @@ export function PeopleAlbumTree({albums, groups}: {albums: PeopleAlbum[]; groups
             </strong>
             <small>
               {groupsText(open.total)}
+              {open.automatic ? ` · ${open.description}` : ''}
               {open.effectively_hidden ? ' · скрыт ото всех, кроме админа' : ''}
             </small>
           </div>
-          {canEdit && (
+          {canManage && (
             <div className="people-album-actions">
               {isAdmin && (
                 <button
@@ -161,7 +163,7 @@ export function PeopleAlbumTree({albums, groups}: {albums: PeopleAlbum[]; groups
               <button
                 key={album.id}
                 type="button"
-                className={`people-album-card${album.effectively_hidden ? ' secret' : ''}`}
+                className={`people-album-card${album.effectively_hidden ? ' secret' : ''}${album.automatic ? ' automatic' : ''}`}
                 onClick={() => setPeopleAlbum(album.id)}
               >
                 <span className="people-album-faces" aria-hidden="true">
@@ -176,6 +178,7 @@ export function PeopleAlbumTree({albums, groups}: {albums: PeopleAlbum[]; groups
                 <span className="people-album-text">
                   <b>
                     {album.title}
+                    {album.automatic && <em>Авто</em>}
                     {album.effectively_hidden && <Icon name="hide" size={13} />}
                   </b>
                   <small>
@@ -188,7 +191,7 @@ export function PeopleAlbumTree({albums, groups}: {albums: PeopleAlbum[]; groups
               </button>
             );
           })}
-          {canEdit && (
+          {canManage && (
             <button type="button" className="people-album-card add" onClick={create}>
               <span className="people-album-face blank" aria-hidden="true"><Icon name="plus" size={18} /></span>
               <span className="people-album-text">

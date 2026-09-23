@@ -116,6 +116,29 @@
   backdrop-filter: blur(4px);
 }
 
+.self-badge {
+  position: absolute;
+  right: 4%; bottom: 4%;
+  z-index: 2;
+  min-width: 34px; height: 24px;
+  display: grid; place-items: center;
+  padding: 0 8px;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--patina), var(--brass));
+  color: var(--patina-ink);
+  box-shadow: 0 5px 16px rgb(0 0 0 / 24%);
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  pointer-events: none;
+}
+.person-card.is-self .person-avatar {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brass) 78%, transparent), var(--shadow-lift);
+}
+.person-card.is-self .person-avatar::before { opacity: 1; }
+.person-card.is-self .person-name { color: var(--patina); font-weight: 750; }
+
 .person-label {
   display: grid;
   gap: 2px;

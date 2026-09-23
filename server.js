@@ -1,21 +1,20 @@
-// HomeCloud: статика интерфейса, вход через сервис account и прокси на бэкенд Windows.
+// HomeCloud: статика интерфейса, вход через сервис account и прокси на хаб.
 import { createServer, request as httpRequest } from 'node:http';
 import { createGzip } from 'node:zlib';
-import { spawn } from 'node:child_process';
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { dirname, extname, join, normalize, relative as pathRelative, resolve } from 'node:path';
+import { extname, join, normalize, relative as pathRelative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const PUBLIC = join(ROOT, 'dist');
 const HOST = process.env.HOST || '0.0.0.0';
 const PORT = Number(process.env.PORT || 4180);
-const BACKEND = new URL(process.env.PHOTO_BACKEND || 'http://192.168.1.10:18311');
-const BACKEND_TOKEN = process.env.PHOTO_TOKEN || '';
-const BACKENDS_FILE = process.env.BACKENDS_FILE || '/var/lib/homecloud/backends.json';
-// Ключ для запуска backend.ps1 на Windows-машине по SSH, если она выключена/не отвечает.
-const SSH_KEY_FILE = process.env.HOMECLOUD_SSH_KEY || '/var/lib/homecloud/ssh/id_ed25519';
+// Хаб — homecloud-core в роли hub рядом в compose: каталог, превью, реестры
+// источников и ядер. Сюда уходят все /api и /media. Его токен лежит в общем
+// томе (hub-token.txt), и каждый запрос подписывается им: порт хаба виден в сети.
+const HUB = new URL(process.env.HUB_URL || 'http://homecloud-hub:18400');
+const HUB_TOKEN_FILE = process.env.HUB_TOKEN_FILE || '/var/lib/homecloud/hub-token.txt';
 // Картотека bigfam на этом же хосте: она же выдаёт учётные записи и людей.
 const BIGFAM = (process.env.BIGFAM_URL || 'http://127.0.0.1:4173').replace(/\/+$/, '');
 // Логин, пароль и роль в HomeCloud (access.homecloud.role) проверяет сервис account.
@@ -28,6 +27,19 @@ const SESSION_COOKIE = 'kartoteka_session';
 const BROWSER_TOKEN = randomBytes(24).toString('base64url');
 // Метка версии в ссылках на css/js: после публикации браузер не тянет старое из кэша.
 const ASSET_VERSION = Date.now().toString(36);
+
+let hubToken = {value: process.env.HUB_TOKEN || '', at: 0};
+/** Токен хаба: переменная окружения или файл, который хаб создаёт при первом старте. */
+async function hubSecret() {
+  if (process.env.HUB_TOKEN) return process.env.HUB_TOKEN;
+  if (hubToken.value && Date.now() - hubToken.at < 60000) return hubToken.value;
+  try {
+    hubToken = {value: (await readFile(HUB_TOKEN_FILE, 'utf-8')).trim(), at: Date.now()};
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.error('Не читается токен хаба:', error.message);
+  }
+  return hubToken.value;
+}
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -112,17 +124,31 @@ const APP_PORTS = {
   homecloud: Number(envOr('HOMECLOUD_LOCAL_PORT', '4180')),
 };
 
+// Некоторые прокси заменяют Host внутренним IP и не передают X-Forwarded-*.
+// Для явно настроенного адреса восстанавливаем публичный origin, как в Account и BiGFaM.
+const proxyHost = envOr('PROXY_HOST', '').toLowerCase();
+const publicOrigin = envOr('PUBLIC_ORIGIN', '');
+const publicUrl = publicOrigin ? new URL(publicOrigin) : null;
+if (Boolean(proxyHost) !== Boolean(publicUrl) || (publicUrl &&
+    (!['http:', 'https:'].includes(publicUrl.protocol) || publicUrl.username || publicUrl.password ||
+     publicUrl.pathname !== '/' || publicUrl.search || publicUrl.hash))) {
+  throw new Error('PROXY_HOST и PUBLIC_ORIGIN задаются вместе; PUBLIC_ORIGIN — http(s) origin без пути');
+}
+
 const firstHeader = value => String(Array.isArray(value) ? value[0] : value || '').split(',')[0].trim();
 const byAddress = hostname =>
   hostname.startsWith('[') || /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || !hostname.includes('.');
 
 function browserOf(request) {
-  const raw = (firstHeader(request.headers['x-forwarded-host']) || firstHeader(request.headers.host)).toLowerCase();
+  const forwardedHost = firstHeader(request.headers['x-forwarded-host']);
+  const incomingHost = firstHeader(request.headers.host).toLowerCase();
+  const mapped = !forwardedHost && publicUrl && incomingHost === proxyHost;
+  const raw = (mapped ? publicUrl.host : forwardedHost || incomingHost).toLowerCase();
   const match = /^(\[[^\]]+\]|[^:]+)(?::(\d+))?$/.exec(raw);
   const hostname = match?.[1] || '';
   let port = match?.[2] || '';
   const address = byAddress(hostname);
-  let proto = firstHeader(request.headers['x-forwarded-proto']).toLowerCase();
+  let proto = mapped ? publicUrl.protocol.slice(0, -1) : firstHeader(request.headers['x-forwarded-proto']).toLowerCase();
   if (proto !== 'http' && proto !== 'https') {
     const direct = address || /\.(local|lan|home\.arpa)$/.test(hostname) || Object.values(APP_PORTS).includes(Number(port));
     proto = direct ? 'http' : 'https';
@@ -281,154 +307,34 @@ async function userOf(request) {
 
 const dropSession = request => sessions.delete(cookieOf(request));
 
-const backendJson = async path => backendCall(await primaryBackend(), path);
+const backendJson = async path => hubCall(path);
 
 const personName = person =>
   [person.last, person.first, person.middle].filter(Boolean).join(' ') || 'Без имени';
 
-/* ---------- реестр устройств ---------- */
-
-const defaultBackend = () => ({
-  id: 'pc-x', name: 'PC-X', url: BACKEND.origin, token: BACKEND_TOKEN, primary: true, ssh: null,
-});
-
-/**
- * SSH нужен не для доступа к API (для этого есть url+token), а только чтобы
- * поднять backend.ps1 на выключенном/только что загрузившемся компьютере.
- * Пустые поля на редактировании — «оставить как было», как и с token.
- */
-function validSsh(value, current = null) {
-  if (value.sshClear) return null;
-  const user = String(value.sshUser ?? '').trim() || current?.user || '';
-  const host = String(value.sshHost ?? '').trim() || current?.host || '';
-  const command = String(value.sshCommand ?? '').trim() || current?.command || '';
-  const portRaw = String(value.sshPort ?? '').trim();
-  const port = portRaw ? Number(portRaw) : (current?.port || 22);
-  if (!user && !host && !command && !portRaw) return current;
-  if (!user || !command) throw new Error('Для SSH-запуска укажите пользователя и команду запуска');
-  if (!/^[\w.-]{1,64}$/.test(user)) throw new Error('Некорректное имя пользователя SSH');
-  if (host && (host.length > 253 || /\s/.test(host))) throw new Error('Некорректный SSH-хост');
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Некорректный порт SSH');
-  if (command.length > 2000) throw new Error('Слишком длинная команда SSH');
-  if (/[\r\n]/.test(command)) throw new Error('Команда SSH не должна содержать переносы строк');
-  return {user, host, port, command};
-}
-
-function validBackend(value, current = {token: '', ssh: null}) {
-  const url = new URL(String(value.url || ''));
-  if (url.protocol !== 'http:') throw new Error('Backend должен использовать http в домашней сети');
-  const host = url.hostname.toLowerCase();
-  const parts = host.split('.').map(Number);
-  const privateIp = parts.length === 4 && (parts[0] === 10 || parts[0] === 127 ||
-    (parts[0] === 192 && parts[1] === 168) ||
-    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31));
-  if (!(privateIp || host === 'localhost' || host.endsWith('.lan') || host.endsWith('.local'))) {
-    throw new Error('Разрешены только адреса домашней сети');
-  }
-  const id = String(value.id || '').trim().toLowerCase();
-  if (!/^[a-z0-9][a-z0-9_-]{0,47}$/.test(id)) throw new Error('Некорректный ID устройства');
-  const name = String(value.name || '').trim();
-  if (!name || name.length > 80) throw new Error('Укажите имя устройства');
-  const token = String(value.token || '') || current.token;
-  if (!token) throw new Error('Укажите токен backend');
-  const ssh = validSsh(value, current.ssh);
-  return {id, name, url: url.origin, token, primary: !!value.primary, ssh};
-}
-
-async function loadBackends() {
-  try {
-    const rows = JSON.parse(await readFile(BACKENDS_FILE, 'utf-8'));
-    return Array.isArray(rows) && rows.length ? rows : [defaultBackend()];
-  } catch (error) {
-    if (error.code !== 'ENOENT') console.error('Не удалось прочитать реестр backend:', error.message);
-    return [defaultBackend()];
-  }
-}
-
-async function saveBackends(rows) {
-  await mkdir(dirname(BACKENDS_FILE), {recursive: true});
-  const temporary = `${BACKENDS_FILE}.tmp`;
-  await writeFile(temporary, JSON.stringify(rows, null, 2), {mode: 0o600});
-  await rename(temporary, BACKENDS_FILE);
-}
-
-const publicBackend = backend => ({
-  id: backend.id, name: backend.name, url: backend.url,
-  primary: !!backend.primary, hasToken: !!backend.token,
-  // Сама команда на брaузер не уходит — как и токен, это плечо для записи, не для чтения.
-  ssh: backend.ssh ? {user: backend.ssh.user, host: backend.ssh.host, port: backend.ssh.port} : null,
-});
-
-/** Запускает backend.ps1 на удалённой машине через SSH и сразу возвращается. */
-async function sshStart(backend) {
-  if (!backend.ssh) throw new Error('SSH не настроен для этого устройства');
-  try {
-    await stat(SSH_KEY_FILE);
-  } catch {
-    throw new Error(`SSH-ключ не найден на сервере: ${SSH_KEY_FILE}`);
-  }
-  const host = backend.ssh.host || new URL(backend.url).hostname;
-  const args = [
-    '-i', SSH_KEY_FILE, '-p', String(backend.ssh.port),
-    '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '-o', 'StrictHostKeyChecking=accept-new',
-    `${backend.ssh.user}@${host}`, backend.ssh.command,
-  ];
-  return new Promise((resolve, reject) => {
-    const child = spawn('ssh', args, {stdio: ['ignore', 'pipe', 'pipe']});
-    let out = '';
-    let err = '';
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      reject(new Error('SSH не ответил за 15 секунд — компьютер выключен или недоступен по сети'));
-    }, 15000);
-    child.stdout.on('data', chunk => { out += chunk; });
-    child.stderr.on('data', chunk => { err += chunk; });
-    child.on('error', error => {
-      clearTimeout(timer);
-      reject(new Error(`Не удалось запустить ssh на сервере: ${error.message}`));
-    });
-    child.on('close', code => {
-      clearTimeout(timer);
-      if (code === 0) resolve({ok: true, output: out.trim().slice(0, 2000)});
-      else reject(new Error(err.trim().slice(0, 500) || `ssh завершился с кодом ${code}`));
-    });
-  });
-}
-
-async function backendCall(backend, path, {method = 'GET', body = null} = {}) {
-  const response = await fetch(`${backend.url}${path}`, {
+async function hubCall(path, {method = 'GET', body = null, user = null, timeout = null} = {}) {
+  const response = await fetch(`${HUB.origin}${path}`, {
     method,
     headers: {
       Accept: 'application/json',
       ...(body ? {'Content-Type': 'application/json'} : {}),
-      ...(method === 'POST' ? {'X-Local-Token': backend.token} : {}),
+      'X-Local-Token': await hubSecret(),
+      'X-HomeCloud-User': encodeURIComponent(user?.login || user?.id || ''),
+      'X-HomeCloud-Role': user?.role || '',
     },
     body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(method === 'POST' ? 30000 : 8000),
+    signal: AbortSignal.timeout(timeout || (method === 'POST' ? 30000 : 8000)),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `backend ответил ${response.status}`);
+  if (!response.ok) throw new Error(payload.error || `хаб ответил ${response.status}`);
   return payload;
 }
 
-async function backendById(id) {
-  const found = (await loadBackends()).find(item => item.id === id);
-  if (!found) throw new Error('Устройство не найдено');
-  return found;
-}
-
-async function primaryBackend() {
-  const rows = await loadBackends();
-  return rows.find(item => item.primary) || rows[0] || defaultBackend();
-}
-
-/* ---------- прокси на бэкенд Windows ---------- */
+/* ---------- прокси на хаб ---------- */
 
 async function proxy(request, response, pathname, user = null) {
-  const backend = await primaryBackend();
-  const target = new URL(backend.url);
-  const isWrite = request.method === 'POST';
-  // Кто смотрит, знает только этот процесс: он держит сессии картотеки.
+  const target = HUB;
+  // Кто смотрит, знает только этот процесс: он держит сессии account.
   // Заголовки ставим сами, что бы ни прислал браузер — свои скрытые альбомы
   // иначе открывались бы подделкой заголовка.
   const headers = {
@@ -436,11 +342,12 @@ async function proxy(request, response, pathname, user = null) {
     'Accept': request.headers.accept || '*/*',
     'X-HomeCloud-User': encodeURIComponent(user?.login || user?.id || ''),
     'X-HomeCloud-Role': user?.role || '',
+    // Хаб проверяет свой токен на каждом запросе, не только на изменяющих.
+    'X-Local-Token': await hubSecret(),
   };
   if (request.headers['content-type']) headers['Content-Type'] = request.headers['content-type'];
   if (request.headers['content-length']) headers['Content-Length'] = request.headers['content-length'];
   if (request.headers.range) headers['Range'] = request.headers.range;
-  if (isWrite && backend.token) headers['X-Local-Token'] = backend.token;
 
   const query = request.url.includes('?') ? '?' + request.url.split('?').slice(1).join('?') : '';
   const upstream = httpRequest({
@@ -455,7 +362,7 @@ async function proxy(request, response, pathname, user = null) {
     delete out.connection;
     delete out['transfer-encoding'];
     // JSON галереи (страницы снимков, группы папок) сжимается в разы; медиа не трогаем.
-    const gzip = /gzip/.test(String(request.headers['accept-encoding'] || ''))
+    const gzip = /gzip/.test(String(request.headers['accept-encoding'] || ''))
       && String(out['content-type'] || '').startsWith('application/json')
       && !out['content-encoding']
       && Number(out['content-length'] || 0) > 4096;
@@ -470,11 +377,13 @@ async function proxy(request, response, pathname, user = null) {
     response.writeHead(backendResponse.statusCode || 502, out);
     backendResponse.pipe(response);
   });
-  upstream.setTimeout(120000, () => upstream.destroy(new Error('таймаут бэкенда')));
+  // Полная пересборка каталога и перенос старых каталогов идут долго, но ответ
+  // на них короткий; медленные отдачи — это видео из источника кусками.
+  upstream.setTimeout(300000, () => upstream.destroy(new Error('таймаут хаба')));
   upstream.on('error', error => {
     if (response.headersSent) return response.destroy();
     sendJson(response, 502, {
-      error: `Бэкенд HomeCloud недоступен (${target.host}): ${error.message}`,
+      error: `Хаб HomeCloud недоступен (${target.host}): ${error.message}`,
     });
   });
   request.pipe(upstream);
@@ -534,7 +443,7 @@ async function handle(request, response) {
   const isApi = pathname.startsWith('/api/') || pathname.startsWith('/media/');
 
   if (pathname === '/healthz') {
-    return sendJson(response, 200, {ok: true, backend: BACKEND.origin, bigfam: BIGFAM, account: ACCOUNT});
+    return sendJson(response, 200, {ok: true, hub: HUB.origin, bigfam: BIGFAM, account: ACCOUNT});
   }
 
   if (pathname === '/auth/start' || pathname === '/auth/callback') {
@@ -619,8 +528,32 @@ async function handle(request, response) {
         dropSession(request);
         return sendJson(response, status, {error: payload.error || 'Картотека не ответила'});
       }
-      const people = (payload.people || []).map(person => ({
+      const sourcePeople = payload.people || [];
+      const selfPersonId = payload.me?.personId || '';
+      const visible = new Map(sourcePeople.map(person => [person.id, person]));
+      const relTypes = payload.schema?.relTypes || [];
+      const parentTypes = new Set(relTypes.filter(type => type.role === 'parent').map(type => type.key));
+      const spouseTypes = new Set(relTypes.filter(type => type.role === 'spouse').map(type => type.key));
+      const links = payload.links || [];
+      const parentIds = id => links.filter(link => parentTypes.has(link.type) && link.b === id)
+        .map(link => link.a).filter(parent => visible.has(parent));
+      const childIds = id => links.filter(link => parentTypes.has(link.type) && link.a === id)
+        .map(link => link.b).filter(child => visible.has(child));
+      const spouseIds = id => links.filter(link => spouseTypes.has(link.type) && (link.a === id || link.b === id))
+        .map(link => link.a === id ? link.b : link.a).filter(spouse => visible.has(spouse));
+      const relative = id => {
+        const person = visible.get(id);
+        return person && {
+          id: person.id, name: personName(person), deceased: !!person.deceased,
+          avatar: person.hasPhoto ? `/media/bigfam/${person.id}?rev=${person.photoRev || 0}` : '',
+        };
+      };
+      const people = sourcePeople.map(person => {
+        const parents = parentIds(person.id);
+        const siblings = [...new Set(parents.flatMap(childIds))].filter(id => id !== person.id);
+        return ({
         id: person.id,
+        isSelf: person.id === selfPersonId,
         name: personName(person),
         // Части имени нужны интерфейсу: он показывает «Имя Ф.О.».
         first: person.first || '',
@@ -631,92 +564,18 @@ async function handle(request, response) {
         deceased: !!person.deceased,
         sex: person.sex || '',
         avatar: person.hasPhoto ? `/media/bigfam/${person.id}?rev=${person.photoRev || 0}` : '',
-      })).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+        relatives: {
+          parents: parents.map(relative).filter(Boolean),
+          siblings: siblings.map(relative).filter(Boolean),
+          children: childIds(person.id).map(relative).filter(Boolean),
+          spouses: spouseIds(person.id).map(relative).filter(Boolean),
+        },
+      });
+      }).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
       return sendJson(response, 200, {people});
     } catch (error) {
       return sendJson(response, 502, {error: `Картотека недоступна: ${error.message}`});
     }
-  }
-
-  if (method === 'GET' && pathname === '/api/backends') {
-    const rows = await loadBackends();
-    const devices = await Promise.all(rows.map(async backend => {
-      try {
-        const [device, job] = await Promise.all([
-          backendCall(backend, '/api/device'), backendCall(backend, '/api/device/job'),
-        ]);
-        return {...publicBackend(backend), online: true, device, job};
-      } catch (error) {
-        return {...publicBackend(backend), online: false, error: error.message};
-      }
-    }));
-    return sendJson(response, 200, {backends: devices});
-  }
-
-  if (method === 'POST' && pathname === '/api/backends/save') {
-    const body = await readBody(request);
-    const rows = await loadBackends();
-    const index = rows.findIndex(item => item.id === String(body.id || '').toLowerCase());
-    const backend = validBackend(body, index >= 0 ? rows[index] : {token: '', ssh: null});
-    if (index >= 0) rows[index] = backend; else rows.push(backend);
-    if (backend.primary) rows.forEach(item => { item.primary = item.id === backend.id; });
-    await saveBackends(rows);
-    return sendJson(response, 200, {ok: true, backend: publicBackend(backend)});
-  }
-
-  if (method === 'POST' && pathname === '/api/backends/remove') {
-    const body = await readBody(request);
-    const rows = await loadBackends();
-    const next = rows.filter(item => item.id !== body.id);
-    if (next.length === rows.length) return sendJson(response, 404, {error: 'Устройство не найдено'});
-    if (!next.length) return sendJson(response, 400, {error: 'Нельзя удалить последнее устройство'});
-    if (!next.some(item => item.primary)) next[0].primary = true;
-    await saveBackends(next);
-    return sendJson(response, 200, {ok: true});
-  }
-
-  const deviceRoute = /^\/api\/backends\/([a-z0-9_-]+)\/(browse|tree|exclusions|history|history\/forget|job\/start|job\/stop|ssh-start)$/.exec(pathname);
-  if (deviceRoute) {
-    const backend = await backendById(deviceRoute[1]);
-    if (method === 'POST' && deviceRoute[2] === 'ssh-start') {
-      try {
-        return sendJson(response, 200, await sshStart(backend));
-      } catch (error) {
-        return sendJson(response, 502, {error: error.message});
-      }
-    }
-    // Источники прошлых заданий: по ним потом гоняют другие этапы.
-    if (method === 'GET' && deviceRoute[2] === 'history') {
-      return sendJson(response, 200, await backendCall(backend, '/api/device/history'));
-    }
-    if (method === 'POST' && deviceRoute[2] === 'history/forget') {
-      return sendJson(response, 200, await backendCall(
-        backend, '/api/device/history/forget', {method: 'POST', body: await readBody(request)}));
-    }
-    // Дерево описи и исключения: их правят перед запуском этапов.
-    if (method === 'GET' && deviceRoute[2] === 'tree') {
-      const path = new URLSearchParams(request.url.split('?')[1] || '').get('path') || '';
-      return sendJson(response, 200, await backendCall(
-        backend, `/api/device/tree?path=${encodeURIComponent(path)}`));
-    }
-    if (method === 'POST' && deviceRoute[2] === 'exclusions') {
-      return sendJson(response, 200, await backendCall(
-        backend, '/api/device/exclusions', {method: 'POST', body: await readBody(request)}));
-    }
-    if (method === 'GET' && deviceRoute[2] === 'browse') {
-      const path = new URLSearchParams(request.url.split('?')[1] || '').get('path') || '';
-      return sendJson(response, 200, await backendCall(
-        backend, `/api/device/browse?path=${encodeURIComponent(path)}`));
-    }
-    if (method === 'POST' && deviceRoute[2] === 'job/start') {
-      return sendJson(response, 200, await backendCall(
-        backend, '/api/device/job/start', {method: 'POST', body: await readBody(request)}));
-    }
-    if (method === 'POST' && deviceRoute[2] === 'job/stop') {
-      return sendJson(response, 200, await backendCall(
-        backend, '/api/device/job/stop', {method: 'POST', body: {}}));
-    }
-    return sendJson(response, 405, {error: 'Метод не поддерживается'});
   }
 
   // Снимки одного человека для картотеки: она зовёт этот адрес, когда выбирают аватарку.
@@ -775,6 +634,6 @@ const server = createServer((request, response) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`HomeCloud: http://${HOST === '0.0.0.0' ? '192.168.99.10' : HOST}:${PORT}/`);
-  console.log(`Бэкенд: ${BACKEND.origin}${BACKEND_TOKEN ? '' : ' (PHOTO_TOKEN не задан — изменения будут отклонены)'}`);
+  console.log(`Хаб: ${HUB.origin} (токен из ${process.env.HUB_TOKEN ? 'HUB_TOKEN' : HUB_TOKEN_FILE})`);
   console.log(`Картотека: ${BIGFAM}`);
 });

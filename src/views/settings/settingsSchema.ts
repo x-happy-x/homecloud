@@ -55,7 +55,7 @@ export type SettingField = FieldBase & (
   | {kind: 'list'; placeholder: string; empty: string; pickFolder?: boolean}
 );
 
-export type SettingsGroupId = 'recognition' | 'library' | 'view';
+export type SettingsGroupId = 'recognition' | 'library' | 'data' | 'view';
 
 export interface SettingsGroup {
   id: SettingsGroupId;
@@ -72,6 +72,7 @@ export interface SettingsGroup {
 export const SETTINGS_GROUPS: SettingsGroup[] = [
   {id: 'recognition', icon: 'process', title: 'Распознавание', note: 'Что и как считают модели'},
   {id: 'library', icon: 'folder', title: 'Библиотека', note: 'Что попадает в каталог'},
+  {id: 'data', icon: 'drive', title: 'Данные', note: 'Что сервер хранит по источникам'},
   {id: 'view', icon: 'palette', title: 'Вид', note: 'Только в этом браузере'},
 ];
 

@@ -3,6 +3,7 @@ import {useQuery, type InfiniteData} from '@tanstack/react-query';
 import './PhotosView.scss';
 import {useCatalogState} from '../../hooks/useCatalogState';
 import {useIntersection} from '../../hooks/useIntersection';
+import {useKeyboardShortcuts} from '../../hooks/useKeyboardShortcuts';
 import {formatNumber, plural} from '../../lib/format';
 import {adultFlag} from '../../lib/adult';
 import {getAlbums} from '../../services/endpoints/albums';
@@ -22,7 +23,7 @@ import {Skeleton} from '../../ui/Skeleton/Skeleton';
 import {ViewHeader} from '../../ui/ViewHeader/ViewHeader';
 import {baseName, bigfamPersonUrl, dropFilter, galleryContext} from './gallery';
 import {FolderContextMenu, type FolderMenuState} from './FolderContextMenu';
-import {FolderPickerDialog, type PickedFolder} from '../../components/FolderPicker/FolderPickerDialog';
+import {FolderPickerDialog, sourceOf, type PickedFolder} from '../../components/FolderPicker/FolderPickerDialog';
 import {GroupedGallery} from './GroupedGallery';
 import {isCollapsed} from './grouping';
 import {GroupingMenu} from './GroupingMenu';
@@ -30,6 +31,7 @@ import {PhotoTile} from './PhotoTile';
 import {scopedParams, useGalleryParams, usePhotoPages} from './useGallery';
 import {useFolderActions} from './useFolderActions';
 import {usePhotoActions} from './usePhotoActions';
+import {usePhotoDragSelection} from './usePhotoDragSelection';
 
 const ZOOM_STEPS: Array<[ZoomLevel, IconName, string]> = [
   ['large', 'zoomLarge', 'Крупные плитки'],
@@ -68,15 +70,30 @@ export function PhotosView() {
   const openAlbumPick = useStore(state => state.openAlbumPick);
   const openProcess = useStore(state => state.openProcess);
   const openPhoto = useStore(state => state.openPhoto);
+  const routePhoto = useStore(state => state.routePhoto);
+  const toast = useStore(state => state.toast);
   const people = useCatalogState().data?.people;
   const albums = useQuery({queryKey: qk.albums(), queryFn: getAlbums}).data;
   const actions = usePhotoActions();
   const folderActions = useFolderActions();
   const [folderMenu, setFolderMenu] = useState<FolderMenuState | null>(null);
   const [moveFolder, setMoveFolder] = useState('');
+  const [moveClipboard, setMoveClipboard] = useState<string[]>([]);
 
   const edge = useRef<HTMLDivElement>(null);
   const nearEnd = useIntersection(edge);
+
+  // Внешняя ссылка из BiGFaM несёт стабильный id, а API галереи фильтрует по
+  // внутреннему имени HomeCloud. Разрешаем id только по каталогу с привязками;
+  // сам id остаётся в адресе, поэтому переименование человека ссылку не ломает.
+  useEffect(() => {
+    if (!filters.bigfamId || !people) return;
+    const linked = people.find(item => item.bigfam_id === filters.bigfamId);
+    const next = linked ? [linked.name] : [];
+    if (filters.people.length !== next.length || filters.people[0] !== next[0]) {
+      setFilters({people: next});
+    }
+  }, [filters.bigfamId, filters.people, people, setFilters]);
 
   // Край сетки виден — берём следующую страницу. Если страница не заполнила
   // экран, край остаётся видимым и после загрузки, и эффект сработает снова:
@@ -137,6 +154,23 @@ export function PhotosView() {
     : `${formatNumber(all)} ${plural(all, 'снимок', 'снимка', 'снимков')}`;
   const count = selected.size;
   const paths = [...selected];
+  const dragSelection = usePhotoDragSelection(selected, select, canEdit);
+
+  const parentFolder = useCallback((path: string) => {
+    const trimmed = path.replace(/[\\/]+$/, '');
+    const parent = trimmed.replace(/[\\/][^\\/]+$/, '');
+    return /^[A-Za-z]:$/.test(parent) ? `${parent}\\` : parent;
+  }, []);
+  const shortcuts = useMemo(() => ({
+    Escape: (event: KeyboardEvent) => {
+      event.preventDefault();
+      if (folderMenu) { setFolderMenu(null); return; }
+      if (selected.size) { clear('photos'); return; }
+      if (filters.folder) { setFilters({folder: parentFolder(filters.folder)}); return; }
+      window.history.back();
+    },
+  }), [folderMenu, selected.size, clear, filters.folder, setFilters, parentFolder]);
+  useKeyboardShortcuts(shortcuts, active && !routePhoto);
 
   const openFolderMenu = (event: MouseEvent, path: string) => {
     event.preventDefault();
@@ -144,7 +178,7 @@ export function PhotosView() {
       path,
       label: baseName(path),
       x: Math.min(event.clientX, window.innerWidth - 220),
-      y: Math.min(event.clientY, window.innerHeight - 190),
+      y: Math.min(event.clientY, window.innerHeight - 230),
     });
   };
 
@@ -155,7 +189,12 @@ export function PhotosView() {
   };
 
   return (
-    <section className="view active">
+    <section className="view active" {...dragSelection}
+      onContextMenu={event => {
+        const target = event.target as HTMLElement;
+        if (!moveClipboard.length || !filters.folder || target.closest('[data-photo-path]') || !target.closest('.photo-grid')) return;
+        openFolderMenu(event, filters.folder);
+      }}>
       <ViewHeader eyebrow={counter} title="Фотографии">
         <div className="zoom" role="group" aria-label="Размер плиток">
           {ZOOM_STEPS.map(([level, icon, label]) => (
@@ -179,6 +218,12 @@ export function PhotosView() {
           {chips.length > 0 && <span className="bar-count">{chips.length}</span>}
         </Button>
         <GroupingMenu />
+        {moveClipboard.length > 0 && (
+          <Chip active title="Отменить перемещение" onClick={() => setMoveClipboard([])}>
+            <Icon name="folder" size={15} />
+            К перемещению: {formatNumber(moveClipboard.length)} · ×
+          </Chip>
+        )}
         <Chips className="context-chips">
           {chips.map(chip => {
             const folderPath = chip.drop.kind === 'folder' ? filters.folder : '';
@@ -227,6 +272,11 @@ export function PhotosView() {
                 Выбрать все показанные
               </Button>
               <span className="toolbar-spacer" />
+              <Button small onClick={() => {
+                setMoveClipboard(paths);
+                clear('photos');
+                toast(`Готово к перемещению: ${formatNumber(paths.length)}`);
+              }}>Переместить</Button>
               <Button small onClick={() => openAlbumPick({kind: 'photos', paths})}>В альбом</Button>
               <Button
                 small
@@ -288,13 +338,16 @@ export function PhotosView() {
         onExcludeFaces={folderActions.excludeFaces}
         onHide={folderActions.hide}
         onMove={setMoveFolder}
+        pasteCount={moveClipboard.length}
+        onPaste={target => actions.move(moveClipboard, target, () => setMoveClipboard([]))}
         onDelete={folderActions.remove}
       />
       <FolderPickerDialog
         open={Boolean(moveFolder)}
         title="Куда переместить папку"
-        note="Выберите подключенный бэк и папку назначения. Медиа из исходной папки будут перенесены внутрь выбранной папки."
+        note="Папка назначения — в том же источнике. Медиа из исходной папки переедут внутрь выбранной."
         confirmLabel="Переместить сюда"
+        source={sourceOf(moveFolder)}
         onClose={() => setMoveFolder('')}
         onPick={movePicked}
       />

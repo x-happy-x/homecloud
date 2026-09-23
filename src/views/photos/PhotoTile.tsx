@@ -1,5 +1,4 @@
 import {memo} from 'react';
-import {useLongPress} from '../../hooks/useLongPress';
 import {adultFlag} from '../../lib/adult';
 import {timecode} from '../../lib/format';
 import {photoMediaUrl} from '../../services/media';
@@ -32,13 +31,18 @@ export const PhotoTile = memo(function PhotoTile({photo, index, size, adultMode,
   const selecting = useStore(state => state.selection.photos.size > 0);
   const canEdit = useStore(state => state.session.canEdit);
   const toggle = useStore(state => state.toggle);
-  const hold = useLongPress(() => { if (canEdit) toggle('photos', photo.path); });
-
+  // Метка источника — где лежит оригинал; её можно выключить в настройках вида.
+  const showSource = useStore(state => state.prefs.showSource);
   return (
     <article
       className={`tile${selected ? ' selected' : ''}`}
       title={photo.filename}
-      {...hold}
+      data-photo-path={photo.path}
+      onContextMenu={event => {
+        event.preventDefault();
+        if (canEdit) toggle('photos', photo.path);
+      }}
+      onDragStart={event => event.preventDefault()}
       onClick={event => {
         // Пока что-то выбрано, обычный щелчок продолжает выбор.
         if (canEdit && (event.ctrlKey || event.metaKey || selecting)) toggle('photos', photo.path);
@@ -50,8 +54,10 @@ export const PhotoTile = memo(function PhotoTile({photo, index, size, adultMode,
         alt={photo.caption_short || photo.caption || photo.filename}
         loading="lazy"
         decoding="async"
+        draggable={false}
       />
       {adultFlag(photo) && <span className="tile-flag">18+</span>}
+      {showSource && photo.source_name && <span className="tile-source">{photo.source_name}</span>}
       {photo.kind === 'video' && (
         <span className="tile-video">
           <Icon name="play" />

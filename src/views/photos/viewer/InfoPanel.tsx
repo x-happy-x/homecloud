@@ -9,7 +9,7 @@ import {queryClient} from '../../../services/queryClient';
 import {qk} from '../../../services/queryKeys';
 import {useStore} from '../../../store';
 import type {PhotoCard, RouterLabel} from '../../../types/api';
-import {FolderPickerDialog, type PickedFolder} from '../../../components/FolderPicker/FolderPickerDialog';
+import {FolderPickerDialog, sourceOf, type PickedFolder} from '../../../components/FolderPicker/FolderPickerDialog';
 import {folderCrumbs} from '../gallery';
 import {FolderContextMenu, type FolderMenuState} from '../FolderContextMenu';
 import {useFolderActions} from '../useFolderActions';
@@ -169,7 +169,7 @@ function PlacesPanel({photo, onClose}: {photo: PhotoCard; onClose(): void}) {
   const album = useStore(state => state.filters.album);
   const setFilters = useStore(state => state.setFilters);
   const openAlbumPick = useStore(state => state.openAlbumPick);
-  const crumbs = folderCrumbs(photo.folder);
+  const crumbs = folderCrumbs(photo.folder, photo.source_name);
 
   const folderActions = useFolderActions();
   const [folderMenu, setFolderMenu] = useState<FolderMenuState | null>(null);
@@ -222,8 +222,9 @@ function PlacesPanel({photo, onClose}: {photo: PhotoCard; onClose(): void}) {
       <FolderPickerDialog
         open={Boolean(moveFolder)}
         title="Куда переместить папку"
-        note="Выберите подключенный бэк и папку назначения. Медиа из исходной папки будут перенесены внутрь выбранной папки."
+        note="Папка назначения — в том же источнике. Медиа из исходной папки переедут внутрь выбранной."
         confirmLabel="Переместить сюда"
+        source={sourceOf(moveFolder)}
         onClose={() => setMoveFolder('')}
         onPick={target => {
           const path = moveFolder;
@@ -336,6 +337,7 @@ function FileInfo({photo}: {photo: PhotoCard}) {
   const movie = photo.kind === 'video';
   const path = windowsPath(photo);
   const rows: Array<[string, string]> = [
+    ...(photo.source_name ? [['Источник', photo.source_name]] as Array<[string, string]> : []),
     ['Путь', path],
     ['Размер файла', photo.size ? fileSize(photo.size) : ''],
     ['Разрешение', photo.width && photo.height ? `${photo.width}×${photo.height}` : ''],
@@ -419,6 +421,9 @@ function MetadataSection({group, coords}: {group: MetadataGroup; coords: {latitu
 }
 
 function windowsPath(photo: PhotoCard): string {
+  // Ключ источника «pc-x:D:\\…» — путь внутри источника без его id.
+  const inner = photo.path.replace(/^[a-z0-9][a-z0-9_-]{1,31}:/, '');
+  if (inner !== photo.path) return inner;
   if (/^[a-z]:[\\/]/i.test(photo.path) || photo.path.startsWith('\\\\')) return photo.path;
   if (!photo.folder) return photo.path || photo.filename;
   const separator = photo.folder.includes('/') && !photo.folder.includes('\\') ? '/' : '\\';

@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useState} from 'react';
 import {keepPreviousData, useQuery} from '@tanstack/react-query';
-import {browseDevice, getDevices, type Device} from '../../services/endpoints/backends';
+import {browseSource, getSources} from '../../services/endpoints/backends';
 import {qk} from '../../services/queryKeys';
 import {Button} from '../../ui/Button/Button';
 import {Dialog, Sheet} from '../../ui/Dialog/Dialog';
@@ -8,8 +8,9 @@ import {HintLine} from '../../ui/Hint/Hint';
 import './FolderPickerDialog.scss';
 
 export interface PickedFolder {
-  deviceId: string;
-  deviceName: string;
+  sourceId: string;
+  sourceName: string;
+  /** Ключ папки: «netcraze:/HDD/photo», «pc-x:D:\Фото». */
   path: string;
 }
 
@@ -18,42 +19,52 @@ interface FolderPickerDialogProps {
   title: string;
   note?: string;
   confirmLabel?: string;
+  /** Только этот источник: переносить файлы можно лишь внутри своего. */
+  source?: string;
   onClose(): void;
   onPick(folder: PickedFolder): void;
 }
 
+/** Id источника из ключа папки или снимка. */
+export const sourceOf = (key: string): string =>
+  /^([a-z0-9][a-z0-9_-]{1,31}):/.exec(key)?.[1] ?? '';
+
+const insidePath = (key: string) => key.replace(/^[a-z0-9][a-z0-9_-]{1,31}:/, '') || '/';
+
 export function FolderPickerDialog({
-  open, title, note, confirmLabel = 'Выбрать эту папку', onClose, onPick,
+  open, title, note, confirmLabel = 'Выбрать эту папку', source: locked, onClose, onPick,
 }: FolderPickerDialogProps) {
-  const devices = useQuery({queryKey: qk.devices(), queryFn: getDevices, enabled: open});
-  const online = useMemo(() => (devices.data ?? []).filter(device => device.online), [devices.data]);
-  const [deviceId, setDeviceId] = useState('');
+  const sources = useQuery({queryKey: qk.sources(), queryFn: getSources, enabled: open});
+  const list = useMemo(() => (sources.data?.sources ?? [])
+    .filter(item => !locked || item.id === locked), [sources.data, locked]);
+  const [sourceId, setSourceId] = useState('');
   const [path, setPath] = useState('');
 
   useEffect(() => {
     if (!open) return;
-    const first = online[0]?.id ?? '';
-    setDeviceId(current => (current && online.some(device => device.id === current) ? current : first));
+    const first = list[0]?.id ?? '';
+    setSourceId(current => (current && list.some(item => item.id === current) ? current : first));
     setPath('');
-  }, [open, online]);
+  }, [open, list]);
 
-  const device = online.find(item => item.id === deviceId) ?? online[0] ?? null;
+  const source = list.find(item => item.id === sourceId) ?? list[0] ?? null;
   const browse = useQuery({
-    queryKey: qk.browse(device?.id ?? '', path),
-    queryFn: () => browseDevice(device!.id, path),
-    enabled: open && Boolean(device),
+    queryKey: qk.browse(source?.id ?? '', path),
+    queryFn: () => browseSource(source!.id, path),
+    enabled: open && Boolean(source),
     placeholderData: keepPreviousData,
+    retry: false,
   });
-  const data = browse.data;
+  const data = browse.data?.source === source?.id ? browse.data : undefined;
   const entries = data?.directories ?? [];
 
   const pick = () => {
-    if (!device || !data?.path) return;
-    onPick({deviceId: device.id, deviceName: device.name, path: data.path});
+    if (!source || !data?.path) return;
+    onPick({sourceId: source.id, sourceName: source.name, path: data.path});
   };
 
-  const chooseDevice = (next: string) => {
-    setDeviceId(next);
+  const chooseSource = (next: string) => {
+    setSourceId(next);
     setPath('');
   };
 
@@ -72,26 +83,27 @@ export function FolderPickerDialog({
       >
         <div className="folder-picker-device-row">
           <label>
-            Бэк
-            <select value={device?.id ?? ''} onChange={event => chooseDevice(event.target.value)}>
-              {online.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            Источник
+            <select value={source?.id ?? ''} disabled={Boolean(locked)}
+              onChange={event => chooseSource(event.target.value)}>
+              {list.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
         </div>
 
-        {!online.length && <HintLine>Нет подключенных доступных бэков.</HintLine>}
+        {sources.data && !list.length && <HintLine>Нет источников — заведите их на «Сканировании».</HintLine>}
 
-        {device && (
+        {source && (
           <>
             <div className="path-toolbar">
               <Button small disabled={!data || data.parent === null} onClick={() => setPath(data?.parent ?? '')}>
                 ↑
               </Button>
-              <code>{data?.path || 'Диски'}</code>
+              <code>{data?.path ? insidePath(data.path) : source.name}</code>
             </div>
             <div className="folder-list folder-picker-list">
               {browse.isError
-                ? <div className="folder-empty">Не удалось открыть папку</div>
+                ? <div className="folder-empty">Источник не открылся: {(browse.error as Error).message}</div>
                 : !data
                   ? <div className="folder-empty">Загрузка…</div>
                   : entries.length
@@ -106,7 +118,7 @@ export function FolderPickerDialog({
                           <span>{entry.name || entry.path}</span>
                         </button>
                       ))
-                    : <div className="folder-empty">Нет доступных папок</div>}
+                    : <div className="folder-empty">Нет вложенных папок</div>}
             </div>
           </>
         )}

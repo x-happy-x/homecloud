@@ -17,6 +17,7 @@ import {SegmentNav} from '../../ui/SegmentNav/SegmentNav';
 import {Switch} from '../../ui/Switch/Switch';
 import {ViewHeader} from '../../ui/ViewHeader/ViewHeader';
 import {SettingRow, type VisualModel} from './SettingRow';
+import {StorageCard} from './StorageCard';
 import {appendLines, changedKeys, isVisible, searchSections, type SettingsValues} from './settingsModel';
 import {
   SETTINGS_GROUPS, SETTINGS_SECTIONS,
@@ -191,12 +192,17 @@ export function SettingsView({excluded = 0}: {excluded?: number}) {
 
       {searching && !sections.length
         ? <EmptyState title="Такой настройки нет">Попробуйте другое слово: «видео», «папка», «тема».</EmptyState>
-        : <div className="settings-stack">{sections.map(renderSection)}</div>}
+        : (
+          <div className="settings-stack">
+            {!searching && group === 'data' && <StorageCard />}
+            {sections.map(renderSection)}
+          </div>
+        )}
 
       <FolderPickerDialog
         open={Boolean(pickKey)}
         title="Выбрать папку"
-        note="Выберите подключённое устройство и папку — путь добавится в список."
+        note="Выберите источник и папку — путь добавится в список."
         confirmLabel="Добавить путь"
         onClose={() => setPickKey(null)}
         onPick={target => {

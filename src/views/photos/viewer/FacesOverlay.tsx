@@ -11,6 +11,7 @@ import {useStore} from '../../../store';
 import type {PhotoCard} from '../../../types/api';
 import {Avatar} from '../../../ui/Avatar/Avatar';
 import {Button} from '../../../ui/Button/Button';
+import {Icon} from '../../../ui/Icon/Icon';
 import {PersonPicker, type PickerValue} from '../../../ui/PersonPicker/PersonPicker';
 import {Popover} from '../../../ui/Popover/Popover';
 import {facesByPerson, groupTitle, type PhotoPerson} from '../gallery';
@@ -134,7 +135,6 @@ export function FacesOverlay({photo, onClose, onSeek}: FacesOverlayProps) {
               const lead = person.members[0];
               const named = Boolean(person.name);
               const known = named ? people?.find(item => item.name === person.name) : undefined;
-              const relative = person.bigfam_id ? kin?.find(item => item.id === person.bigfam_id) : undefined;
               const seekAt = movie && lead?.frame_time != null ? lead.frame_time : null;
               const hint = named
                 ? 'Клик — выбрать, ещё раз — открыть галерею'
@@ -149,7 +149,7 @@ export function FacesOverlay({photo, onClose, onSeek}: FacesOverlayProps) {
                   type="button"
                   className={[
                     'bubble', named ? '' : 'face-unnamed', canEdit ? '' : 'readonly',
-                    chosen.has(person.key) ? 'selected' : '',
+                    chosen.has(person.key) ? 'selected active' : '',
                   ].filter(Boolean).join(' ')}
                   title={movie ? `${hint} · удержать — все появления` : hint}
                   onClick={() => click(person)}
@@ -163,9 +163,7 @@ export function FacesOverlay({photo, onClose, onSeek}: FacesOverlayProps) {
                     {person.members.length > 1 && <i className="bubble-count">×{person.members.length}</i>}
                     {seekAt != null && <i className="bubble-time">{timecode(seekAt)}</i>}
                   </span>
-                  <span className="bubble-name">
-                    {named ? shortName(person.name, relative) : groupTitle(person.key)}
-                  </span>
+                  <span className="bubble-name">{named ? shortName(person.name) : groupTitle(person.key)}</span>
                 </button>
               );
             })
@@ -196,6 +194,8 @@ export function FacesOverlay({photo, onClose, onSeek}: FacesOverlayProps) {
             variant="primary"
             small
             disabled={assign.isPending}
+            title={faceIds.length > 1 ? `Назначить выбранные лица (${faceIds.length})` : 'Назначить лицо'}
+            aria-label={faceIds.length > 1 ? `Назначить выбранные лица (${faceIds.length})` : 'Назначить лицо'}
             onClick={() => {
               if (!pick.name) {
                 toast('Введите имя человека');
@@ -204,9 +204,12 @@ export function FacesOverlay({photo, onClose, onSeek}: FacesOverlayProps) {
               if (faceIds.length) assign.mutate({faceIds, name: pick.name, bigfamId: pick.bigfamId});
             }}
           >
-            {faceIds.length > 1 ? `Назначить (${faceIds.length})` : 'Назначить'}
+            <Icon name="check" size={18} />
           </Button>
-          <Button variant="ghost" small onClick={() => setChosen(new Set())}>Отмена</Button>
+          <Button variant="ghost" small title="Отменить назначение" aria-label="Отменить назначение"
+            onClick={() => setChosen(new Set())}>
+            <Icon name="close" size={17} />
+          </Button>
         </div>
       )}
     </>

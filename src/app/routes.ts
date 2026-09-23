@@ -37,6 +37,8 @@ export interface RouteState {
   view: ViewName;
   query: string;
   people: string[];
+  /** Точная привязка к человеку BiGFaM для внешних ссылок. */
+  bigfamId: string;
   contentType: string;
   kind: string;
   showBlurry: boolean;
@@ -58,6 +60,7 @@ export const emptyRoute = (): RouteState => ({
   view: 'photos',
   query: '',
   people: [],
+  bigfamId: '',
   contentType: '',
   kind: '',
   showBlurry: false,
@@ -83,7 +86,8 @@ export function buildHash(route: RouteState): string {
     params.set('q', route.query);
   }
   if (route.view === 'photos') {
-    route.people.forEach(name => params.append('person', name));
+    if (route.bigfamId) params.set('bigfam_id', route.bigfamId);
+    else route.people.forEach(name => params.append('person', name));
     if (route.contentType) params.set('type', route.contentType);
     if (route.showBlurry) params.set('blurry', '1');
     if (route.showAdult) params.set('adult', '1');
@@ -113,6 +117,7 @@ export function parseHash(hash: string): RouteState {
     view: isView(name) ? name : 'photos',
     query: params.get('q') || '',
     people: params.getAll('person').filter(Boolean),
+    bigfamId: params.get('bigfam_id') || '',
     contentType: params.get('type') || '',
     kind: params.get('kind') || '',
     showBlurry: params.get('blurry') === '1',

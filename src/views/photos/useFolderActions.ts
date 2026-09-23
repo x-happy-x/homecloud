@@ -60,7 +60,7 @@ export function useFolderActions() {
 
   const move = useMutation({
     mutationFn: ({path, target}: {path: string; target: PickedFolder}) =>
-      moveFolderMedia({folder: path, target: target.path, device_id: target.deviceId}),
+      moveFolderMedia({folder: path, target: target.path}),
     onSuccess: result => {
       toast(`Перемещено медиа: ${formatNumber(result.moved)}`, 'success');
       setFilters({folder: result.target, folderExclude: ''});
@@ -97,7 +97,7 @@ export function useFolderActions() {
     },
     async move(path: string, target: PickedFolder) {
       if (!target.path) return;
-      if (!await confirmAction(`Переместить все медиа из «${path}» в «${target.path}» на «${target.deviceName}»?`)) return;
+      if (!await confirmAction(`Переместить все медиа из «${path}» в «${target.path}» (${target.sourceName})?`)) return;
       move.mutate({path, target});
     },
   };

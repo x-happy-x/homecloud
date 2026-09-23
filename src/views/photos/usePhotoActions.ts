@@ -1,7 +1,7 @@
 import {confirmAction} from '../../services/dialogs';
 import {useMutation} from '@tanstack/react-query';
 import {formatNumber, plural} from '../../lib/format';
-import {deletePhotos, hidePhotos, revealPhotos} from '../../services/endpoints/photos';
+import {deletePhotos, hidePhotos, movePhotos, revealPhotos} from '../../services/endpoints/photos';
 import {queryClient} from '../../services/queryClient';
 import {useStore} from '../../store';
 
@@ -36,9 +36,21 @@ export function usePhotoActions() {
       refresh();
     },
   });
+  const move = useMutation({
+    mutationFn: ({paths, target}: {paths: string[]; target: string}) => movePhotos({paths, target}),
+    onSuccess: data => {
+      toast(`Перемещено: ${formatNumber(data.moved)}${failed(data.errors)}`, data.errors.length ? 'error' : 'success');
+      refresh();
+    },
+  });
 
   return {
-    busy: hide.isPending || reveal.isPending || remove.isPending,
+    busy: hide.isPending || reveal.isPending || remove.isPending || move.isPending,
+
+    move(paths: string[], target: string, onDone?: () => void) {
+      const unique = [...new Set(paths)].filter(Boolean);
+      if (unique.length && target) move.mutate({paths: unique, target}, {onSuccess: onDone});
+    },
 
     /** Перенос в скрытый альбом: файл уезжает в личную папку на устройстве. */
     async hide(paths: string[], onDone?: () => void) {

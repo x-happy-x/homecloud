@@ -5,13 +5,15 @@ import type {DupFilters} from '../../store/slices/duplicates';
 export async function loadAllDuplicates(similar: boolean, filters: DupFilters, options: {
   signal?: AbortSignal;
   onProgress?(loaded: number, total: number): void;
-} = {}): Promise<DuplicateGroup[]> {
+} = {}, cross = false): Promise<DuplicateGroup[]> {
   const groups: DuplicateGroup[] = [];
   let offset = 0;
   const limit = 200;
   while (true) {
     options.signal?.throwIfAborted();
-    const page = await getDuplicates(similar, filters, limit, offset, options.signal);
+    const page = cross
+      ? await getDuplicates(similar, filters, limit, offset, options.signal, true)
+      : await getDuplicates(similar, filters, limit, offset, options.signal);
     options.signal?.throwIfAborted();
     groups.push(...page.groups);
     offset += limit;
