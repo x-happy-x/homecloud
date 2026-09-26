@@ -33,6 +33,7 @@ export const ICON_PATHS = {
   volume: 'M3 9v6h4l5 5V4L7 9H3Zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4Zm0-7.5v2.1A7 7 0 0 1 20 12a7 7 0 0 1-3.5 5.4v2.1A9 9 0 0 0 22 12a9 9 0 0 0-5.5-7.5Z',
   volumeOff: 'M3 9v6h4l5 5v-6.6L7.6 9H3Zm16.8 3 2.1-2.1-1.4-1.4-2.1 2.1-2.1-2.1-1.4 1.4L17 12l-2.1 2.1 1.4 1.4 2.1-2.1 2.1 2.1 1.4-1.4L19.8 12ZM12 4 9.7 6.3 12 8.6V4Z',
   fullscreen: 'M5 5h5V3H3v7h2V5Zm9-2v2h5v5h2V3h-7ZM5 14H3v7h7v-2H5v-5Zm14 5h-5v2h7v-7h-2v5Z',
+  fullscreenExit: 'M8 3v5H3v2h7V3H8Zm8 0h-2v7h7V8h-5V3ZM3 16h5v5h2v-7H3v2Zm13 0h5v-2h-7v7h2v-5Z',
   more: 'M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z',
   analysis: 'M3 19h18v2H3Zm2-8h3v7H5Zm5-5h3v12h-3Zm5 3h3v9h-3Z',
   folder: 'M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2Z',

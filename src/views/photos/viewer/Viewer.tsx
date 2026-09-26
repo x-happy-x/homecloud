@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import type {PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent} from 'react';
+import type {CSSProperties, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent} from 'react';
 import {createPortal} from 'react-dom';
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query';
 import './Viewer.scss';
@@ -40,6 +40,7 @@ const STRIP_RADIUS = 25;
 const PRELOAD_EDGE = 3;
 const FACE_PRELOAD = 2;
 const AUTO_HIDE_MS = 3000;
+const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const SEARCH_FRAME_LIMIT = 700 * 1024;
 const SEARCH_FRAME_SIDE = 1600;
 
@@ -167,6 +168,16 @@ interface PlayerState {
   muted: boolean;
   buffering: boolean;
   seeking: boolean;
+  /** До какой секунды ролик уже загружен от текущего места. */
+  buffered: number;
+  rate: number;
+}
+
+/** Значок, который на миг вспыхивает в центре кадра, как в YouTube. */
+interface Flash {
+  id: number;
+  icon: 'play' | 'pause' | 'volume' | 'volumeOff';
+  label?: string;
 }
 
 interface SearchRequest {
@@ -220,8 +231,9 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
   const [passportFace, setPassportFace] = useState<number | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [controlsHeld, setControlsHeld] = useState(false);
+  const [flash, setFlash] = useState<Flash | null>(null);
   const [player, setPlayer] = useState<PlayerState>({
-    playing: false, duration: 0, current: 0, volume: 1, muted: false, buffering: false, seeking: false,
+    playing: false, duration: 0, current: 0, volume: 1, muted: false, buffering: false, seeking: false, buffered: 0, rate: 1,
   });
 
   const photo = open ? list[index] : undefined;
@@ -251,7 +263,7 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
     setMenuOpen(false);
     pointers.current.clear();
     video.current?.pause();
-    setPlayer(state => ({...state, playing: false, current: 0, duration: photo?.duration ?? 0, buffering: false, seeking: false}));
+    setPlayer(state => ({...state, playing: false, current: 0, duration: photo?.duration ?? 0, buffering: false, seeking: false, buffered: 0}));
   }, [mediaKey, photo?.duration]);
 
   const measureImage = useCallback(() => {
@@ -337,28 +349,35 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
     if (!chrome) toggleChrome(true);
   }, [chrome, toggleChrome]);
 
+  const flashIcon = useCallback((icon: Flash['icon'], label?: string) => {
+    setFlash(current => ({id: (current?.id ?? 0) + 1, icon, label}));
+  }, []);
+
   const seekBy = useCallback((delta: number) => {
     const node = video.current;
     if (!node) return;
     node.currentTime = Math.max(0, Math.min(node.duration || 0, node.currentTime + delta));
   }, []);
 
-  const togglePlay = useCallback(() => {
+  const togglePlay = useCallback((withFlash = false) => {
     const node = video.current;
     if (!node) return;
     if (node.paused) node.play().catch(() => {});
     else node.pause();
-  }, []);
+    if (withFlash) flashIcon(node.paused ? 'pause' : 'play');
+  }, [flashIcon]);
 
-  const toggleMuted = useCallback(() => {
+  const toggleMuted = useCallback((withFlash = false) => {
     const node = video.current;
     if (!node) return;
     node.muted = !node.muted;
     setPlayer(state => ({...state, muted: node.muted}));
-  }, []);
+    if (withFlash) flashIcon(node.muted ? 'volumeOff' : 'volume');
+  }, [flashIcon]);
 
+  // В полный экран уходит всё окно просмотра, чтобы панель плеера осталась видна.
   const fullscreen = useCallback(() => {
-    const node = stage.current;
+    const node = stage.current?.parentElement;
     if (!node) return;
     if (document.fullscreenElement) void document.exitFullscreen();
     else void node.requestFullscreen?.();
@@ -386,19 +405,36 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
     ' ': (event: KeyboardEvent) => {
       if (!movie) return;
       event.preventDefault();
-      togglePlay();
+      togglePlay(true);
+    },
+    k: (event: KeyboardEvent) => {
+      if (!movie) return;
+      event.preventDefault();
+      togglePlay(true);
+    },
+    j: (event: KeyboardEvent) => {
+      if (!movie) return;
+      event.preventDefault();
+      seekBy(-10);
+      flashIcon('play', '−10 с');
+    },
+    l: (event: KeyboardEvent) => {
+      if (!movie) return;
+      event.preventDefault();
+      seekBy(10);
+      flashIcon('play', '+10 с');
     },
     m: (event: KeyboardEvent) => {
       if (!movie) return;
       event.preventDefault();
-      toggleMuted();
+      toggleMuted(true);
     },
     f: (event: KeyboardEvent) => {
       if (!movie) return;
       event.preventDefault();
       fullscreen();
     },
-  }), [movie, go, seekBy, togglePlay, toggleMuted, fullscreen]);
+  }), [movie, go, seekBy, togglePlay, toggleMuted, fullscreen, flashIcon]);
   useKeyboardShortcuts(shortcuts, open && (many || Boolean(movie)));
 
   const seek = useCallback((seconds: number | null | undefined) => {
@@ -587,6 +623,11 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
             className="viewer-stage"
             onClick={event => {
               if (isUiTarget(event.target)) return;
+              // Клик по кадру ролика — пауза и пуск, как в YouTube.
+              if (movie && event.target === video.current) {
+                togglePlay(true);
+                return;
+              }
               const insidePhoto = Boolean(imageBounds
                 && event.clientX >= imageBounds.left
                 && event.clientX <= imageBounds.left + imageBounds.width
@@ -635,6 +676,8 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
                       onLoadedMetadata={event => {
                         const node = event.currentTarget;
                         markReady(mediaKey);
+                        // Выбранная скорость переходит на следующий ролик, как в YouTube.
+                        node.playbackRate = player.rate;
                         if (pendingStart.current != null) {
                           node.currentTime = Math.min(pendingStart.current, node.duration || pendingStart.current);
                           pendingStart.current = null;
@@ -660,7 +703,16 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
                       }}
                       onTimeUpdate={event => {
                         const current = event.currentTarget.currentTime || 0;
-                        setPlayer(state => ({...state, current}));
+                        const buffered = bufferedEnd(event.currentTarget);
+                        setPlayer(state => ({...state, current, buffered}));
+                      }}
+                      onProgress={event => {
+                        const buffered = bufferedEnd(event.currentTarget);
+                        setPlayer(state => ({...state, buffered}));
+                      }}
+                      onRateChange={event => {
+                        const rate = event.currentTarget.playbackRate;
+                        setPlayer(state => ({...state, rate}));
                       }}
                       onVolumeChange={event => {
                         const node = event.currentTarget;
@@ -680,7 +732,7 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
                         />
                         {mediaStatus !== 'error' && (
                           <button className="viewer-video-play viewer-ui" type="button" aria-label="Воспроизвести видео"
-                            onClick={togglePlay}>
+                            onClick={() => togglePlay()}>
                             <Icon name="play" />
                           </button>
                         )}
@@ -716,6 +768,11 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
                 />
               )}
               {movie && (player.buffering || mediaStatus === 'loading') && <div className="viewer-buffering" />}
+              {movie && flash && (
+                <div key={flash.id} className="viewer-flash" aria-hidden="true" onAnimationEnd={() => setFlash(null)}>
+                  {flash.label ? <span>{flash.label}</span> : <Icon name={flash.icon} />}
+                </div>
+              )}
             </div>
 
             {many && transform.scale <= 1.02 && (
@@ -770,15 +827,6 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
                     >
                       <Icon name="searchImage" />Поиск в Яндексе
                     </button>
-                    {movie && [0.5, 1, 1.25, 1.5, 2].map(speed => (
-                      <button key={speed} type="button" role="menuitem" aria-pressed={video.current?.playbackRate === speed}
-                        onClick={() => {
-                          if (video.current) video.current.playbackRate = speed;
-                          setMenuOpen(false);
-                        }}>
-                        <Icon name="play" />{speed}×
-                      </button>
-                    ))}
                     {avatarVisible && (
                       <button type="button" role="menuitem" aria-pressed={pinned} disabled={avatar.isPending}
                         onClick={() => { setMenuOpen(false); avatar.mutate(pinned); }}>
@@ -817,10 +865,14 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
             <VideoControls
               player={player}
               duration={player.duration || photo.duration || 0}
+              docked={!many}
               onHold={setControlsHeld}
-              onPlay={togglePlay}
-              onMute={toggleMuted}
+              onPlay={() => togglePlay()}
+              onMute={() => toggleMuted()}
               onFullscreen={fullscreen}
+              onSpeed={rate => {
+                if (video.current) video.current.playbackRate = rate;
+              }}
               onSeek={value => {
                 const node = video.current;
                 if (!node) return;
@@ -856,45 +908,163 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
 interface VideoControlsProps {
   player: PlayerState;
   duration: number;
+  /** Ленты снимков под плеером нет — панель прижимается к низу окна. */
+  docked: boolean;
   onHold(held: boolean): void;
   onPlay(): void;
   onMute(): void;
   onFullscreen(): void;
   onSeek(value: number): void;
   onVolume(value: number): void;
+  onSpeed(rate: number): void;
 }
 
-function VideoControls({player, duration, onHold, onPlay, onMute, onFullscreen, onSeek, onVolume}: VideoControlsProps) {
+function VideoControls({player, duration, docked, onHold, onPlay, onMute, onFullscreen, onSeek, onVolume, onSpeed}: VideoControlsProps) {
+  const [speedOpen, setSpeedOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(() => Boolean(document.fullscreenElement));
+  const speedWrap = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const update = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', update);
+    return () => document.removeEventListener('fullscreenchange', update);
+  }, []);
+
+  // Пока открыто меню скорости, панель не прячется; клик мимо меню его закрывает.
+  useEffect(() => {
+    onHold(speedOpen);
+    if (!speedOpen) return;
+    const close = (event: PointerEvent) => {
+      if (!speedWrap.current?.contains(event.target as Node)) setSpeedOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [speedOpen, onHold]);
+
+  const silent = player.muted || player.volume === 0;
+  const level = player.muted ? 0 : player.volume;
   return (
-    <div className="viewer-player viewer-ui" onPointerDown={() => onHold(true)} onPointerUp={() => onHold(false)}
-      onPointerCancel={() => onHold(false)} onFocus={() => onHold(true)} onBlur={() => onHold(false)}>
-      <input
-        className="viewer-seek"
-        type="range"
-        min="0"
-        max={Math.max(0, duration)}
-        step="0.1"
-        value={Math.min(player.current, duration || 0)}
-        onInput={event => onSeek(Number(event.currentTarget.value))}
-        aria-label="Перемотка"
-      />
+    <div className={['viewer-player', 'viewer-ui', docked ? 'docked' : ''].filter(Boolean).join(' ')}
+      onPointerDown={() => onHold(true)} onPointerUp={() => onHold(speedOpen)}
+      onPointerCancel={() => onHold(speedOpen)} onFocus={() => onHold(true)} onBlur={() => onHold(speedOpen)}>
+      <SeekBar current={player.current} buffered={player.buffered} duration={duration} onSeek={onSeek} />
       <div className="viewer-player-row">
-        <button className="viewer-icon" type="button" aria-label={player.playing ? 'Пауза' : 'Воспроизвести'} onClick={onPlay}>
+        <button className="viewer-ctl" type="button" aria-label={player.playing ? 'Пауза (k)' : 'Смотреть (k)'} onClick={onPlay}>
           <Icon name={player.playing ? 'pause' : 'play'} />
         </button>
-        <span className="viewer-time">{timecode(player.current)} / {timecode(duration || 0)}</span>
-        <button className="viewer-icon" type="button" aria-label={player.muted ? 'Включить звук' : 'Выключить звук'} onClick={onMute}>
-          <Icon name={player.muted || player.volume === 0 ? 'volumeOff' : 'volume'} />
-        </button>
-        <input className="viewer-volume" type="range" min="0" max="1" step="0.02"
-          value={player.muted ? 0 : player.volume} onInput={event => onVolume(Number(event.currentTarget.value))}
-          aria-label="Громкость" />
-        <button className="viewer-icon" type="button" aria-label="Полный экран" onClick={onFullscreen}>
-          <Icon name="fullscreen" />
+        <div className="viewer-volume-wrap">
+          <button className="viewer-ctl" type="button" aria-label={silent ? 'Включить звук (m)' : 'Выключить звук (m)'} onClick={onMute}>
+            <Icon name={silent ? 'volumeOff' : 'volume'} />
+          </button>
+          <input className="viewer-volume" type="range" min="0" max="1" step="0.02"
+            value={level} onInput={event => onVolume(Number(event.currentTarget.value))}
+            style={{'--fill': `${level * 100}%`} as CSSProperties}
+            aria-label="Громкость" />
+        </div>
+        <span className="viewer-time">
+          {timecode(player.current)}<i> / </i><span>{timecode(duration || 0)}</span>
+        </span>
+        <span className="viewer-player-spacer" />
+        <div className="viewer-speed-wrap" ref={speedWrap}>
+          <button className="viewer-ctl viewer-speed-button" type="button" aria-label="Скорость воспроизведения"
+            aria-expanded={speedOpen} onClick={() => setSpeedOpen(opened => !opened)}>
+            <Icon name="settings" />
+            {player.rate !== 1 && <b>{formatRate(player.rate)}</b>}
+          </button>
+          {speedOpen && (
+            <div className="viewer-speed-menu" role="menu" aria-label="Скорость">
+              <div className="viewer-speed-title">Скорость</div>
+              {SPEEDS.map(rate => (
+                <button key={rate} type="button" role="menuitemradio" aria-checked={player.rate === rate}
+                  onClick={() => {
+                    onSpeed(rate);
+                    setSpeedOpen(false);
+                  }}>
+                  <Icon name="check" />{rate === 1 ? 'Обычная' : formatRate(rate)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button className="viewer-ctl" type="button"
+          aria-label={isFullscreen ? 'Выйти из полноэкранного режима (f)' : 'Во весь экран (f)'}
+          onClick={onFullscreen}>
+          <Icon name={isFullscreen ? 'fullscreenExit' : 'fullscreen'} />
         </button>
       </div>
     </div>
   );
+}
+
+interface SeekBarProps {
+  current: number;
+  buffered: number;
+  duration: number;
+  onSeek(value: number): void;
+}
+
+/** Полоса перемотки как в YouTube: тонкая, толще под курсором, с меткой времени. */
+function SeekBar({current, buffered, duration, onSeek}: SeekBarProps) {
+  const bar = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const ratioAt = (x: number) => {
+    const rect = bar.current?.getBoundingClientRect();
+    if (!rect?.width) return 0;
+    return Math.min(1, Math.max(0, (x - rect.left) / rect.width));
+  };
+  const share = (seconds: number) => `${duration > 0 ? Math.min(100, Math.max(0, seconds / duration * 100)) : 0}%`;
+
+  return (
+    <div
+      ref={bar}
+      className={['viewer-seek', dragging ? 'dragging' : ''].filter(Boolean).join(' ')}
+      role="slider"
+      aria-label="Перемотка"
+      aria-valuemin={0}
+      aria-valuemax={Math.round(duration)}
+      aria-valuenow={Math.round(current)}
+      aria-valuetext={`${timecode(current)} из ${timecode(duration)}`}
+      onPointerDown={event => {
+        if (!duration) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        setDragging(true);
+        onSeek(ratioAt(event.clientX) * duration);
+      }}
+      onPointerMove={event => {
+        const ratio = ratioAt(event.clientX);
+        setHover(ratio);
+        if (dragging) onSeek(ratio * duration);
+      }}
+      onPointerUp={() => setDragging(false)}
+      onPointerCancel={() => setDragging(false)}
+      onPointerLeave={() => setHover(null)}
+    >
+      <div className="viewer-seek-track">
+        <div className="viewer-seek-buffered" style={{width: share(buffered)}} />
+        {hover != null && <div className="viewer-seek-hover" style={{width: `${hover * 100}%`}} />}
+        <div className="viewer-seek-played" style={{width: share(current)}} />
+      </div>
+      <div className="viewer-seek-thumb" style={{left: share(current)}} />
+      {hover != null && duration > 0 && (
+        <div className="viewer-seek-tip" style={{left: `${hover * 100}%`}}>{timecode(hover * duration)}</div>
+      )}
+    </div>
+  );
+}
+
+function formatRate(rate: number): string {
+  return `${String(rate).replace('.', ',')}×`;
+}
+
+/** Конец загруженного куска, в котором стоит воспроизведение. */
+function bufferedEnd(node: HTMLVideoElement): number {
+  const ranges = node.buffered;
+  for (let index = 0; index < ranges.length; index += 1) {
+    if (ranges.start(index) <= node.currentTime + 0.5 && node.currentTime <= ranges.end(index)) return ranges.end(index);
+  }
+  return 0;
 }
 
 interface ViewerStripProps {
