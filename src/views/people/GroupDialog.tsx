@@ -4,6 +4,7 @@ import './GroupDialog.scss';
 import {VIEW_TITLES} from '../../app/routes';
 import {useCatalogState} from '../../hooks/useCatalogState';
 import {useGridColumns} from '../../hooks/useGridColumns';
+import {useIntersection} from '../../hooks/useIntersection';
 import {useKin} from '../../hooks/useKin';
 import {useLongPress} from '../../hooks/useLongPress';
 import {isOffline, useSourceStatus} from '../../hooks/useSourceStatus';
@@ -44,6 +45,8 @@ const KINDS: Record<string, string> = {
 
 /** Сколько подсказок «это тоже он» видно сразу, до «Показать все». */
 const CANDIDATES_PREVIEW = 12;
+/** Сколько плиток ленты рисуется сразу и сколько добавляется у её конца. */
+const LENTA_PAGE = 240;
 /** «Похожие люди» раскрыты сами, только если кто-то похож всерьёз. */
 const SIMILAR_OPEN_SCORE = 0.7;
 
@@ -170,6 +173,25 @@ function GroupCard({group, onClose, onOpenFace}: GroupCardProps) {
     : stacked ? byYear(stacks, stack => stack.members[0].face.taken) : byYear(ordered, face => face.taken);
   const rail = group.kind === 'person' || group.kind === 'auto';
 
+  // У больших групп (тысячи лиц) лента дорисовывается по мере прокрутки:
+  // сразу — LENTA_PAGE плиток, дальше — когда низ ленты подходит к экрану.
+  const [shown, setShown] = useState(LENTA_PAGE);
+  const more = useRef<HTMLDivElement>(null);
+  const nearEnd = useIntersection(more);
+  const totalItems = sections.reduce((count, section) => count + section.items.length, 0);
+  useEffect(() => setShown(LENTA_PAGE), [mode, kind, stacked]);
+  useEffect(() => {
+    if (nearEnd && shown < totalItems) setShown(value => value + LENTA_PAGE);
+  }, [nearEnd, shown, totalItems]);
+  let left = shown;
+  const visible = [];
+  for (const section of sections) {
+    if (left <= 0) break;
+    const items = (section.items as unknown[]).slice(0, left);
+    left -= items.length;
+    visible.push({...section, items, count: section.items.length});
+  }
+
   return (
     <>
       <div className="pcard">
@@ -207,12 +229,12 @@ function GroupCard({group, onClose, onOpenFace}: GroupCardProps) {
             </div>
 
             {sections.length === 0 && <p className="pcard-empty">Таких файлов у этой группы нет</p>}
-            {sections.map(section => (
+            {visible.map(section => (
               <YearSection
                 key={`${mode}-${section.year ?? 'none'}`}
                 year={section.year}
                 note={mode === 'media'
-                  ? `${formatNumber(section.items.length)} ${plural(section.items.length, 'файл', 'файла', 'файлов')}`
+                  ? `${formatNumber(section.count)} ${plural(section.count, 'файл', 'файла', 'файлов')}`
                   : ''}
               >
                 {mode === 'media'
@@ -228,6 +250,9 @@ function GroupCard({group, onClose, onOpenFace}: GroupCardProps) {
                       ))}</div>}
               </YearSection>
             ))}
+
+            {/* Метка конца ленты есть всегда: наблюдатель подписывается на неё один раз. */}
+            <div ref={more} className="pcard-more">{shown < totalItems ? 'Показываю ещё…' : ''}</div>
 
             {canEdit && mode === 'faces' && <SelectionBar group={group} change={change} visible={ordered} />}
           </div>

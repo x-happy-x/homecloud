@@ -178,6 +178,7 @@
 .pcard-toggle svg { fill: currentColor; }
 .pcard-spacer { flex: 1; }
 .pcard-empty { margin: 40px 0; color: var(--muted); text-align: center; }
+.pcard-more { min-height: 1px; padding: 24px 0; color: var(--muted); font-size: .8rem; text-align: center; }
 
 .pcard-year h3 {
   display: flex;
