@@ -2,9 +2,7 @@
 
 /**
  * Нижняя панель есть только на телефоне. Оба правила — «скрыта» и раскладка
- * для узкого экрана — держатся здесь: пока «скрыта» стояло в этом файле, а
- * раскладка в стилях пункта навигации, в собранном CSS они шли в обратном
- * порядке, и при равной специфичности панель оставалась скрытой.
+ * для узкого экрана — держатся здесь, чтобы в собранном CSS они шли по порядку.
  */
 .tabbar { display: none; }
 
@@ -14,29 +12,101 @@
       inset: auto 0 0;
       z-index: 40;
       display: grid;
-      grid-auto-flow: column;
-      grid-auto-columns: 1fr;
+      grid-template-columns: repeat(5, 1fr);
       padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
-      background: color-mix(in srgb, var(--surface) 94%, transparent);
+      background: color-mix(in srgb, var(--surface) 90%, transparent);
       backdrop-filter: blur(14px);
       border-top: 1px solid var(--line-soft);
     }
-    .tabbar .nav-item {
-      flex-direction: column;
-      gap: 2px;
+    .tabbar .tab {
+      position: relative;
+      min-width: 0;
       min-height: 54px;
-      padding: 4px 0;
-      border-radius: var(--r-m);
-      font-size: .68rem;
-      justify-content: center;
+      display: grid;
+      justify-items: center;
+      align-content: center;
+      gap: 3px;
+      border: 0;
+      background: none;
+      color: var(--muted);
+      font: 500 .66rem/1.1 var(--sans);
     }
-    /* Узкая боковая панель прячет подписи; в нижней они нужны. */
-    .tabbar .nav-item span {
-      display: block;
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .tabbar .tab svg {
+      width: 22px;
+      height: 22px;
+      padding: 2px 14px;
+      box-sizing: content-box;
+      border-radius: 999px;
+      transition: background .15s;
     }
-    .tabbar .nav-item svg { width: 21px; height: 21px; }
+    .tabbar .tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tabbar .tab.active { color: var(--ink); font-weight: 600; }
+    .tabbar .tab.active svg { background: var(--patina-soft); color: var(--patina); }
+    .tab-pip {
+      position: absolute;
+      top: 6px;
+      right: calc(50% - 20px);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--brass);
+      outline: 2px solid var(--surface);
+    }
+}
+
+/* ---------- шторка «Библиотека» ---------- */
+dialog.library-sheet {
+  inset: auto 0 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 86dvh;
+  margin: 0;
+  padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 24px 24px 0 0;
+  background: var(--surface);
+  color: var(--ink);
+}
+dialog.library-sheet[open] { display: grid; gap: 6px; align-content: start; animation: sheet-up .22s ease-out; }
+dialog.library-sheet::backdrop { background: rgb(0 0 0 / 55%); }
+.library-grab { justify-self: center; width: 40px; height: 4px; margin-bottom: 8px; border-radius: 4px; background: var(--line); }
+.library-sheet h2 { margin: 0 0 6px; font-size: 1.1rem; }
+.library-sheet h3 {
+  margin: 12px 0 2px;
+  padding: 0 4px;
+  color: var(--muted);
+  font: 650 .68rem/1.4 var(--sans);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.library-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 6px; }
+.library-tile {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  padding: 12px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: .8rem;
+  text-align: left;
+}
+.library-tile svg { width: 22px; height: 22px; color: var(--patina); }
+.library-tile span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-tile.active { border-color: var(--patina); }
+.library-tile .nav-badge { position: absolute; top: 8px; right: 8px; }
+.library-sheet .nav-job { margin-top: 4px; }
+.library-sheet .nav-row { padding: 0 6px; }
+
+@keyframes sheet-up {
+  from { transform: translateY(40px); opacity: 0; }
+}
+
+@include reduced-motion {
+  dialog.library-sheet[open] { animation: none; }
 }

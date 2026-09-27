@@ -46,4 +46,6 @@ export const KEYS = {
   showSource: 'homecloud-show-source',
   videoFit: 'homecloud-video-fit',
   mediaFocus: 'homecloud-media-focus',
+  navCompact: 'homecloud-nav-compact',
+  navFolded: 'homecloud-nav-folded',
 } as const;

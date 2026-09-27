@@ -33,6 +33,10 @@ export interface PrefsSlice {
     videoFit: VideoFit;
     /** «Медиа» карточки человека: размывать фон вокруг лица. */
     mediaFocus: boolean;
+    /** Боковая панель свёрнута до иконок. */
+    navCompact: boolean;
+    /** Свёрнутые группы боковой панели: люди, альбомы, источники, каталог. */
+    navFolded: string[];
   };
   setAdultMode(mode: AdultMode): void;
   setZoom(zoom: ZoomLevel): void;
@@ -44,6 +48,8 @@ export interface PrefsSlice {
   setShowSource(show: boolean): void;
   setVideoFit(fit: VideoFit): void;
   setMediaFocus(on: boolean): void;
+  setNavCompact(on: boolean): void;
+  toggleNavGroup(id: string): void;
   setGroupBy(by: GroupBy): void;
   setGroupOrder(order: GroupOrder): void;
   toggleGroup(by: GroupBy, key: string): void;
@@ -65,6 +71,11 @@ const savedAnalysisTab = (): AnalysisView => {
 const savedVideoFit = (): VideoFit => {
   const value = readLocal(KEYS.videoFit);
   return value === 'cover' || value === 'fill' ? value : 'contain';
+};
+
+const savedNavFolded = (): string[] => {
+  const value = readLocalJson<unknown>(KEYS.navFolded, []);
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 };
 
 const savedCollapsed = (): Record<string, CollapseRule> => {
@@ -104,6 +115,8 @@ export const createPrefsSlice: StateCreator<Store, [], [], PrefsSlice> = (set, g
       showSource: readLocal(KEYS.showSource) !== '0',
       videoFit: savedVideoFit(),
       mediaFocus: readLocal(KEYS.mediaFocus) !== '0',
+      navCompact: readLocal(KEYS.navCompact) === '1',
+      navFolded: savedNavFolded(),
     },
 
     setAdultMode: mode => { writeLocal(KEYS.adultMode, mode); patch({adultMode: mode}); },
@@ -119,6 +132,13 @@ export const createPrefsSlice: StateCreator<Store, [], [], PrefsSlice> = (set, g
     setShowSource: show => { writeLocal(KEYS.showSource, show ? '1' : '0'); patch({showSource: show}); },
     setVideoFit: fit => { writeLocal(KEYS.videoFit, fit); patch({videoFit: fit}); },
     setMediaFocus: on => { writeLocal(KEYS.mediaFocus, on ? '1' : '0'); patch({mediaFocus: on}); },
+    setNavCompact: on => { writeLocal(KEYS.navCompact, on ? '1' : ''); patch({navCompact: on}); },
+    toggleNavGroup: id => {
+      const folded = get().prefs.navFolded;
+      const next = folded.includes(id) ? folded.filter(item => item !== id) : [...folded, id];
+      writeLocalJson(KEYS.navFolded, next);
+      patch({navFolded: next});
+    },
     // У нового вида свой естественный порядок: папки по названию, дни — свежие сверху.
     setGroupBy: by => saveGrouping(parseGrouping({by, order: defaultOrder(by)})),
     setGroupOrder: order => saveGrouping(parseGrouping({...get().prefs.grouping, order})),

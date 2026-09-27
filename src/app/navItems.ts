@@ -1,32 +1,55 @@
+import type {GalleryFilters} from '../store/slices/gallery';
 import type {IconName} from '../ui/Icon/Icon';
-import {ANALYSIS_VIEWS, type ViewName} from './routes';
+import type {ViewName} from './routes';
 
-export interface NavGroupSpec {
-  id: string;
-  /** Экран пункта. У «Анализа» вместо него открывается последняя вкладка. */
+export type NavId =
+  | 'photos' | 'highlights' | 'people' | 'video'
+  | 'review' | 'scan' | 'duplicates' | 'training' | 'hidden' | 'settings';
+
+export interface NavEntry {
+  id: NavId;
   view: ViewName;
   icon: IconName;
   label: string;
-  /** Короткая подпись для нижней панели на телефоне. */
+  /** Короткая подпись для узкой панели и телефона. */
   short: string;
-  /** Экраны пункта: у «Анализа» их четыре, у остальных — один. */
-  views: readonly ViewName[];
+  /**
+   * Пункты «Видео» и «Скрытые» — та же галерея с отбором. У «Фотографий»
+   * отбор снимается, иначе из видео назад в фотографии не уйти.
+   */
+  filters?: Partial<GalleryFilters>;
 }
 
-/**
- * Один список на боковую панель и на нижнюю. Пунктов пять, а не восемь:
- * проверка, обучение, сканирование и дубликаты — это обслуживание каталога,
- * и в навигации им хватает пункта «Анализ» с вкладками внутри. «Подборки» —
- * отдельный пункт: это то, что смотрят, а не то, чем обслуживают каталог.
- */
-export const NAV_GROUPS: NavGroupSpec[] = [
-  {id: 'photos', view: 'photos', icon: 'photos', label: 'Фотографии', short: 'Фото', views: ['photos']},
-  {id: 'highlights', view: 'highlights', icon: 'highlights', label: 'Подборки', short: 'Подборки', views: ['highlights']},
-  {id: 'people', view: 'people', icon: 'people', label: 'Люди', short: 'Люди', views: ['people']},
-  {id: 'analysis', view: 'review', icon: 'analysis', label: 'Анализ', short: 'Анализ', views: ANALYSIS_VIEWS},
-  {id: 'settings', view: 'settings', icon: 'settings', label: 'Настройки', short: 'Настройки', views: ['settings']},
+/** То, что смотрят: верх боковой панели. */
+export const PRIMARY_NAV: NavEntry[] = [
+  {id: 'photos', view: 'photos', icon: 'photos', label: 'Фотографии', short: 'Фото', filters: {kind: '', hidden: false}},
+  {id: 'highlights', view: 'highlights', icon: 'highlights', label: 'Воспоминания', short: 'Память'},
+  {id: 'people', view: 'people', icon: 'people', label: 'Люди', short: 'Люди'},
+  {id: 'video', view: 'photos', icon: 'video', label: 'Видео', short: 'Видео', filters: {kind: 'video', hidden: false}},
 ];
 
-/** Пункт навигации, которому принадлежит экран. */
-export const navGroupOf = (view: ViewName): NavGroupSpec =>
-  NAV_GROUPS.find(group => group.views.includes(view)) ?? NAV_GROUPS[0];
+/**
+ * Обслуживание каталога: раньше пряталось за одним пунктом «Анализ» с
+ * вкладками, теперь каждый экран — свой пункт в группе «Каталог».
+ */
+export const CATALOG_NAV: NavEntry[] = [
+  {id: 'review', view: 'review', icon: 'review', label: 'Проверка', short: 'Проверка'},
+  {id: 'scan', view: 'scan', icon: 'scan', label: 'Сканирование', short: 'Скан'},
+  {id: 'duplicates', view: 'duplicates', icon: 'duplicates', label: 'Дубликаты', short: 'Дубли'},
+  {id: 'training', view: 'training', icon: 'training', label: 'Обучение', short: 'Обучение'},
+  {id: 'hidden', view: 'photos', icon: 'hide', label: 'Скрытые', short: 'Скрытые', filters: {hidden: true, kind: ''}},
+  {id: 'settings', view: 'settings', icon: 'settings', label: 'Настройки', short: 'Настройки'},
+];
+
+export const NAV_ENTRIES: NavEntry[] = [...PRIMARY_NAV, ...CATALOG_NAV];
+
+export const navEntry = (id: NavId): NavEntry => NAV_ENTRIES.find(entry => entry.id === id) ?? PRIMARY_NAV[0];
+
+/** Какой пункт подсвечен: у галереи — по отбору (видео, скрытые). */
+export function activeNav(view: ViewName, filters: Pick<GalleryFilters, 'kind' | 'hidden'>): NavId {
+  if (view === 'photos') {
+    if (filters.hidden) return 'hidden';
+    return filters.kind === 'video' ? 'video' : 'photos';
+  }
+  return NAV_ENTRIES.find(entry => entry.view === view)?.id ?? 'photos';
+}

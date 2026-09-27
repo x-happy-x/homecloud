@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest';
 import {
-  elapsedText, fileSize, initials, lifeYears, megabytes, percent, plural,
+  elapsedText, fileSize, formatNumber, shortCount, initials, lifeYears, megabytes, percent, plural,
   nameVariants, parseTimecode, roughDuration, shortName, timecode, yearOf,
 } from './format';
 
@@ -124,4 +124,16 @@ describe('lifeYears', () => {
     [{}, ''],
   ])('%o → %s', (kin, want) => expect(lifeYears(kin)).toBe(want));
   test('нет данных — пусто', () => expect(lifeYears(null)).toBe(''));
+});
+
+describe('shortCount', () => {
+  test('коротко для навигации', () => {
+    expect(shortCount(312)).toBe('312');
+    expect(shortCount(9999)).toBe(formatNumber(9999));
+    expect(shortCount(62_000)).toBe('62 тыс.');
+    expect(shortCount(16_400)).toBe('16,4 тыс.');
+    expect(shortCount(169_412)).toBe('169 тыс.');
+    expect(shortCount(2_460_000)).toBe('2,5 млн');
+    expect(shortCount(null)).toBe('0');
+  });
 });

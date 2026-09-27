@@ -91,7 +91,7 @@ function HighlightList() {
       <header className="hl-head">
         <div>
           <p className="eyebrow">Собираются сами из лучших снимков</p>
-          <h1>Подборки</h1>
+          <h1>Воспоминания</h1>
         </div>
         {groups.length > 0 && (
           <span className="hl-head-count">
