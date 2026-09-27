@@ -212,6 +212,7 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
 
   const video = useRef<HTMLVideoElement>(null);
   const image = useRef<HTMLImageElement>(null);
+  const poster = useRef<HTMLImageElement>(null);
   /** Куда перемотать ролик, как только у него появятся метаданные. */
   const pendingStart = useRef<number | null>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -244,7 +245,8 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
   const src = retry ? withRetry(mediaUrl, retry) : mediaUrl;
   const mediaKey = photo ? `${photo.path}|${movie ? 'video' : 'photo'}|${mediaUrl}|${retry}` : '';
   const readyForVideoSearch = movie && mediaStatus === 'ready' && !player.seeking && Boolean(video.current?.videoWidth);
-  const showVideoPoster = movie && !player.playing && player.current < 0.05;
+  // Превью видно сразу при открытии и остаётся, пока ролик не загрузится и не пойдёт.
+  const showVideoPoster = movie && ((!player.playing && player.current < 0.05) || mediaStatus !== 'ready');
 
   useEffect(() => {
     if (!open) return;
@@ -623,9 +625,12 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
             className="viewer-stage"
             onClick={event => {
               if (isUiTarget(event.target)) return;
-              // Клик по кадру ролика — пауза и пуск, как в YouTube.
-              if (movie && event.target === video.current) {
-                togglePlay(true);
+              // Клик по кадру или превью ролика — пауза и пуск, как в YouTube.
+              // Пока ролик грузится, его размеры ещё не известны: клик по окну
+              // тогда тоже запускает, а не закрывает просмотр.
+              if (movie && (mediaStatus === 'loading' || [video.current, poster.current]
+                .some(node => node && insideRect(node.getBoundingClientRect(), event.clientX, event.clientY)))) {
+                togglePlay(mediaStatus === 'ready');
                 return;
               }
               const insidePhoto = Boolean(imageBounds
@@ -724,8 +729,10 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
                     {showVideoPoster && (
                       <>
                         <img
+                          ref={poster}
                           className="viewer-video-poster"
                           src={imageUrl}
+                          fetchPriority="high"
                           alt=""
                           style={mediaStyle(transform)}
                           aria-hidden="true"
@@ -1140,6 +1147,10 @@ function point(event: ReactPointerEvent<HTMLElement>): Point {
 
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function insideRect(rect: DOMRect, x: number, y: number): boolean {
+  return rect.width > 0 && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
 function isUiTarget(target: EventTarget): boolean {
