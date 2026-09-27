@@ -48,6 +48,27 @@
   font-size: .62rem; font-weight: 700;
   backdrop-filter: blur(3px);
 }
+/* Источник файла не в сети: превью видно, оригинал — нет. */
+.tile.offline img { opacity: .55; filter: grayscale(.6); }
+.tile-offline {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 12px);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgb(46 29 32 / 88%);
+  color: #f3b6be;
+  font-size: .62rem;
+  font-weight: 700;
+  white-space: nowrap;
+  backdrop-filter: blur(3px);
+}
+.tile-offline svg { fill: currentColor; flex: none; }
 .tile-source {
   position: absolute;
   right: 6px; top: 6px;

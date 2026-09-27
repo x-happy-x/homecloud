@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest';
 import type {GroupFace} from '../../types/api';
-import {boxShare, buildMedia, byYear, newestFirst, summary, yearOf} from './personMedia';
+import {boxShare, buildMedia, byYear, coverFocus, newestFirst, summary, yearOf} from './personMedia';
 
 const at = (year: number, month = 6) => Date.UTC(year, month - 1, 15) / 1000;
 
@@ -47,5 +47,24 @@ describe('boxShare', () => {
     expect(boxShare(face(1, 'p.jpg', {box: [100, 50, 300, 250], width: 1000, height: 500})))
       .toEqual({left: 0.1, top: 0.1, width: 0.2, height: 0.4});
     expect(boxShare(face(1, 'p.jpg', {box: [1, 1, 2, 2]}))).toBeNull();
+  });
+});
+
+describe('coverFocus', () => {
+  test('снимок тех же пропорций, что плитка, — доли как есть', () => {
+    const focus = coverFocus(face(1, 'p.jpg', {box: [300, 300, 500, 600], width: 1200, height: 900}))!;
+    expect(focus.x).toBeCloseTo(33.33, 1);
+    expect(focus.y).toBeCloseTo(50, 1);
+    expect(focus.rx).toBeCloseTo(8.33, 1);
+    expect(focus.ry).toBeCloseTo(16.67, 1);
+  });
+
+  test('вертикальный снимок обрезается сверху и снизу — лицо в центре остаётся в центре', () => {
+    const focus = coverFocus(face(1, 'p.jpg', {box: [400, 900, 600, 1100], width: 1000, height: 2000}))!;
+    expect(focus.x).toBeCloseTo(50, 1);
+    expect(focus.y).toBeCloseTo(50, 1);
+    // Ширина снимка — вся ширина плитки, высота растянута: рамка 20% ширины и 10% высоты снимка.
+    expect(focus.rx).toBeCloseTo(10, 1);
+    expect(focus.ry).toBeCloseTo(10 * 2000 / 1000 * (4 / 3) / 2, 1);
   });
 });

@@ -473,6 +473,21 @@
 
 .viewer-title { flex: 1; min-width: 0; display: grid; gap: 1px; }
 .viewer-title strong { font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.viewer-offline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-self: start;
+  margin-top: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(46 29 32 / 85%);
+  color: #f3b6be;
+  font-size: .7rem;
+  font-style: normal;
+  font-weight: 650;
+}
+.viewer-offline svg { fill: currentColor; }
 .viewer-title span { font-size: .72rem; color: rgb(255 255 255 / 62%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .viewer.face-review .viewer-title { gap: 2px; }
 .viewer.face-review .viewer-title > strong {

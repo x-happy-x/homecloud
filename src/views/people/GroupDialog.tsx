@@ -6,6 +6,7 @@ import {useCatalogState} from '../../hooks/useCatalogState';
 import {useGridColumns} from '../../hooks/useGridColumns';
 import {useKin} from '../../hooks/useKin';
 import {useLongPress} from '../../hooks/useLongPress';
+import {isOffline, useSourceStatus} from '../../hooks/useSourceStatus';
 import {formatNumber, percent, plural, timecode} from '../../lib/format';
 import {getGroup} from '../../services/endpoints/catalog';
 import {
@@ -28,7 +29,7 @@ import {GroupFace as SimilarFace} from '../review/GroupFace';
 import {similarTone, type SimilarGroup} from '../review/similar';
 import {useMergeGroups} from '../review/useMergeGroups';
 import {
-  boxShare, buildMedia, byYear, matchesKind, newestFirst, summary, type KindFilter, type MediaItem,
+  buildMedia, byYear, coverFocus, matchesKind, newestFirst, summary, type KindFilter, type MediaItem,
 } from './personMedia';
 import {buildStacks, faceMoment, type FaceStack} from './stacks';
 
@@ -107,6 +108,8 @@ function GroupCard({group, onClose, onOpenFace}: GroupCardProps) {
   const [stacked, setStacked] = useState(true);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [comparing, setComparing] = useState<{a: string; b: string} | null>(null);
+  const mediaFocus = useStore(state => state.prefs.mediaFocus);
+  const setMediaFocus = useStore(state => state.setMediaFocus);
 
   useEffect(() => {
     clear('faces');
@@ -188,6 +191,12 @@ function GroupCard({group, onClose, onOpenFace}: GroupCardProps) {
                 ))}
               </div>
               <span className="pcard-spacer" />
+              {mode === 'media' && (
+                <button type="button" className={`pcard-toggle${mediaFocus ? ' on' : ''}`} aria-pressed={mediaFocus}
+                  title="Размыть фон вокруг лица: рядом чуть-чуть, дальше сильнее" onClick={() => setMediaFocus(!mediaFocus)}>
+                  <Icon name="people" size={15} /><span>Фокус на лице</span>
+                </button>
+              )}
               {mode === 'faces' && grouped && (
                 <button type="button" className={`pcard-toggle${stacked ? ' on' : ''}`} aria-pressed={stacked}
                   title="Похожие кадры и моменты одного ролика — одной карточкой" onClick={() => setStacked(value => !value)}>
@@ -366,8 +375,12 @@ function StackGrid({stacks, avatar, expanded, onToggle, onOpen}: StackGridProps)
 /** Файл, где человек есть: рамка вокруг лица, у ролика — моменты на полосе. */
 const MediaTile = memo(function MediaTile({item, onOpen}: {item: MediaItem; onOpen(face: GroupFace): void}) {
   const adultMode = useStore(state => state.prefs.adultMode);
+  const status = useSourceStatus(item.best.source);
+  const offline = isOffline(status);
   const video = item.kind === 'video';
-  const box = video ? null : boxShare(item.best);
+  const mediaFocus = useStore(state => state.prefs.mediaFocus);
+  // Фон вокруг лица размыт двумя слоями: рядом чуть-чуть, дальше сильно.
+  const focus = mediaFocus && !video ? coverFocus(item.best) : null;
   const duration = item.best.duration || 0;
   const src = item.best.preview
     ? photoMediaUrl({preview: item.best.preview, adult_rating: item.best.adult_rating} as Photo,
@@ -377,16 +390,21 @@ const MediaTile = memo(function MediaTile({item, onOpen}: {item: MediaItem; onOp
   const when = item.taken ? new Date(item.taken * 1000).toLocaleDateString('ru-RU', {day: 'numeric', month: 'long'}) : '';
 
   return (
-    <button type="button" className={`pcard-shot${video ? ' is-video' : ''}`} title={item.path}
+    <button type="button" className={`pcard-shot${video ? ' is-video' : ''}${offline ? ' offline' : ''}`}
+      title={offline ? `${item.path}
+Недоступно: «${status!.name}» не в сети` : item.path}
       onClick={() => onOpen(video ? item.faces[0] : item.best)}>
       <span className="pcard-shot-pic">
         <img src={src} alt="" loading="lazy" decoding="async" />
-        {box && (
-          <span className="pcard-shot-ring" style={{
-            left: `${box.left * 100}%`, top: `${box.top * 100}%`,
-            width: `${box.width * 100}%`, height: `${box.height * 100}%`,
-          }} />
+        {focus && (
+          <>
+            <img className="pcard-shot-blur near" src={src} alt="" aria-hidden="true" loading="lazy" decoding="async"
+              style={focusMask(focus, 1.9, 0.55)} />
+            <img className="pcard-shot-blur far" src={src} alt="" aria-hidden="true" loading="lazy" decoding="async"
+              style={focusMask(focus, 3.4, 0.5)} />
+          </>
         )}
+        {offline && <span className="pcard-shot-offline"><Icon name="hide" size={11} />Недоступно</span>}
         {video && (
           <>
             <span className="pcard-shot-badge"><Icon name="play" size={11} />{duration ? timecode(duration) : 'видео'}</span>
@@ -410,6 +428,17 @@ const MediaTile = memo(function MediaTile({item, onOpen}: {item: MediaItem; onOp
     </button>
   );
 });
+
+/**
+ * Маска размытого слоя: прозрачна вокруг лица (там снимок резкий), дальше
+ * проступает размытие. spread — во сколько раз эллипс маски больше лица,
+ * clear — какая его доля остаётся прозрачной.
+ */
+function focusMask(focus: {x: number; y: number; rx: number; ry: number}, spread: number, clear: number) {
+  const mask = `radial-gradient(ellipse ${focus.rx * spread}% ${focus.ry * spread}% at ${focus.x}% ${focus.y}%, `
+    + `transparent ${clear * 100}%, #000 100%)`;
+  return {maskImage: mask, WebkitMaskImage: mask};
+}
 
 // ---------- выбор ----------
 

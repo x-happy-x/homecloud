@@ -375,6 +375,17 @@ export interface SourcePayload {
 }
 
 export const getSources = () => api<SourcesOverview>('/api/sources');
+/** Доступность источника для плиток и просмотрщика: без адресов и ошибок. */
+export interface SourceStatus {
+  name: string;
+  online: boolean;
+  /** Когда хаб проверял, секунды; null — ещё не проверял (считается доступным). */
+  checked_at: number | null;
+}
+
+export const getSourceHealth = () =>
+  api<{sources: Record<string, SourceStatus>}>('/api/sources/health');
+
 /** Проверить доступность всех источников сейчас, не дожидаясь фоновой проверки. */
 export const checkSources = () => post<SourcesOverview>('/api/sources/health');
 export const saveSource = (payload: SourcePayload) => post('/api/sources/save', payload);

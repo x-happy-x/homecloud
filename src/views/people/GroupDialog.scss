@@ -364,15 +364,19 @@
 .pcard-shot:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--patina) 30%, var(--line)); box-shadow: 0 16px 34px rgb(0 0 0 / 22%); }
 .pcard-shot-pic { position: relative; display: block; aspect-ratio: 4 / 3; overflow: hidden; background: var(--ground); }
 .pcard-shot-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* Рамка лица поверх снимка — в тех же долях, что и обрезка object-fit: cover, не
-   совпадёт точно у кадров с другим соотношением сторон, поэтому она мягкая. */
-.pcard-shot-ring {
+/* Фокус на лице: поверх снимка два размытых слоя с маской вокруг лица —
+   ближний чуть размыт, дальний сильно. Лёгкое увеличение прячет прозрачный
+   край, который blur оставляет по периметру. */
+.pcard-shot-blur {
   position: absolute;
-  border: 2px solid var(--patina);
-  border-radius: 12px;
-  box-shadow: 0 0 0 999px rgb(0 0 0 / 22%);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   pointer-events: none;
 }
+.pcard-shot-blur.near { filter: blur(2.5px) saturate(.9); transform: scale(1.02); }
+.pcard-shot-blur.far { filter: blur(10px) saturate(.75) brightness(.85); transform: scale(1.06); }
 .pcard-shot-badge {
   position: absolute;
   right: 8px;
@@ -398,6 +402,22 @@
   background: rgb(255 255 255 / 28%);
 }
 .pcard-shot-moments i { position: absolute; top: -2px; width: 4px; height: 8px; margin-left: -2px; border-radius: 2px; background: var(--patina); }
+.pcard-shot.offline .pcard-shot-pic img { opacity: .55; filter: grayscale(.6); }
+.pcard-shot-offline {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(46 29 32 / 88%);
+  color: #f3b6be;
+  font-size: .68rem;
+  font-weight: 700;
+}
+.pcard-shot-offline svg { fill: currentColor; }
 .pcard-shot-cap { display: grid; gap: 1px; padding: 8px 10px 10px; }
 .pcard-shot-cap b { overflow: hidden; font-size: .78rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .pcard-shot-cap span { color: var(--muted); font-size: .72rem; }

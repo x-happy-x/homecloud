@@ -1,4 +1,5 @@
 import {memo} from 'react';
+import {checkedAt, isOffline, useSourceStatus} from '../../hooks/useSourceStatus';
 import {adultFlag} from '../../lib/adult';
 import {timecode} from '../../lib/format';
 import {photoMediaUrl} from '../../services/media';
@@ -33,10 +34,16 @@ export const PhotoTile = memo(function PhotoTile({photo, index, size, adultMode,
   const toggle = useStore(state => state.toggle);
   // Метка источника — где лежит оригинал; её можно выключить в настройках вида.
   const showSource = useStore(state => state.prefs.showSource);
+  // Источник недоступен: превью с хаба видно, но оригинал сейчас не открыть.
+  const status = useSourceStatus(photo.source);
+  const offline = isOffline(status);
   return (
     <article
-      className={`tile${selected ? ' selected' : ''}`}
-      title={photo.filename}
+      className={`tile${selected ? ' selected' : ''}${offline ? ' offline' : ''}`}
+      title={offline
+        ? `${photo.filename}
+Недоступно: «${status!.name}» не в сети${checkedAt(status) ? ` (проверено ${checkedAt(status)})` : ''}`
+        : photo.filename}
       data-photo-path={photo.path}
       onContextMenu={event => {
         event.preventDefault();
@@ -63,6 +70,9 @@ export const PhotoTile = memo(function PhotoTile({photo, index, size, adultMode,
           <Icon name="play" />
           {photo.duration ? timecode(photo.duration) : ''}
         </span>
+      )}
+      {offline && (
+        <span className="tile-offline"><Icon name="hide" size={12} />Недоступно</span>
       )}
       <span className="tile-check" aria-hidden="true" />
     </article>

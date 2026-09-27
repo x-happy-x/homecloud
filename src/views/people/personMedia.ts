@@ -112,3 +112,24 @@ export function boxShare(face: GroupFace): {left: number; top: number; width: nu
   };
   return share.width > 0 && share.height > 0 ? share : null;
 }
+
+/**
+ * Где лицо на плитке, которая обрезает снимок под свои пропорции (object-fit:
+ * cover): центр и полуоси в процентах плитки. По ним строится маска размытия
+ * фона. Без размеров снимка или рамки — null.
+ */
+export function coverFocus(face: GroupFace, aspect = 4 / 3): {x: number; y: number; rx: number; ry: number} | null {
+  const share = boxShare(face);
+  if (!share || !face.width || !face.height) return null;
+  const scale = Math.max(aspect / face.width, 1 / face.height);
+  const shownWidth = face.width * scale;
+  const shownHeight = face.height * scale;
+  const shiftX = (shownWidth - aspect) / 2;
+  const shiftY = (shownHeight - 1) / 2;
+  return {
+    x: ((share.left + share.width / 2) * shownWidth - shiftX) / aspect * 100,
+    y: ((share.top + share.height / 2) * shownHeight - shiftY) * 100,
+    rx: share.width * shownWidth / 2 / aspect * 100,
+    ry: share.height * shownHeight / 2 * 100,
+  };
+}

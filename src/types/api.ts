@@ -112,6 +112,8 @@ export interface GroupFace {
   adult_rating?: AdultRating | null;
   /** Длина ролика, секунды. */
   duration?: number | null;
+  /** Источник файла: id, по нему метка «Недоступно». */
+  source?: string;
 }
 
 /** Карточка группы приходит плоско: сама группа и её лица в одном объекте. */

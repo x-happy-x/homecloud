@@ -41,6 +41,8 @@ export const qk = {
 
   /** Ядра — компьютеры, которые считают. */
   devices: () => ['devices'] as const,
+  /** Доступность источников для плиток и просмотрщика (лёгкий ответ хаба). */
+  sourceHealth: () => ['source-health'] as const,
   /** Окружения и модели одного ядра. */
   coreComponents: (id: string) => ['core-components', id] as const,
   /** Задание, разделённое между ядрами. */
