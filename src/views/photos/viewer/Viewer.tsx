@@ -8,6 +8,7 @@ import {useDragScroll} from '../../../hooks/useDragScroll';
 import {useKeyboardShortcuts} from '../../../hooks/useKeyboardShortcuts';
 import {useKin} from '../../../hooks/useKin';
 import {checkedAt, isOffline, useSourceStatus} from '../../../hooks/useSourceStatus';
+import {sourceOf} from '../../../lib/sources';
 import {checkSources} from '../../../services/endpoints/backends';
 import {formatNumber, photoDate, timecode} from '../../../lib/format';
 import {getGroup, getPhoto} from '../../../services/endpoints/catalog';
@@ -55,8 +56,12 @@ const PREVIEW_WIDTH = 176;
 const SEARCH_FRAME_LIMIT = 700 * 1024;
 const SEARCH_FRAME_SIDE = 1600;
 
+// Сведений о файле нет (скан не смог его обработать, источник недоступен) —
+// карточка из того, что знает лицо. Источник и папка — из самого пути.
 const facePlaceholder = (face: GroupFace): PhotoCard => ({
-  path: face.path, filename: face.filename, folder: '',
+  path: face.path, filename: face.filename,
+  folder: face.path.replace(/[\\/][^\\/]*$/, ''),
+  source: face.source || sourceOf(face.path),
   preview: `${face.original}?face=1`,
   video: face.kind === 'video' ? face.original : '', kind: face.kind, duration: 0, taken: null,
   width: face.width ?? 0, height: face.height ?? 0,
@@ -256,7 +261,7 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
   const photo = open ? list[index] : undefined;
   // Источник файла по последней проверке хаба: недоступен — объясняем, а не
   // «не удалось загрузить».
-  const sourceStatus = useSourceStatus(photo?.source);
+  const sourceStatus = useSourceStatus(photo?.source || sourceOf(photo?.path));
   const offline = isOffline(sourceStatus);
   const many = list.length > 1;
   const movie = photo?.kind === 'video';

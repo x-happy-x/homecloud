@@ -3,6 +3,10 @@ import type {Device, Source} from '../services/endpoints/backends';
 /** Путь папки внутри источника без его id: «/HDD/photo», «D:\Фото». */
 export const insidePath = (key: string) => key.replace(/^[a-z0-9][a-z0-9_-]{1,31}:/, '') || '/';
 
+/** Id источника из ключа снимка («pc-a:F:\a.jpg» → «pc-a»); без префикса — пусто. */
+export const sourceOf = (key: string | null | undefined): string =>
+  /^([a-z0-9][a-z0-9_-]{1,31}):/.exec(key ?? '')?.[1] ?? '';
+
 /** Путь источника коротко: последняя папка, полный путь — в подсказке. */
 export const shortPath = (path: string) =>
   insidePath(path).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path;
