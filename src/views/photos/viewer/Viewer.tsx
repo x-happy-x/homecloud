@@ -36,6 +36,7 @@ import {
   clampTransform,
   isCurrentMediaEvent,
   panTransform,
+  pinchTransform,
   resetTransform,
   shouldSwipe,
   zoomTransform,
@@ -245,7 +246,8 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
     pinching: false,
     pinchDistance: 0,
     pinchScale: 1,
-  } as {start?: Point; last?: Point; moved: boolean; pinching: boolean; pinchDistance: number; pinchScale: number; media?: boolean});
+  } as {start?: Point; last?: Point; moved: boolean; pinching: boolean; pinchDistance: number; pinchScale: number;
+    media?: boolean; pinchFrom?: {transform: MediaTransform; mid: Point}});
 
   const [mediaStatus, setMediaStatus] = useState<MediaStatus>('loading');
   const [retry, setRetry] = useState(0);
@@ -563,8 +565,17 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
       };
     } else if (pointers.current.size === 2) {
       const [first, second] = [...pointers.current.values()];
-      gesture.current = {...gesture.current, pinching: true, pinchDistance: distance(first, second), pinchScale: transform.scale};
+      gesture.current = {
+        ...gesture.current, pinching: true, pinchDistance: distance(first, second), pinchScale: transform.scale,
+        pinchFrom: {transform, mid: stageMid(first, second)},
+      };
     }
+  };
+
+  /** Середина между пальцами в координатах сцены. */
+  const stageMid = (first: Point, second: Point): Point => {
+    const rect = stage.current?.getBoundingClientRect();
+    return {x: (first.x + second.x) / 2 - (rect?.left ?? 0), y: (first.y + second.y) / 2 - (rect?.top ?? 0)};
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
@@ -575,9 +586,8 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
     if (pointers.current.size >= 2 && gesture.current.pinching) {
       const [first, second] = [...pointers.current.values()];
       const factor = distance(first, second) / Math.max(gesture.current.pinchDistance, 1);
-      const rect = stage.current?.getBoundingClientRect();
-      const midpoint = {x: (first.x + second.x) / 2 - (rect?.left ?? 0), y: (first.y + second.y) / 2 - (rect?.top ?? 0)};
-      setTransform(current => zoomTransform({...current, scale: gesture.current.pinchScale}, gesture.current.pinchScale * factor, midpoint, stageBounds(stage.current)));
+      const from = gesture.current.pinchFrom;
+      if (from) setTransform(pinchTransform(from.transform, from.mid, stageMid(first, second), factor, stageBounds(stage.current)));
       gesture.current.moved = true;
       event.preventDefault();
       return;

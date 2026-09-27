@@ -3,6 +3,7 @@ import {
   clampTransform,
   isCurrentMediaEvent,
   panTransform,
+  pinchTransform,
   resetTransform,
   shouldSwipe,
   zoomTransform,
@@ -32,5 +33,25 @@ describe('viewer media gestures', () => {
   test('ignores stale media loading events', () => {
     expect(isCurrentMediaEvent('photo-a', 'photo-a')).toBe(true);
     expect(isCurrentMediaEvent('photo-a', 'photo-b')).toBe(false);
+  });
+});
+
+describe('щипок', () => {
+  const bounds = {width: 400, height: 800};
+  test('пальцы на месте — снимок не уползает, сколько бы ни было движений', () => {
+    const start = {scale: 1, x: 0, y: 0};
+    const mid = {x: 300, y: 500};
+    const first = pinchTransform(start, mid, mid, 2, bounds);
+    let current = first;
+    for (let step = 0; step < 20; step++) current = pinchTransform(start, mid, mid, 2, bounds);
+    expect(current).toEqual(first);
+    // Точка под пальцами остаётся под пальцами: (mid − центр − x) / scale постоянно.
+    expect((mid.x - 200 - current.x) / current.scale).toBeCloseTo(mid.x - 200);
+  });
+
+  test('движение пальцев сдвигает снимок вслед', () => {
+    const start = {scale: 2, x: 0, y: 0};
+    const moved = pinchTransform(start, {x: 200, y: 400}, {x: 230, y: 380}, 1, bounds);
+    expect(moved).toEqual({scale: 2, x: 30, y: -20});
   });
 });
