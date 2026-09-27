@@ -56,6 +56,23 @@ export function zoomTransform(
   }, bounds);
 }
 
+/**
+ * Щипок: масштаб и сдвиг считаются от положения в начале щипка, а не от
+ * прошлого кадра. Раньше масштаб брался начальный, а сдвиг — уже сдвинутый, и
+ * на каждом движении пальцев смещение копилось: снимок уезжал к краю.
+ */
+export function pinchTransform(
+  start: MediaTransform,
+  startMid: Point,
+  mid: Point,
+  factor: number,
+  bounds: MediaBounds,
+): MediaTransform {
+  const zoomed = zoomTransform(start, start.scale * factor, startMid, bounds);
+  if (zoomed.scale <= MIN_SCALE) return zoomed;
+  return panTransform(zoomed, {x: mid.x - startMid.x, y: mid.y - startMid.y}, bounds);
+}
+
 export function shouldSwipe(dx: number, dy: number, scale: number): boolean {
   return scale <= MIN_SCALE + 0.02 && Math.abs(dx) >= SWIPE_MIN && Math.abs(dx) > Math.abs(dy);
 }

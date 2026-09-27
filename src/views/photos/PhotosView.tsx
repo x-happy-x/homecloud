@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState, type MouseEvent} from
 import {useQuery, type InfiniteData} from '@tanstack/react-query';
 import './PhotosView.scss';
 import {useCatalogState} from '../../hooks/useCatalogState';
+import {useGridZoom} from '../../hooks/useGridZoom';
 import {useIntersection} from '../../hooks/useIntersection';
 import {useKeyboardShortcuts} from '../../hooks/useKeyboardShortcuts';
 import {formatNumber, plural} from '../../lib/format';
@@ -76,6 +77,15 @@ export function PhotosView() {
   const setFilters = useStore(state => state.setFilters);
   const zoom = useStore(state => state.prefs.zoom);
   const setZoom = useStore(state => state.setZoom);
+  // Щипок и Ctrl+колесо по сетке — размер плиток: развели пальцы — крупнее.
+  const section = useRef<HTMLElement>(null);
+  const zoomStep = useCallback((step: 1 | -1) => {
+    const order = ZOOM_STEPS.map(([level]) => level);
+    const current = order.indexOf(useStore.getState().prefs.zoom);
+    const next = order[Math.min(order.length - 1, Math.max(0, current - step))];
+    if (next) setZoom(next);
+  }, [setZoom]);
+  useGridZoom(section, zoomStep);
   const adultMode = useStore(state => state.prefs.adultMode);
   const canEdit = useStore(state => state.session.canEdit);
   const bigfamUrl = useStore(state => state.session.bigfamUrl);
@@ -210,7 +220,7 @@ export function PhotosView() {
   };
 
   return (
-    <section className={`view active${grouped && isDated(grouping.by) ? ' with-scrubber' : ''}`} {...dragSelection}
+    <section ref={section} className={`view active${grouped && isDated(grouping.by) ? ' with-scrubber' : ''}`} {...dragSelection}
       onContextMenu={event => {
         const target = event.target as HTMLElement;
         if (!moveClipboard.length || !filters.folder || target.closest('[data-photo-path]') || !target.closest('.photo-grid')) return;
