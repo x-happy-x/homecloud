@@ -1,7 +1,8 @@
 import {useState, type ReactNode} from 'react';
-import {useQuery} from '@tanstack/react-query';
+import {useMutation, useQuery} from '@tanstack/react-query';
 import './InfraPanels.scss';
-import {getCores, getSources, type Device, type Source} from '../../../services/endpoints/backends';
+import {checkSources, getCores, getSources, type Device, type Source} from '../../../services/endpoints/backends';
+import {queryClient} from '../../../services/queryClient';
 import {qk} from '../../../services/queryKeys';
 import {useStore} from '../../../store';
 import {Button} from '../../../ui/Button/Button';
@@ -31,17 +32,38 @@ export function SourcesPanel({devices}: {devices: Device[]}) {
   const [editing, setEditing] = useState<{source: Source | null} | null>(null);
   const sources = useQuery({queryKey: qk.sources(), queryFn: getSources, refetchInterval: 15_000});
   const list = sources.data?.sources ?? [];
+  const toast = useStore(state => state.toast);
+  const check = useMutation({
+    mutationFn: checkSources,
+    onSuccess: data => {
+      queryClient.setQueryData(qk.sources(), data);
+      void queryClient.invalidateQueries({queryKey: qk.devices()});
+      void queryClient.invalidateQueries({queryKey: ['cores-overview']});
+      const down = data.sources.filter(item => item.health && !item.health.online).length;
+      toast(down ? `Недоступно источников: ${down}` : 'Все источники доступны');
+    },
+    onError: error => toast(error instanceof Error ? error.message : 'Проверка не удалась'),
+  });
 
   return (
     <section className="infra-panel" aria-label="Источники">
       <PanelHead
         title="Источники"
-        note="Диски компьютеров, сетевые папки, SSH, FTP, WebDAV. В источниках ничего не создаётся — превью, лица и описания хранятся на сервере."
-        action={canEdit && (
-          <Button variant="primary" small onClick={() => setEditing({source: null})}>
-            <Icon name="plus" size={16} />
-            <span>Добавить источник</span>
-          </Button>
+        note="Диски компьютеров, сетевые папки, SSH, FTP, WebDAV. В источниках ничего не создаётся, кроме роликов, которые вы сами перекодировали, — превью, лица и описания хранятся на сервере. Доступность хаб проверяет раз в пять минут."
+        action={(
+          <div className="infra-head-actions">
+            <Button small disabled={check.isPending} onClick={() => check.mutate()}
+              title="Хаб сам проверяет источники раз в пять минут">
+              <Icon name="undo" size={16} />
+              <span>{check.isPending ? 'Проверяю…' : 'Проверить сейчас'}</span>
+            </Button>
+            {canEdit && (
+              <Button variant="primary" small onClick={() => setEditing({source: null})}>
+                <Icon name="plus" size={16} />
+                <span>Добавить источник</span>
+              </Button>
+            )}
+          </div>
         )}
       />
       <div className="infra-list">
