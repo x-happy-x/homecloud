@@ -72,7 +72,9 @@ export const PhotoTile = memo(function PhotoTile({photo, index, size, adultMode,
         </span>
       )}
       {offline && (
-        <span className="tile-offline"><Icon name="hide" size={12} />Недоступно</span>
+        <span className="tile-offline" aria-label="Недоступно">
+          <Icon name="hide" size={12} /><span className="tile-offline-text">Недоступно</span>
+        </span>
       )}
       <span className="tile-check" aria-hidden="true" />
     </article>

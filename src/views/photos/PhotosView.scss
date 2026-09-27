@@ -17,6 +17,8 @@
 
 .tile {
   position: relative;
+  /* Контейнер для меток: на узкой плитке они сжимаются до иконки. */
+  container-type: inline-size;
   aspect-ratio: 1;
   padding: 0;
   border: 0;
@@ -69,6 +71,11 @@
   backdrop-filter: blur(3px);
 }
 .tile-offline svg { fill: currentColor; flex: none; }
+/* Текст не влезает — остаётся одна иконка, подсказка у плитки объясняет. */
+@container (max-width: 112px) {
+  .tile-offline { padding: 4px; }
+  .tile-offline-text { display: none; }
+}
 .tile-source {
   position: absolute;
   right: 6px; top: 6px;
