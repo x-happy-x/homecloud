@@ -1,6 +1,7 @@
 import {memo, type MouseEvent} from 'react';
 import './PersonCard.scss';
-import {formatNumber, lifeYears, plural, shortName} from '../../lib/format';
+import {formatNumber, lifeYears, plural} from '../../lib/format';
+import {FitName} from './FitName';
 import {useLongPress} from '../../hooks/useLongPress';
 import {useStore} from '../../store';
 import type {KinPerson} from '../../types/api';
@@ -71,7 +72,6 @@ export const PersonCard = memo(function PersonCard({
 
   const years = lifeYears(kin);
   const named = group.kind === 'person';
-  const label = named ? shortName(group.title, kin) : group.title;
   const counts = `${formatNumber(group.count)} ${plural(group.count, 'лицо', 'лица', 'лиц')} `
     + `на ${formatNumber(group.photos)} ${plural(group.photos, 'фотографии', 'фотографиях', 'фотографиях')}`;
   const meta = named
@@ -96,7 +96,9 @@ export const PersonCard = memo(function PersonCard({
         <span className="tick-mark" aria-hidden="true">✓</span>
       </div>
       <button className="person-label" type="button" title={group.title} onClick={click}>
-        <span className="person-name">{label}</span>
+        {named
+          ? <FitName name={group.title} kin={kin} className="person-name" />
+          : <span className="person-name">{group.title}</span>}
         <span className="person-meta">{years ? `${years} · ${meta}` : meta}</span>
       </button>
       {suggestion && canEdit && onAccept && (

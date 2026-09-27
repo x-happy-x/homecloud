@@ -85,6 +85,52 @@ export const initials = (...parts: Array<string | null | undefined>): string =>
     .map(part => `${String(part).trim().charAt(0).toLocaleUpperCase('ru')}.`)
     .join('');
 
+const PATRONYMIC = /(вич|вна|чна|оглы|кызы)$/iu;
+/** Похоже на русскую фамилию — только чтобы понять порядок в «Анна Соколова». */
+const SURNAME = /(ова|ева|ёва|ина|ына|ов|ев|ёв|ин|ын|ская|цкая|ский|цкий|ой|ая|ян|дзе|швили|енко|ук|юк)$/iu;
+
+/**
+ * Варианты ФИО от длинного к короткому — для подписи, которая берёт самый
+ * длинный, что влезает: полностью → отчество инициалом → и фамилия
+ * инициалом. «Соколова Анна Петровна» → «Соколова Анна П.» → «С. Анна П.».
+ * Из картотеки (kin) порядок тот же: фамилия, имя, отчество.
+ */
+export function nameVariants(
+  name: string | null | undefined,
+  kin?: {first?: string; last?: string; middle?: string} | null,
+): string[] {
+  let surname = '';
+  let first = '';
+  let middle = '';
+  if (kin?.first) {
+    [surname, first, middle] = [kin.last ?? '', kin.first, kin.middle ?? ''];
+  } else {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return ['Без имени'];
+    if (parts.length === 1) return parts;
+    if (parts.length === 2) {
+      // «Анна Петровна» — имя и отчество, «Соколова Анна» — фамилия и имя,
+      // «Анна Соколова» — имя и фамилия (на фамилию похоже только второе слово).
+      if (PATRONYMIC.test(parts[1])) [first, middle] = parts;
+      else if (SURNAME.test(parts[1]) && !SURNAME.test(parts[0])) {
+        const [name0, family] = parts;
+        const initial = `${family.charAt(0).toLocaleUpperCase('ru')}.`;
+        return [`${name0} ${family}`, `${name0} ${initial}`];
+      } else [surname, first] = parts;
+    } else {
+      [surname, first] = parts;
+      middle = parts.slice(2).join(' ');
+    }
+  }
+  const join = (...words: string[]) => words.filter(Boolean).join(' ');
+  const initial = (word: string) => (word ? `${word.trim().charAt(0).toLocaleUpperCase('ru')}.` : '');
+  return [...new Set([
+    join(surname, first, middle),
+    join(surname, first, initial(middle)),
+    join(initial(surname), first, initial(middle)),
+  ])];
+}
+
 /** «Магомедшарипова Хамис Магомедовна» → «Хамис М.М.»: имя целиком, остальное инициалами. */
 export function shortName(
   name: string | null | undefined,

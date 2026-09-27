@@ -2,7 +2,8 @@ import {useMemo, useState} from 'react';
 import '../../../components/people/Bubbles.scss';
 import {useCatalogState} from '../../../hooks/useCatalogState';
 import {useKin} from '../../../hooks/useKin';
-import {formatNumber, shortName} from '../../../lib/format';
+import {formatNumber} from '../../../lib/format';
+import {FitName} from '../../../components/people/FitName';
 import {useStore} from '../../../store';
 import {Avatar} from '../../../ui/Avatar/Avatar';
 import {InlineSearch} from '../../../ui/InlineSearch/InlineSearch';
@@ -43,9 +44,8 @@ export function PeopleBubbles() {
                   />
                   <i className="bubble-count">{formatNumber(person.count)}</i>
                 </span>
-                <span className="bubble-name">
-                  {shortName(person.name, person.bigfam_id ? kinById.get(person.bigfam_id) : null)}
-                </span>
+                <FitName className="bubble-name" name={person.name}
+                  kin={person.bigfam_id ? kinById.get(person.bigfam_id) : null} />
               </button>
             ))
           : (

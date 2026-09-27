@@ -1,0 +1,9 @@
+/* Имя в одну строку на всю доступную ширину: вариант подбирает FitName. */
+.fit-name {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

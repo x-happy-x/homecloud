@@ -23,6 +23,7 @@ import {Button} from '../../ui/Button/Button';
 import {Dialog} from '../../ui/Dialog/Dialog';
 import {Icon, type IconName} from '../../ui/Icon/Icon';
 import {PersonPicker, type PickerValue} from '../../ui/PersonPicker/PersonPicker';
+import {FitName} from '../../components/people/FitName';
 import {bigfamPersonUrl} from '../photos/gallery';
 import {CompareDialog} from '../review/CompareDialog';
 import {GroupFace as SimilarFace} from '../review/GroupFace';
@@ -295,7 +296,7 @@ function PersonHead({group, facts, change, onClose}: PersonHeadProps) {
           </div>
         ) : (
           <h2>
-            <span>{group.title}</span>
+            {group.kind === 'person' ? <FitName name={group.title} /> : <span>{group.title}</span>}
             {canEdit && (
               <button type="button" className="pcard-edit" title={group.name ? 'Переименовать' : 'Назвать'}
                 onClick={() => setEditing(true)}>
@@ -657,7 +658,7 @@ function SimilarBlock({group, onCompare}: {group: GroupDetail; onCompare(key: st
           <SimilarFace group={item} />
           <div className="pcard-person-body">
             <span className="pcard-person-title">
-              <b>{item.title}</b>
+              <b>{item.name ? <FitName name={item.name} /> : item.title}</b>
               <span className={`similar-score pcard-score ${similarTone(item.score)}`}>{percent(item.score)}</span>
             </span>
             <small>{formatNumber(item.count)} {plural(item.count, 'лицо', 'лица', 'лиц')} · {item.verdict}</small>
@@ -690,7 +691,7 @@ function CompanionsBlock({group}: {group: GroupDetail}) {
         <button key={item.key} type="button" className="pcard-person pcard-companion" onClick={() => setRouteGroup(item.key)}>
           <img className="pcard-person-avatar" src={item.avatar} alt="" loading="lazy" />
           <span className="pcard-person-body">
-            <b>{item.title}</b>
+            <b>{item.name ? <FitName name={item.name} /> : item.title}</b>
             <small>вместе в {formatNumber(item.shared)} {plural(item.shared, 'файле', 'файлах', 'файлах')}</small>
             <span className="pcard-meter"><i style={{width: `${Math.max(6, item.shared / top * 100)}%`}} /></span>
           </span>

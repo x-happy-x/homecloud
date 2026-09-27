@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest';
 import {
   elapsedText, fileSize, initials, lifeYears, megabytes, percent, plural,
-  parseTimecode, roughDuration, shortName, timecode, yearOf,
+  nameVariants, parseTimecode, roughDuration, shortName, timecode, yearOf,
 } from './format';
 
 describe('plural', () => {
@@ -69,6 +69,22 @@ describe('длительности', () => {
     expect(roughDuration(7200)).toBe('2 ч');
     expect(roughDuration(null)).toBe('');
   });
+  test('nameVariants — сначала отчество инициалом, потом фамилия', () => {
+    expect(nameVariants('Соколова Анна Петровна'))
+      .toEqual(['Соколова Анна Петровна', 'Соколова Анна П.', 'С. Анна П.']);
+    expect(nameVariants('Соколова Анна')).toEqual(['Соколова Анна', 'С. Анна']);
+    expect(nameVariants('Анна Петровна')).toEqual(['Анна Петровна', 'Анна П.']);
+    expect(nameVariants('Анна Соколова')).toEqual(['Анна Соколова', 'Анна С.']);
+    // Обе части похожи на фамилию — порядок по умолчанию: фамилия, имя.
+    expect(nameVariants('Карина Сафина')).toEqual(['Карина Сафина', 'К. Сафина']);
+    expect(nameVariants('Анна')).toEqual(['Анна']);
+    expect(nameVariants('')).toEqual(['Без имени']);
+    expect(nameVariants('Алиев Рашид Магомед оглы'))
+      .toEqual(['Алиев Рашид Магомед оглы', 'Алиев Рашид М.', 'А. Рашид М.']);
+    expect(nameVariants('что угодно', {first: 'Анна', last: 'Соколова', middle: 'Петровна'}))
+      .toEqual(['Соколова Анна Петровна', 'Соколова Анна П.', 'С. Анна П.']);
+  });
+
   test('parseTimecode — обратно из метки', () => {
     expect(parseTimecode('4:07')).toBe(247);
     expect(parseTimecode('1:02:33')).toBe(3753);

@@ -3,7 +3,8 @@ import {useMutation} from '@tanstack/react-query';
 import '../../../components/people/Bubbles.scss';
 import {useCatalogState} from '../../../hooks/useCatalogState';
 import {useKin} from '../../../hooks/useKin';
-import {formatNumber, shortName, timecode} from '../../../lib/format';
+import {formatNumber, timecode} from '../../../lib/format';
+import {FitName} from '../../../components/people/FitName';
 import {getPhoto} from '../../../services/endpoints/catalog';
 import {assignFaces} from '../../../services/endpoints/people';
 import {queryClient} from '../../../services/queryClient';
@@ -163,7 +164,9 @@ export function FacesOverlay({photo, onClose, onSeek}: FacesOverlayProps) {
                     {person.members.length > 1 && <i className="bubble-count">×{person.members.length}</i>}
                     {seekAt != null && <i className="bubble-time">{timecode(seekAt)}</i>}
                   </span>
-                  <span className="bubble-name">{named ? shortName(person.name) : groupTitle(person.key)}</span>
+                  {named
+                    ? <FitName className="bubble-name" name={person.name} />
+                    : <span className="bubble-name">{groupTitle(person.key)}</span>}
                 </button>
               );
             })
