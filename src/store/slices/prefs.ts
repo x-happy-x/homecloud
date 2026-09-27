@@ -10,6 +10,8 @@ import type {Store} from '../index';
 
 export type ThemeMode = 'auto' | 'light' | 'dark';
 export type SidepageTab = 'people' | 'folders' | 'albums' | 'filters';
+/** Как ролик ложится в окно: вписать целиком, заполнить с обрезкой или растянуть. */
+export type VideoFit = 'contain' | 'cover' | 'fill';
 
 export interface PrefsSlice {
   prefs: {
@@ -28,6 +30,7 @@ export interface PrefsSlice {
     collapsed: Record<string, CollapseRule>;
     /** Подпись источника (Netcraze, PC-X) на плитках галереи. */
     showSource: boolean;
+    videoFit: VideoFit;
   };
   setAdultMode(mode: AdultMode): void;
   setZoom(zoom: ZoomLevel): void;
@@ -37,6 +40,7 @@ export interface PrefsSlice {
   setSimilarNamedOnly(only: boolean): void;
   setPeopleNamedOnly(only: boolean): void;
   setShowSource(show: boolean): void;
+  setVideoFit(fit: VideoFit): void;
   setGroupBy(by: GroupBy): void;
   setGroupOrder(order: GroupOrder): void;
   toggleGroup(by: GroupBy, key: string): void;
@@ -53,6 +57,11 @@ const savedTheme = (): ThemeMode => {
 const savedAnalysisTab = (): AnalysisView => {
   const value = readLocal(KEYS.analysisTab) ?? '';
   return isAnalysisView(value) ? value : 'review';
+};
+
+const savedVideoFit = (): VideoFit => {
+  const value = readLocal(KEYS.videoFit);
+  return value === 'cover' || value === 'fill' ? value : 'contain';
 };
 
 const savedCollapsed = (): Record<string, CollapseRule> => {
@@ -90,6 +99,7 @@ export const createPrefsSlice: StateCreator<Store, [], [], PrefsSlice> = (set, g
       grouping: parseGrouping(readLocalJson(KEYS.galleryGrouping, null)),
       collapsed: savedCollapsed(),
       showSource: readLocal(KEYS.showSource) !== '0',
+      videoFit: savedVideoFit(),
     },
 
     setAdultMode: mode => { writeLocal(KEYS.adultMode, mode); patch({adultMode: mode}); },
@@ -103,6 +113,7 @@ export const createPrefsSlice: StateCreator<Store, [], [], PrefsSlice> = (set, g
       patch({peopleNamedOnly: only});
     },
     setShowSource: show => { writeLocal(KEYS.showSource, show ? '1' : '0'); patch({showSource: show}); },
+    setVideoFit: fit => { writeLocal(KEYS.videoFit, fit); patch({videoFit: fit}); },
     // У нового вида свой естественный порядок: папки по названию, дни — свежие сверху.
     setGroupBy: by => saveGrouping(parseGrouping({by, order: defaultOrder(by)})),
     setGroupOrder: order => saveGrouping(parseGrouping({...get().prefs.grouping, order})),

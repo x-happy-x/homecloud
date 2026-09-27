@@ -15,6 +15,7 @@ import {density, photoMediaUrl, viewerSize} from '../../../services/media';
 import {queryClient} from '../../../services/queryClient';
 import {qk} from '../../../services/queryKeys';
 import {useStore} from '../../../store';
+import type {VideoFit} from '../../../store/slices/prefs';
 import type {GroupDetail, GroupFace, KinPerson, PhotoCard, PhotoFace} from '../../../types/api';
 import type {AdultMode} from '../../../types/domain';
 import {Dialog} from '../../../ui/Dialog/Dialog';
@@ -41,6 +42,13 @@ const PRELOAD_EDGE = 3;
 const FACE_PRELOAD = 2;
 const AUTO_HIDE_MS = 3000;
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+const FITS: Array<{fit: VideoFit; label: string}> = [
+  {fit: 'contain', label: 'Вписать'},
+  {fit: 'cover', label: 'Заполнить'},
+  {fit: 'fill', label: 'Растянуть'},
+];
+/** Ширина превью кадра над полосой перемотки. */
+const PREVIEW_WIDTH = 176;
 const SEARCH_FRAME_LIMIT = 700 * 1024;
 const SEARCH_FRAME_SIDE = 1600;
 
@@ -205,6 +213,8 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
   const chrome = useStore(state => state.viewer.chrome);
   const toggleInfo = useStore(state => state.toggleViewerInfo);
   const toggleChrome = useStore(state => state.toggleViewerChrome);
+  const videoFit = useStore(state => state.prefs.videoFit);
+  const setVideoFit = useStore(state => state.setVideoFit);
   const openProcess = useStore(state => state.openProcess);
   const toast = useStore(state => state.toast);
   const actions = usePhotoActions();
@@ -216,6 +226,8 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
   /** Куда перемотать ролик, как только у него появятся метаданные. */
   const pendingStart = useRef<number | null>(null);
   const stage = useRef<HTMLDivElement>(null);
+  /** Всё содержимое окна просмотра: его и разворачиваем на весь экран. */
+  const frame = useRef<HTMLDivElement>(null);
   const mediaToken = useRef('');
   const pointers = useRef(new Map<number, Point>());
   const gesture = useRef({
@@ -378,8 +390,9 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
   }, [flashIcon]);
 
   // В полный экран уходит всё окно просмотра, чтобы панель плеера осталась видна.
+  // Сам <dialog> браузеры на весь экран не пускают — разворачиваем обёртку внутри.
   const fullscreen = useCallback(() => {
-    const node = stage.current?.parentElement;
+    const node = frame.current;
     if (!node) return;
     if (document.fullscreenElement) void document.exitFullscreen();
     else void node.requestFullscreen?.();
@@ -616,10 +629,11 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
         info ? 'with-info' : '',
         movie ? 'is-video' : '',
         transform.scale > 1.02 ? 'is-zoomed' : '',
+        movie && videoFit !== 'contain' ? `fit-${videoFit}` : '',
       ].filter(Boolean).join(' ')}
     >
       {photo && (
-        <>
+        <div ref={frame} className="viewer-frame">
           <div
             ref={stage}
             className="viewer-stage"
@@ -873,6 +887,9 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
               player={player}
               duration={player.duration || photo.duration || 0}
               docked={!many}
+              src={src}
+              fit={videoFit}
+              onFit={setVideoFit}
               onHold={setControlsHeld}
               onPlay={() => togglePlay()}
               onMute={() => toggleMuted()}
@@ -906,7 +923,7 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
               <InfoPanel photo={photo} onClose={onClose} onSeek={seek} />
             </aside>
           )}
-        </>
+        </div>
       )}
     </Dialog>
   );
@@ -917,6 +934,10 @@ interface VideoControlsProps {
   duration: number;
   /** Ленты снимков под плеером нет — панель прижимается к низу окна. */
   docked: boolean;
+  /** Адрес ролика — из него берутся кадры для превью над полосой перемотки. */
+  src: string;
+  fit: VideoFit;
+  onFit(fit: VideoFit): void;
   onHold(held: boolean): void;
   onPlay(): void;
   onMute(): void;
@@ -926,10 +947,15 @@ interface VideoControlsProps {
   onSpeed(rate: number): void;
 }
 
-function VideoControls({player, duration, docked, onHold, onPlay, onMute, onFullscreen, onSeek, onVolume, onSpeed}: VideoControlsProps) {
-  const [speedOpen, setSpeedOpen] = useState(false);
+type SettingsPage = 'main' | 'speed' | 'fit';
+
+function VideoControls({
+  player, duration, docked, src, fit, onFit, onHold, onPlay, onMute, onFullscreen, onSeek, onVolume, onSpeed,
+}: VideoControlsProps) {
+  const [settings, setSettings] = useState<SettingsPage | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(() => Boolean(document.fullscreenElement));
-  const speedWrap = useRef<HTMLDivElement>(null);
+  const settingsWrap = useRef<HTMLDivElement>(null);
+  const settingsOpen = settings !== null;
 
   useEffect(() => {
     const update = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -937,24 +963,25 @@ function VideoControls({player, duration, docked, onHold, onPlay, onMute, onFull
     return () => document.removeEventListener('fullscreenchange', update);
   }, []);
 
-  // Пока открыто меню скорости, панель не прячется; клик мимо меню его закрывает.
+  // Пока открыты настройки, панель не прячется; клик мимо меню его закрывает.
   useEffect(() => {
-    onHold(speedOpen);
-    if (!speedOpen) return;
+    onHold(settingsOpen);
+    if (!settingsOpen) return;
     const close = (event: PointerEvent) => {
-      if (!speedWrap.current?.contains(event.target as Node)) setSpeedOpen(false);
+      if (!settingsWrap.current?.contains(event.target as Node)) setSettings(null);
     };
     document.addEventListener('pointerdown', close);
     return () => document.removeEventListener('pointerdown', close);
-  }, [speedOpen, onHold]);
+  }, [settingsOpen, onHold]);
 
   const silent = player.muted || player.volume === 0;
   const level = player.muted ? 0 : player.volume;
+  const fitLabel = FITS.find(item => item.fit === fit)?.label ?? 'Вписать';
   return (
     <div className={['viewer-player', 'viewer-ui', docked ? 'docked' : ''].filter(Boolean).join(' ')}
-      onPointerDown={() => onHold(true)} onPointerUp={() => onHold(speedOpen)}
-      onPointerCancel={() => onHold(speedOpen)} onFocus={() => onHold(true)} onBlur={() => onHold(speedOpen)}>
-      <SeekBar current={player.current} buffered={player.buffered} duration={duration} onSeek={onSeek} />
+      onPointerDown={() => onHold(true)} onPointerUp={() => onHold(settingsOpen)}
+      onPointerCancel={() => onHold(settingsOpen)} onFocus={() => onHold(true)} onBlur={() => onHold(settingsOpen)}>
+      <SeekBar current={player.current} buffered={player.buffered} duration={duration} src={src} onSeek={onSeek} />
       <div className="viewer-player-row">
         <button className="viewer-ctl" type="button" aria-label={player.playing ? 'Пауза (k)' : 'Смотреть (k)'} onClick={onPlay}>
           <Icon name={player.playing ? 'pause' : 'play'} />
@@ -972,22 +999,52 @@ function VideoControls({player, duration, docked, onHold, onPlay, onMute, onFull
           {timecode(player.current)}<i> / </i><span>{timecode(duration || 0)}</span>
         </span>
         <span className="viewer-player-spacer" />
-        <div className="viewer-speed-wrap" ref={speedWrap}>
-          <button className="viewer-ctl viewer-speed-button" type="button" aria-label="Скорость воспроизведения"
-            aria-expanded={speedOpen} onClick={() => setSpeedOpen(opened => !opened)}>
+        <div className="viewer-speed-wrap" ref={settingsWrap}>
+          <button className="viewer-ctl viewer-speed-button" type="button" aria-label="Настройки"
+            aria-expanded={settingsOpen} onClick={() => setSettings(page => page ? null : 'main')}>
             <Icon name="settings" />
             {player.rate !== 1 && <b>{formatRate(player.rate)}</b>}
           </button>
-          {speedOpen && (
+          {settings === 'main' && (
+            <div className="viewer-speed-menu" role="menu" aria-label="Настройки">
+              <button type="button" role="menuitem" className="viewer-settings-row" onClick={() => setSettings('speed')}>
+                <span>Скорость</span><em>{player.rate === 1 ? 'Обычная' : formatRate(player.rate)}</em>
+                <Icon name="chevronRight" />
+              </button>
+              <button type="button" role="menuitem" className="viewer-settings-row" onClick={() => setSettings('fit')}>
+                <span>Масштаб</span><em>{fitLabel}</em>
+                <Icon name="chevronRight" />
+              </button>
+            </div>
+          )}
+          {settings === 'speed' && (
             <div className="viewer-speed-menu" role="menu" aria-label="Скорость">
-              <div className="viewer-speed-title">Скорость</div>
+              <button type="button" className="viewer-speed-title" onClick={() => setSettings('main')}>
+                <Icon name="chevronLeft" />Скорость
+              </button>
               {SPEEDS.map(rate => (
                 <button key={rate} type="button" role="menuitemradio" aria-checked={player.rate === rate}
                   onClick={() => {
                     onSpeed(rate);
-                    setSpeedOpen(false);
+                    setSettings(null);
                   }}>
                   <Icon name="check" />{rate === 1 ? 'Обычная' : formatRate(rate)}
+                </button>
+              ))}
+            </div>
+          )}
+          {settings === 'fit' && (
+            <div className="viewer-speed-menu" role="menu" aria-label="Масштаб">
+              <button type="button" className="viewer-speed-title" onClick={() => setSettings('main')}>
+                <Icon name="chevronLeft" />Масштаб
+              </button>
+              {FITS.map(item => (
+                <button key={item.fit} type="button" role="menuitemradio" aria-checked={fit === item.fit}
+                  onClick={() => {
+                    onFit(item.fit);
+                    setSettings(null);
+                  }}>
+                  <Icon name="check" />{item.label}
                 </button>
               ))}
             </div>
@@ -1007,14 +1064,16 @@ interface SeekBarProps {
   current: number;
   buffered: number;
   duration: number;
+  src: string;
   onSeek(value: number): void;
 }
 
-/** Полоса перемотки как в YouTube: тонкая, толще под курсором, с меткой времени. */
-function SeekBar({current, buffered, duration, onSeek}: SeekBarProps) {
+/** Полоса перемотки как в YouTube: тонкая, толще под курсором, с кадром и временем. */
+function SeekBar({current, buffered, duration, src, onSeek}: SeekBarProps) {
   const bar = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
+  const preview = useFramePreview(src, hover == null ? null : hover * duration);
 
   const ratioAt = (x: number) => {
     const rect = bar.current?.getBoundingClientRect();
@@ -1022,6 +1081,9 @@ function SeekBar({current, buffered, duration, onSeek}: SeekBarProps) {
     return Math.min(1, Math.max(0, (x - rect.left) / rect.width));
   };
   const share = (seconds: number) => `${duration > 0 ? Math.min(100, Math.max(0, seconds / duration * 100)) : 0}%`;
+  // Превью не вылезает за края полосы.
+  const half = PREVIEW_WIDTH / 2 + 4;
+  const tipLeft = hover == null ? undefined : `clamp(${half}px, ${hover * 100}%, calc(100% - ${half}px))`;
 
   return (
     <div
@@ -1037,16 +1099,26 @@ function SeekBar({current, buffered, duration, onSeek}: SeekBarProps) {
         if (!duration) return;
         event.currentTarget.setPointerCapture(event.pointerId);
         setDragging(true);
-        onSeek(ratioAt(event.clientX) * duration);
+        const ratio = ratioAt(event.clientX);
+        setHover(ratio);
+        onSeek(ratio * duration);
       }}
       onPointerMove={event => {
         const ratio = ratioAt(event.clientX);
         setHover(ratio);
         if (dragging) onSeek(ratio * duration);
       }}
-      onPointerUp={() => setDragging(false)}
-      onPointerCancel={() => setDragging(false)}
-      onPointerLeave={() => setHover(null)}
+      onPointerUp={event => {
+        setDragging(false);
+        if (event.pointerType !== 'mouse') setHover(null);
+      }}
+      onPointerCancel={() => {
+        setDragging(false);
+        setHover(null);
+      }}
+      onPointerLeave={() => {
+        if (!dragging) setHover(null);
+      }}
     >
       <div className="viewer-seek-track">
         <div className="viewer-seek-buffered" style={{width: share(buffered)}} />
@@ -1055,11 +1127,79 @@ function SeekBar({current, buffered, duration, onSeek}: SeekBarProps) {
       </div>
       <div className="viewer-seek-thumb" style={{left: share(current)}} />
       {hover != null && duration > 0 && (
-        <div className="viewer-seek-tip" style={{left: `${hover * 100}%`}}>{timecode(hover * duration)}</div>
+        <div className="viewer-seek-tip" style={{left: tipLeft}}>
+          <canvas ref={preview.canvas} className={preview.ready ? 'ready' : ''} width={PREVIEW_WIDTH} height={Math.round(PREVIEW_WIDTH * 9 / 16)} />
+          <span>{timecode(hover * duration)}</span>
+        </div>
       )}
     </div>
   );
 }
+
+/**
+ * Кадр ролика на заданной секунде для превью над полосой перемотки: скрытая
+ * копия видео перематывается туда, куда наведён курсор, и рисуется в canvas.
+ * Перемотки идут по одной — пока копия ищет кадр, новое время только запоминается.
+ */
+function useFramePreview(src: string, seconds: number | null) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const probe = useRef<HTMLVideoElement | null>(null);
+  const wanted = useRef<number | null>(null);
+  const busy = useRef(false);
+  const [ready, setReady] = useState(false);
+
+  // force — перерисовать, даже если копия уже стоит на нужном кадре (новый canvas пуст).
+  const seekProbe = useCallback((force = false) => {
+    const node = probe.current;
+    const target = wanted.current;
+    if (!node || busy.current || target == null || node.readyState < HTMLMediaElement.HAVE_METADATA) return;
+    if (!force && Math.abs(node.currentTime - target) < 0.05) return;
+    busy.current = true;
+    node.currentTime = target;
+  }, []);
+
+  useEffect(() => {
+    if (!src) return;
+    const node = document.createElement('video');
+    node.muted = true;
+    node.playsInline = true;
+    node.preload = 'metadata';
+    node.src = src;
+    const draw = () => {
+      busy.current = false;
+      const target = canvas.current;
+      if (target && node.videoWidth > 0) {
+        target.height = Math.round(PREVIEW_WIDTH * node.videoHeight / node.videoWidth);
+        target.getContext('2d')?.drawImage(node, 0, 0, target.width, target.height);
+        setReady(true);
+      }
+      seekProbe();
+    };
+    node.addEventListener('seeked', draw);
+    const start = () => seekProbe(true);
+    node.addEventListener('loadedmetadata', start);
+    probe.current = node;
+    return () => {
+      node.removeEventListener('seeked', draw);
+      node.removeEventListener('loadedmetadata', start);
+      node.removeAttribute('src');
+      node.load();
+      probe.current = null;
+      busy.current = false;
+      setReady(false);
+    };
+  }, [src, seekProbe]);
+
+  useEffect(() => {
+    const fresh = wanted.current == null;
+    wanted.current = seconds;
+    if (seconds == null) setReady(false);
+    else seekProbe(fresh);
+  }, [seconds, seekProbe]);
+
+  return {canvas, ready};
+}
+
 
 function formatRate(rate: number): string {
   return `${String(rate).replace('.', ',')}×`;
