@@ -164,3 +164,15 @@ export const runMoment = (value: string | number | Date): string => {
   return Number.isNaN(date.valueOf()) ? '' : date.toLocaleString('ru-RU',
     {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'});
 };
+
+/** Счётчик в навигации коротко: 312, 6,2 тыс., 169 тыс. */
+export function shortCount(value: number | null | undefined): string {
+  const count = Math.max(0, Math.round(value ?? 0));
+  if (count < 10_000) return formatNumber(count);
+  if (count < 1_000_000) {
+    const thousands = count / 1000;
+    const text = thousands < 100 ? thousands.toFixed(1).replace(/\.0$/, '') : String(Math.round(thousands));
+    return `${text.replace('.', ',')} тыс.`;
+  }
+  return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, '').replace('.', ',')} млн`;
+}

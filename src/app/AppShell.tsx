@@ -4,7 +4,8 @@ import {useQuery} from '@tanstack/react-query';
 import './AppShell.scss';
 import {AlbumPickDialog} from '../components/albums/AlbumPickDialog';
 import {LoginDialog} from '../components/auth/LoginDialog';
-import {Rail} from '../components/nav/Rail';
+import {Sidebar} from '../components/nav/Sidebar';
+import type {NavTarget} from '../components/nav/NavSections';
 import {Tabbar} from '../components/nav/Tabbar';
 import {Topbar} from '../components/nav/Topbar';
 import {NotifPanel} from '../components/notifications/NotifPanel';
@@ -18,7 +19,6 @@ import {GroupDialog} from '../views/people/GroupDialog';
 import {PhotoProcessDialog} from '../views/photos/PhotoProcessDialog';
 import {CollectionsPanel} from '../views/photos/panel/CollectionsPanel';
 import {Viewer} from '../views/photos/viewer/Viewer';
-import type {NavGroupSpec} from './navItems';
 import {VIEW_TITLES, type ViewName} from './routes';
 import {usePollingStatus} from './usePollingStatus';
 import {ViewOutlet} from './ViewOutlet';
@@ -37,6 +37,8 @@ export function AppShell() {
   const view = useStore(state => state.view);
   const setView = useStore(state => state.setView);
   const setQuery = useStore(state => state.setQuery);
+  const setFilters = useStore(state => state.setFilters);
+  const setRouteHighlight = useStore(state => state.setRouteHighlight);
   const setSession = useStore(state => state.setSession);
   const setRouteGroup = useStore(state => state.setRouteGroup);
   const openFaces = useStore(state => state.openFaces);
@@ -54,14 +56,23 @@ export function AppShell() {
 
   const status = usePollingStatus();
 
-  const navigate = useCallback((group: NavGroupSpec) => {
+  const navigate = useCallback((target: NavTarget) => {
     const state = useStore.getState();
-    if (group.views.includes(state.view)) return;
+    const view = 'view' in target ? target.view : 'photos';
     // Поиск людей и поиск по снимкам — разные вещи: запрос одного экрана не переносим.
-    setQuery('');
-    setView(group.id === 'analysis' ? state.prefs.analysisTab : group.view);
+    if (view !== state.view) setQuery('');
+    if (target.filters) setFilters(target.filters);
+    if (view !== state.view) setView(view);
+    if (state.routeHighlight && view === 'highlights') setRouteHighlight('');
     window.scrollTo({top: 0, behavior: 'smooth'});
-  }, [setQuery, setView]);
+  }, [setQuery, setFilters, setView, setRouteHighlight]);
+
+  const openPanel = useCallback((tab: 'albums' | 'folders') => {
+    const state = useStore.getState();
+    state.setSidepageTab(tab);
+    if (state.view !== 'photos') setView('photos');
+    state.openSidepage();
+  }, [setView]);
 
   const openGroup = useCallback((key: string) => setRouteGroup(key), [setRouteGroup]);
   const openFace = useCallback((group: GroupDetail, index: number) => openFaces(group, index), [openFaces]);
@@ -78,7 +89,7 @@ export function AppShell() {
   return (
     <>
       <div className="layout">
-        <Rail view={view} onNavigate={navigate} />
+        <Sidebar devices={status.devices} onNavigate={navigate} onOpenPanel={openPanel} />
         <div className="main">
           <Topbar searchPlaceholder={SEARCH_PLACEHOLDERS[view] ?? null} />
           <main>
@@ -86,7 +97,7 @@ export function AppShell() {
           </main>
         </div>
       </div>
-      <Tabbar view={view} onNavigate={navigate} />
+      <Tabbar devices={status.devices} onNavigate={navigate} onOpenPanel={openPanel} />
 
       <CollectionsPanel />
       <NotifPanel />

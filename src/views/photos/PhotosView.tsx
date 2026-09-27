@@ -25,13 +25,29 @@ import {baseName, bigfamPersonUrl, dropFilter, galleryContext} from './gallery';
 import {FolderContextMenu, type FolderMenuState} from './FolderContextMenu';
 import {FolderPickerDialog, sourceOf, type PickedFolder} from '../../components/FolderPicker/FolderPickerDialog';
 import {GroupedGallery} from './GroupedGallery';
-import {isCollapsed} from './grouping';
+import {isCollapsed, isDated} from './grouping';
 import {GroupingMenu} from './GroupingMenu';
+import {MemoriesStrip} from './MemoriesStrip';
 import {PhotoTile} from './PhotoTile';
 import {scopedParams, useGalleryParams, usePhotoPages} from './useGallery';
 import {useFolderActions} from './useFolderActions';
 import {usePhotoActions} from './usePhotoActions';
 import {usePhotoDragSelection} from './usePhotoDragSelection';
+
+/** Что показывать — переключателем над сеткой, а не чипсами в шторке. */
+const TYPE_STEPS: Array<{id: string; label: string; filters: {contentType: string; kind: string}}> = [
+  {id: 'all', label: 'Все', filters: {contentType: '', kind: ''}},
+  {id: 'photo', label: 'Фото', filters: {contentType: 'photo', kind: ''}},
+  {id: 'video', label: 'Видео', filters: {contentType: '', kind: 'video'}},
+  {id: 'screenshot', label: 'Скриншоты', filters: {contentType: 'screenshot', kind: ''}},
+  {id: 'document', label: 'Документы', filters: {contentType: 'document', kind: ''}},
+];
+
+const typeStep = (contentType: string, kind: string): string => {
+  if (kind === 'video' && !contentType) return 'video';
+  if (!kind) return TYPE_STEPS.find(step => step.filters.contentType === contentType)?.id ?? '';
+  return '';
+};
 
 const ZOOM_STEPS: Array<[ZoomLevel, IconName, string]> = [
   ['large', 'zoomLarge', 'Крупные плитки'],
@@ -142,7 +158,12 @@ export function PhotosView() {
   };
 
   const size = tileSize(zoom);
-  const chips = galleryContext(filters, albums);
+  // Тип содержимого и видео показывает переключатель — чипсами они не дублируются.
+  const step = typeStep(filters.contentType, filters.kind);
+  const chips = galleryContext(filters, albums)
+    .filter(chip => !(step && (chip.drop.kind === 'type' || chip.drop.kind === 'kind')));
+  const title = filters.hidden ? 'Скрытые' : filters.kind === 'video' ? 'Видео' : 'Фотографии';
+  const plain = !filters.query && !filters.hidden && !chips.length && step === 'all';
   const person = filters.people.length === 1
     ? people?.find(item => item.name === filters.people[0])
     : undefined;
@@ -189,13 +210,13 @@ export function PhotosView() {
   };
 
   return (
-    <section className="view active" {...dragSelection}
+    <section className={`view active${grouped && isDated(grouping.by) ? ' with-scrubber' : ''}`} {...dragSelection}
       onContextMenu={event => {
         const target = event.target as HTMLElement;
         if (!moveClipboard.length || !filters.folder || target.closest('[data-photo-path]') || !target.closest('.photo-grid')) return;
         openFolderMenu(event, filters.folder);
       }}>
-      <ViewHeader eyebrow={counter} title="Фотографии">
+      <ViewHeader eyebrow={counter} title={title}>
         <div className="zoom" role="group" aria-label="Размер плиток">
           {ZOOM_STEPS.map(([level, icon, label]) => (
             <button
@@ -211,10 +232,21 @@ export function PhotosView() {
         </div>
       </ViewHeader>
 
+      {plain && <MemoriesStrip />}
+
       <div className="gallery-bar">
+        <div className="type-switch" role="group" aria-label="Что показывать">
+          {TYPE_STEPS.map(item => (
+            <button key={item.id} type="button" className={step === item.id ? 'active' : ''}
+              aria-pressed={step === item.id} onClick={() => setFilters(item.filters)}>
+              {item.id === 'video' && <Icon name="video" size={15} />}
+              {item.label}
+            </button>
+          ))}
+        </div>
         <Button small onClick={openSidepage}>
           <Icon name="filters" size={16} />
-          Подборки и фильтры
+          Фильтры
           {chips.length > 0 && <span className="bar-count">{chips.length}</span>}
         </Button>
         <GroupingMenu />

@@ -1,27 +1,100 @@
+import {useState} from 'react';
 import './Tabbar.scss';
-import {NAV_GROUPS, type NavGroupSpec} from '../../app/navItems';
-import type {ViewName} from '../../app/routes';
-import {NavItem} from '../../ui/NavItem/NavItem';
+import {activeNav, CATALOG_NAV, navEntry, PRIMARY_NAV, type NavEntry} from '../../app/navItems';
+import type {Device} from '../../services/endpoints/backends';
+import {useStore} from '../../store';
+import {Dialog} from '../../ui/Dialog/Dialog';
+import {Icon} from '../../ui/Icon/Icon';
+import {activeJob, AlbumList, JobCard, SourceList, useNavCounts, type NavTarget} from './NavSections';
 
 export interface TabbarProps {
-  view: ViewName;
-  onNavigate(group: NavGroupSpec): void;
+  devices: Device[] | undefined;
+  onNavigate(target: NavTarget): void;
+  onOpenPanel(tab: 'albums' | 'folders'): void;
 }
 
+/** Вкладки телефона: три раздела, «Библиотека» шторкой и поиск. */
+const TABS = ['photos', 'highlights', 'people'] as const;
+
+/** Что лежит в «Библиотеке»: видео и всё обслуживание каталога. */
+const LIBRARY = [navEntry('video'), ...CATALOG_NAV];
+
 /**
- * Нижняя панель на телефоне. Та же разметка, что и у боковой: пять пунктов
- * ложатся в ряд с короткими подписями.
+ * Нижняя панель на телефоне. Альбомы, источники, видео и каталог в пять
+ * вкладок не влезают — они в шторке «Библиотека», как в эскизе.
  */
-export const Tabbar = ({view, onNavigate}: TabbarProps) => (
-  <nav className="tabbar" aria-label="Разделы">
-    {NAV_GROUPS.map(group => (
-      <NavItem
-        key={group.id}
-        icon={group.icon}
-        label={group.short}
-        active={group.views.includes(view)}
-        onClick={() => onNavigate(group)}
-      />
-    ))}
-  </nav>
-);
+export function Tabbar({devices, onNavigate, onOpenPanel}: TabbarProps) {
+  const view = useStore(state => state.view);
+  const kind = useStore(state => state.filters.kind);
+  const hidden = useStore(state => state.filters.hidden);
+  const counts = useNavCounts();
+  const [library, setLibrary] = useState(false);
+  const active = activeNav(view, {kind, hidden});
+  const inLibrary = LIBRARY.some(entry => entry.id === active);
+  const job = activeJob(devices);
+
+  const go = (target: NavTarget) => {
+    setLibrary(false);
+    onNavigate(target);
+  };
+
+  const search = () => {
+    setLibrary(false);
+    if (useStore.getState().view !== 'photos' && useStore.getState().view !== 'people') onNavigate(PRIMARY_NAV[0]);
+    window.scrollTo({top: 0, behavior: 'smooth'});
+    // Поле появляется после смены экрана — фокус на следующем кадре.
+    requestAnimationFrame(() => document.getElementById('searchInput')?.focus());
+  };
+
+  const tab = (entry: NavEntry) => (
+    <button key={entry.id} type="button" className={`tab${active === entry.id && !library ? ' active' : ''}`}
+      aria-current={active === entry.id ? 'page' : undefined} onClick={() => go(entry)}>
+      <Icon name={entry.icon} />
+      <span>{entry.short}</span>
+    </button>
+  );
+
+  return (
+    <>
+      <nav className="tabbar" aria-label="Разделы">
+        {TABS.map(id => tab(navEntry(id)))}
+        <button type="button" className={`tab${library || inLibrary ? ' active' : ''}`}
+          aria-expanded={library} onClick={() => setLibrary(!library)}>
+          <Icon name="library" />
+          <span>Библиотека</span>
+          {(counts.review ?? 0) > 0 && <i className="tab-pip" aria-hidden="true" />}
+        </button>
+        <button type="button" className="tab" onClick={search}>
+          <Icon name="search" />
+          <span>Поиск</span>
+        </button>
+      </nav>
+
+      <Dialog open={library} onClose={() => setLibrary(false)} closeOnBackdrop className="library-sheet"
+        aria-label="Библиотека">
+        <span className="library-grab" aria-hidden="true" />
+        <h2>Библиотека</h2>
+        <div className="library-tiles">
+          {LIBRARY.map(entry => (
+            <button key={entry.id} type="button" className={`library-tile${active === entry.id ? ' active' : ''}`}
+              onClick={() => go(entry)}>
+              <Icon name={entry.icon} />
+              <span>{entry.label}</span>
+              {entry.id === 'review' && (counts.review ?? 0) > 0 && (
+                <i className="nav-badge">{(counts.review ?? 0) > 99 ? '99+' : counts.review}</i>
+              )}
+            </button>
+          ))}
+        </div>
+        <JobCard device={job} onOpen={() => go(navEntry('scan'))} />
+        <h3>Альбомы</h3>
+        <AlbumList onPick={go} limit={6} onAll={() => { setLibrary(false); onOpenPanel('albums'); }} />
+        <h3>Источники</h3>
+        <SourceList onPick={go} />
+        <button type="button" className="nav-more" onClick={() => { setLibrary(false); onOpenPanel('folders'); }}>
+          Все папки
+        </button>
+      </Dialog>
+    </>
+  );
+}

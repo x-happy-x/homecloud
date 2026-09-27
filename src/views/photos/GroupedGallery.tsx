@@ -11,9 +11,10 @@ import type {PhotoGroup} from '../../types/api';
 import type {AdultMode, ZoomLevel} from '../../types/domain';
 import {Icon} from '../../ui/Icon/Icon';
 import {IconButton} from '../../ui/IconButton/IconButton';
-import {GROUP_NONE, groupHeading, groupNote, isCollapsed, type GroupBy, type Grouping} from './grouping';
+import {GROUP_NONE, groupHeading, groupNote, isCollapsed, isDated, type GroupBy, type Grouping} from './grouping';
 import {PhotoTile} from './PhotoTile';
 import {PHOTO_PAGE, scopedParams, usePhotoPages} from './useGallery';
+import {YearScrubber} from './YearScrubber';
 
 /** Ширина плитки в сетке auto-fill и число колонок на телефоне — как в PhotosView.scss. */
 const TILE_MIN: Record<ZoomLevel, number> = {small: 104, medium: 168, large: 264};
@@ -98,9 +99,11 @@ export function GroupedGallery({
 }: GroupedGalleryProps) {
   const {ref, geometry} = useGeometry(zoom);
   const rules = useStore(state => state.prefs.collapsed);
+  const scrubber = isDated(grouping.by) && !isPending && groups.length > 1;
 
   return (
     <div ref={ref} className="gallery-groups" data-zoom={zoom}>
+      {scrubber && <YearScrubber groups={groups} />}
       {isPending
         ? Array.from({length: 3}, (_, index) => (
             <section key={index} className="gallery-group">
@@ -160,7 +163,7 @@ const GallerySection = memo(function GallerySection({
   const withMenu = by === 'folder' && group.key !== GROUP_NONE;
 
   return (
-    <section className={`gallery-group${collapsed ? ' collapsed' : ''}`}>
+    <section className={`gallery-group${collapsed ? ' collapsed' : ''}`} data-group={group.key}>
       <div
         className={`gallery-group-head${withMenu ? ' has-context-menu' : ''}`}
         onContextMenu={withMenu ? event => onFolderMenu(event, group.key) : undefined}

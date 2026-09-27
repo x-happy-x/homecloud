@@ -24,7 +24,7 @@ export const isAnalysisView = (view: string): view is AnalysisView => ANALYSIS_S
 export const VIEW_TITLES: Record<ViewName, string> = {
   people: 'Люди',
   photos: 'Фотографии',
-  highlights: 'Подборки',
+  highlights: 'Воспоминания',
   review: 'Проверка',
   training: 'Обучение',
   scan: 'Сканирование',

@@ -1,24 +1,30 @@
 import {describe, expect, test} from 'vitest';
-import {NAV_GROUPS, navGroupOf} from './navItems';
+import {activeNav, CATALOG_NAV, NAV_ENTRIES, PRIMARY_NAV} from './navItems';
 import {VIEWS} from './routes';
 
+const plain = {kind: '', hidden: false};
+
 describe('пункты навигации', () => {
-  test('их пять, порядок задан', () => {
-    expect(NAV_GROUPS.map(group => group.label))
-      .toEqual(['Фотографии', 'Подборки', 'Люди', 'Анализ', 'Настройки']);
+  test('сверху то, что смотрят, ниже — каталог', () => {
+    expect(PRIMARY_NAV.map(entry => entry.label)).toEqual(['Фотографии', 'Воспоминания', 'Люди', 'Видео']);
+    expect(CATALOG_NAV.map(entry => entry.label))
+      .toEqual(['Проверка', 'Сканирование', 'Дубликаты', 'Обучение', 'Скрытые', 'Настройки']);
   });
 
-  test('каждый экран принадлежит ровно одному пункту', () => {
+  test('у каждого экрана есть пункт', () => {
     for (const view of VIEWS) {
-      expect(NAV_GROUPS.filter(group => group.views.includes(view))).toHaveLength(1);
+      expect(NAV_ENTRIES.some(entry => entry.view === view)).toBe(true);
+      expect(activeNav(view, plain)).toBe(NAV_ENTRIES.find(entry => entry.view === view)?.id);
     }
   });
 
-  test('четыре экрана обслуживания собраны в «Анализ»', () => {
-    for (const view of ['review', 'training', 'scan', 'duplicates'] as const) {
-      expect(navGroupOf(view).id).toBe('analysis');
-    }
-    expect(navGroupOf('photos').id).toBe('photos');
-    expect(navGroupOf('settings').id).toBe('settings');
+  test('галерея подсвечивает пункт по отбору', () => {
+    expect(activeNav('photos', plain)).toBe('photos');
+    expect(activeNav('photos', {kind: 'video', hidden: false})).toBe('video');
+    expect(activeNav('photos', {kind: 'video', hidden: true})).toBe('hidden');
+  });
+
+  test('«Фотографии» снимают отбор видео и скрытых', () => {
+    expect(PRIMARY_NAV[0].filters).toEqual({kind: '', hidden: false});
   });
 });

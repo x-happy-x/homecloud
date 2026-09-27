@@ -27,7 +27,7 @@ export function CollectionsPanel() {
   useKeyboardShortcuts(escape, open);
 
   return (
-    <SidePanel open={open} title="Подборки" onClose={close} tabs={TABS} activeTab={tab} onTab={setTab}>
+    <SidePanel open={open} title="Фильтры" onClose={close} tabs={TABS} activeTab={tab} onTab={setTab}>
       <section key={tab} className="sidepage-panel active">
         {tab === 'people' && <PeopleBubbles />}
         {tab === 'folders' && <FoldersSection />}
