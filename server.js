@@ -1,6 +1,6 @@
 // HomeCloud: статика интерфейса, вход через сервис account и прокси на хаб.
 import { createServer, request as httpRequest } from 'node:http';
-import { createGzip } from 'node:zlib';
+import { brotliCompressSync, constants as zlibConstants, createGzip, gzipSync } from 'node:zlib';
 import { readFile, stat } from 'node:fs/promises';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { extname, join, normalize, relative as pathRelative, resolve } from 'node:path';
@@ -455,7 +455,31 @@ const readBody = request => new Promise((done, fail) => {
 
 /* ---------- статика ---------- */
 
-async function sendStatic(response, pathname) {
+// Сжатые копии статики: до следующего деплоя файлы не меняются, жмём один раз.
+const compressed = new Map();
+const COMPRESSIBLE = /^(text\/|application\/(javascript|json)|image\/svg)/;
+
+function encodingFor(request, type, size) {
+  if (!COMPRESSIBLE.test(type) || size < 1024) return '';
+  const accepted = String(request.headers['accept-encoding'] || '');
+  if (/(^|[\s,])br(;|,|$)/.test(accepted)) return 'br';
+  if (/(^|[\s,])gzip(;|,|$)/.test(accepted)) return 'gzip';
+  return '';
+}
+
+function compressedBody(key, body, encoding) {
+  const cacheKey = `${encoding}:${key}`;
+  let packed = compressed.get(cacheKey);
+  if (!packed) {
+    packed = encoding === 'br'
+      ? brotliCompressSync(body, {params: {[zlibConstants.BROTLI_PARAM_QUALITY]: 9}})
+      : gzipSync(body, {level: 9});
+    compressed.set(cacheKey, packed);
+  }
+  return packed;
+}
+
+async function sendStatic(request, response, pathname) {
   const relative = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');
   const target = resolve(join(PUBLIC, normalize(relative)));
   const insidePublic = pathRelative(PUBLIC, target);
@@ -468,7 +492,7 @@ async function sendStatic(response, pathname) {
   } catch {
     return pathname === '/'
       ? sendJson(response, 404, {error: 'Страница не найдена'})
-      : sendStatic(response, '/');
+      : sendStatic(request, response, '/');
   }
   if (!info.isFile()) return sendJson(response, 404, {error: 'Страница не найдена'});
   const type = TYPES[extname(target).toLowerCase()] || 'application/octet-stream';
@@ -478,9 +502,22 @@ async function sendStatic(response, pathname) {
       .replaceAll('__LOCAL_TOKEN__', BROWSER_TOKEN)
       .replaceAll('__ASSET_VERSION__', ASSET_VERSION), 'utf-8');
   }
-  const cache = target.endsWith('index.html') ? 'no-store' : 'private, max-age=300';
-  response.writeHead(200, {...baseHeaders(type, cache), 'Content-Length': body.length});
-  response.end(body);
+  // Сборка кладёт в /static/ файлы с хешем в имени: они не меняются никогда,
+  // браузеру можно держать их год. index.html — всегда свежий.
+  const hashed = /^\/static\/.+\.[0-9a-f]{8,}\./.test(pathname);
+  const cache = target.endsWith('index.html') ? 'no-store'
+    : hashed ? 'public, max-age=31536000, immutable' : 'private, max-age=300';
+  const encoding = encodingFor(request, type, body.length);
+  // index.html со вставленным токеном не кэшируем в памяти сжатым — жмём каждый раз.
+  const payload = !encoding ? body
+    : target.endsWith('index.html')
+      ? (encoding === 'br' ? brotliCompressSync(body) : gzipSync(body))
+      : compressedBody(`${target}:${info.mtimeMs}`, body, encoding);
+  response.writeHead(200, {
+    ...baseHeaders(type, cache), 'Content-Length': payload.length,
+    ...(encoding ? {'Content-Encoding': encoding, Vary: 'Accept-Encoding'} : {}),
+  });
+  response.end(payload);
 }
 
 /* ---------- маршруты ---------- */
@@ -502,7 +539,7 @@ async function handle(request, response) {
 
   if (!isApi) {
     if (method !== 'GET') return sendJson(response, 405, {error: 'Метод не поддерживается'});
-    return sendStatic(response, pathname);
+    return sendStatic(request, response, pathname);
   }
   if (method !== 'GET' && method !== 'POST') {
     return sendJson(response, 405, {error: 'Метод не поддерживается'});
