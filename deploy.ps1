@@ -35,6 +35,6 @@ if ($LASTEXITCODE -ne 0) { throw 'scp src/public не удался' }
 
 if ($SkipRestart) { Write-Host 'Файлы обновлены, перезапуск пропущен.'; return }
 
-Invoke-Remote "cd $ComposePath && sudo docker compose up -d --build homecloud"
+Invoke-Remote "cd $ComposePath && sudo docker compose up -d --build --no-deps homecloud"
 Invoke-Remote 'curl -fsS http://127.0.0.1:4180/healthz && echo'
 Write-Host 'Готово: http://192.168.99.20:4180/'
