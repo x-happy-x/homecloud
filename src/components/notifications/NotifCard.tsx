@@ -114,6 +114,13 @@ export function NotifCard({id, data, expanded, onToggle, onDismiss}: NotifCardPr
         </div>
       )}
 
+      {data.action && (
+        <div className="notif-job-actions">
+          <Button variant="primary" small onClick={event => { event.stopPropagation(); data.action!.run(); }}>
+            {data.action.label}
+          </Button>
+        </div>
+      )}
       {/* Остановка не должна требовать разворачивания карточки. */}
       {data.canStop && data.onStop && (
         <div className="notif-job-actions">

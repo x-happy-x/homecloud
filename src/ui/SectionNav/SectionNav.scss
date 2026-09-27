@@ -1,0 +1,81 @@
+@use '../../styles/mixins' as *;
+
+.section-layout {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  align-items: start;
+  gap: 28px;
+}
+.section-content { display: grid; gap: 16px; min-width: 0; }
+.section-nav {
+  position: sticky;
+  top: 86px;
+  display: grid;
+  gap: 2px;
+}
+.section-nav button {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--r-m);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.section-nav button:hover { background: var(--surface-2); color: var(--ink); }
+.section-nav button.active { background: var(--patina-soft); color: var(--ink); }
+.section-nav-icon { position: relative; display: grid; place-items: center; }
+.section-nav svg { width: 18px; height: 18px; fill: currentColor; color: var(--muted); }
+.section-nav button.active svg { color: var(--patina); }
+.section-nav-run {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--patina);
+  box-shadow: 0 0 0 2px var(--paper);
+  animation: section-run 1.4s ease-in-out infinite;
+}
+@keyframes section-run { 50% { opacity: .35; } }
+.section-nav-text { display: grid; gap: 1px; min-width: 0; }
+.section-nav strong { font-size: .88rem; font-weight: 600; }
+.section-nav small { overflow: hidden; color: var(--muted); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.section-nav-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--brass);
+  color: var(--ground);
+  font-size: .7rem;
+  text-align: center;
+}
+.section-nav-count.quiet { background: var(--ground); color: var(--muted); }
+.section-nav button.active .section-nav-count.quiet { background: var(--surface-2); color: var(--patina); }
+
+@include reduced-motion {
+  .section-nav-run { animation: none; }
+}
+
+@include bp-md {
+  // На телефоне разделы — лентой сверху.
+  .section-layout { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .section-nav {
+    position: static;
+    display: flex;
+    gap: 6px;
+    margin: 0 -14px;
+    padding: 0 14px 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .section-nav button { flex: none; grid-template-columns: 18px auto auto; border: 1px solid var(--line-soft); }
+  .section-nav small { display: none; }
+}

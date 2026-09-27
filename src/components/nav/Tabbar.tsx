@@ -1,6 +1,6 @@
 import {useState} from 'react';
 import './Tabbar.scss';
-import {activeNav, CATALOG_NAV, navEntry, PRIMARY_NAV, type NavEntry} from '../../app/navItems';
+import {activeNav, CATALOG_NAV, HIDDEN_NAV, navEntry, PRIMARY_NAV, type NavEntry} from '../../app/navItems';
 import type {Device} from '../../services/endpoints/backends';
 import {useStore} from '../../store';
 import {Dialog} from '../../ui/Dialog/Dialog';
@@ -30,7 +30,7 @@ export function Tabbar({devices, onNavigate, onOpenPanel}: TabbarProps) {
   const counts = useNavCounts();
   const [library, setLibrary] = useState(false);
   const active = activeNav(view, {kind, hidden});
-  const inLibrary = LIBRARY.some(entry => entry.id === active);
+  const inLibrary = active === 'hidden' || LIBRARY.some(entry => entry.id === active);
   const job = activeJob(devices);
 
   const go = (target: NavTarget) => {
@@ -62,7 +62,7 @@ export function Tabbar({devices, onNavigate, onOpenPanel}: TabbarProps) {
           aria-expanded={library} onClick={() => setLibrary(!library)}>
           <Icon name="library" />
           <span>Библиотека</span>
-          {(counts.review ?? 0) > 0 && <i className="tab-pip" aria-hidden="true" />}
+          {(counts.analysis ?? 0) > 0 && <i className="tab-pip" aria-hidden="true" />}
         </button>
         <button type="button" className="tab" onClick={search}>
           <Icon name="search" />
@@ -73,20 +73,25 @@ export function Tabbar({devices, onNavigate, onOpenPanel}: TabbarProps) {
       <Dialog open={library} onClose={() => setLibrary(false)} closeOnBackdrop className="library-sheet"
         aria-label="Библиотека">
         <span className="library-grab" aria-hidden="true" />
-        <h2>Библиотека</h2>
+        {/* Логотип с названием открывает скрытые снимки, как в боковой панели. */}
+        <button type="button" className="library-home"
+          onClick={() => go(active === 'hidden' ? PRIMARY_NAV[0] : HIDDEN_NAV)}>
+          <img src="/favicon.svg" alt="" />
+          <span>HomeCloud<small>Библиотека</small></span>
+        </button>
         <div className="library-tiles">
           {LIBRARY.map(entry => (
             <button key={entry.id} type="button" className={`library-tile${active === entry.id ? ' active' : ''}`}
               onClick={() => go(entry)}>
               <Icon name={entry.icon} />
               <span>{entry.label}</span>
-              {entry.id === 'review' && (counts.review ?? 0) > 0 && (
-                <i className="nav-badge">{(counts.review ?? 0) > 99 ? '99+' : counts.review}</i>
+              {entry.id === 'analysis' && (counts.analysis ?? 0) > 0 && (
+                <i className="nav-badge">{(counts.analysis ?? 0) > 99 ? '99+' : counts.analysis}</i>
               )}
             </button>
           ))}
         </div>
-        <JobCard device={job} onOpen={() => go(navEntry('scan'))} />
+        <JobCard device={job} onOpen={() => go({...navEntry('analysis'), view: 'scan', lastTab: false})} />
         <h3>Альбомы</h3>
         <AlbumList onPick={go} limit={6} onAll={() => { setLibrary(false); onOpenPanel('albums'); }} />
         <h3>Источники</h3>

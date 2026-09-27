@@ -58,7 +58,7 @@ export function AppShell() {
 
   const navigate = useCallback((target: NavTarget) => {
     const state = useStore.getState();
-    const view = 'view' in target ? target.view : 'photos';
+    const view = !('view' in target) ? 'photos' : target.lastTab ? state.prefs.analysisTab : target.view;
     // Поиск людей и поиск по снимкам — разные вещи: запрос одного экрана не переносим.
     if (view !== state.view) setQuery('');
     if (target.filters) setFilters(target.filters);

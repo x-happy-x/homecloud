@@ -51,6 +51,7 @@ const TYPES = {
   '.jpg': 'image/jpeg',
   '.webp': 'image/webp',
   '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
 const CSP = "default-src 'self'; img-src 'self' data:; script-src 'self'; " +

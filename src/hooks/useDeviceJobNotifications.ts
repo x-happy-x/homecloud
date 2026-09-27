@@ -1,7 +1,8 @@
 import {useEffect, useRef} from 'react';
 import {formatNumber, plural, roughDuration} from '../lib/format';
 import {JOB_LABELS} from '../lib/jobs';
-import {perFileText, planJob, planMeta, type JobPlan, type PlannedPhase} from '../lib/scanPlan';
+import {perFileText, planJob, planMeta, resumePlan, type JobPlan, type PlannedPhase} from '../lib/scanPlan';
+import {resumeJob} from './useResumeJob';
 import {stopJob, type Device, type DeviceJob} from '../services/endpoints/backends';
 import {queryClient} from '../services/queryClient';
 import {qk} from '../services/queryKeys';
@@ -118,8 +119,18 @@ export function useDeviceJobNotifications(devices: Device[] | undefined): void {
         snapshot.files
           ? `${formatNumber(snapshot.files)} ${plural(snapshot.files, 'файл', 'файла', 'файлов')}` : '',
       ].filter(Boolean).join(' · ');
+      // Упало или прервалось — сразу предлагаем продолжить с того же места.
+      const plan = canEdit && device && status !== 'stopped' ? resumePlan(device.job) : null;
       finishJob(id, {
         title: `Сканирование · ${device ? device.name : snapshot.name}`,
+        action: plan && device ? {
+          label: `Продолжить с «${plan.from}»`,
+          run: () => {
+            resumeJob(device, plan)
+              .then(() => toast(`Продолжаю с этапа «${plan.from}»`, 'success'))
+              .catch((error: Error) => toast(error.message, 'error'));
+          },
+        } : undefined,
         level: status === 'error' ? 'error'
           : status === 'stopped' || status === 'interrupted' ? 'info' : 'success',
         message: status === 'error' && device?.job?.error

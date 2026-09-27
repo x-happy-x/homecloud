@@ -551,3 +551,8 @@
   .scan-top-actions { width: 100%; }
   .scan-top-actions .button { flex: 1; justify-content: center; }
 }
+
+/* Упавшее задание: продолжить с того же места. */
+.run-resume { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 10px; }
+.run-resume .button { gap: 6px; }
+.run-resume small { color: var(--muted); font-size: .76rem; }
