@@ -19,7 +19,7 @@ import {Icon} from '../../ui/Icon/Icon';
 import {Skeleton} from '../../ui/Skeleton/Skeleton';
 import {ToggleChip} from '../../ui/Chip/Chip';
 import {
-  explainReasons, featuredHighlight, highlightSections, isFeatureTile, KIND_FILTERS, KIND_LABELS,
+  cardLabel, explainReasons, featuredHighlight, highlightSections, isFeatureTile, KIND_FILTERS, KIND_LABELS,
   sortHighlights,
 } from './highlights';
 
@@ -247,7 +247,7 @@ const HighlightCard = memo(function HighlightCard({group, adultMode, size, onOpe
       {cover
         ? <img src={photoMediaUrl(cover, adultMode, size)} alt="" loading="lazy" decoding="async" />
         : <span className="hl-card-blank" aria-hidden="true"><Icon name="highlights" /></span>}
-      <span className="hl-card-kind">{group.kind === 'on-this-day' ? group.subtitle : KIND_LABELS[group.kind] ?? group.subtitle}</span>
+      <span className="hl-card-kind">{cardLabel(group)}</span>
       <span className="hl-card-text">
         <strong>{group.title}</strong>
         <span>{photosText(group.photo_count)}</span>

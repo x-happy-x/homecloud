@@ -1,6 +1,8 @@
 import {describe, expect, test} from 'vitest';
 import type {Highlight} from '../../services/endpoints/highlights';
-import {explainReasons, featuredHighlight, highlightSections, isFeatureTile, sortHighlights} from './highlights';
+import {
+  cardLabel, explainReasons, featuredHighlight, highlightSections, isFeatureTile, sortHighlights, stripHighlights,
+} from './highlights';
 
 const group = (key: string, kind: string, start: string, score = 0.5): Highlight => ({
   id: 1, key, kind, title: key, subtitle: '', period_start: start, period_end: start, score,
@@ -56,5 +58,37 @@ describe('главная подборка и ленты', () => {
   test('крупные плитки — только в подборке от пяти снимков', () => {
     expect([0, 1, 7, 14].map(index => isFeatureTile(index, 20))).toEqual([true, false, true, true]);
     expect(isFeatureTile(0, 4)).toBe(false);
+  });
+});
+
+describe('темы, места и поездки', () => {
+  const themed = [
+    group('month:2023-05', 'month', '2023-05-01T10:00:00'),
+    {...group('theme:cats:2023', 'theme', '2023-01-01T10:00:00'), photo_count: 20},
+    {...group('theme:cats', 'theme', '2019-01-01T10:00:00'), photo_count: 12},
+    {...group('theme:sea', 'theme', '2018-01-01T10:00:00'), photo_count: 30},
+    {...group('trip:20220802-100000', 'trip', '2022-08-02T10:00:00'), subtitle: 'Египет'},
+    group('event:x', 'event', '2023-04-01T10:00:00'),
+    {...group('place:1', 'place', '2017-01-01T10:00:00'), subtitle: 'Россия'},
+  ];
+
+  test('темы за всё время крупные вперёд, по годам — после', () => {
+    const sections = highlightSections(sortHighlights(themed));
+    expect(sections.map(section => section.kind)).toEqual(['theme', 'trip', 'event', 'place', 'month']);
+    expect(sections[0].groups.map(item => item.key)).toEqual(['theme:sea', 'theme:cats', 'theme:cats:2023']);
+  });
+
+  test('лента на главной — разные виды, без тем по годам', () => {
+    const strip = stripHighlights(sortHighlights(themed), 5);
+    expect(strip[0].kind).toBe('trip');
+    expect(strip.map(item => item.key)).toContain('theme:sea');
+    expect(strip.map(item => item.key)).not.toContain('theme:cats:2023');
+    expect(new Set(strip).size).toBe(strip.length);
+  });
+
+  test('у поездки и места над названием — страна', () => {
+    expect(cardLabel(themed[4])).toBe('Египет');
+    expect(cardLabel(themed[6])).toBe('Россия');
+    expect(cardLabel(themed[2])).toBe('Тема');
   });
 });

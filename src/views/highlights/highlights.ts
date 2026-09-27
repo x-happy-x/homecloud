@@ -4,13 +4,19 @@ export const KIND_LABELS: Record<string, string> = {
   month: 'Месяц',
   year: 'Год',
   event: 'Событие',
+  trip: 'Поездка',
+  theme: 'Тема',
+  place: 'Место',
   'on-this-day': 'В этот день',
 };
 
 export const KIND_FILTERS: Array<[string, string]> = [
   ['', 'Все'],
   ['on-this-day', 'В этот день'],
+  ['theme', 'Темы'],
+  ['trip', 'Поездки'],
   ['event', 'События'],
+  ['place', 'Места'],
   ['month', 'Месяцы'],
   ['year', 'Годы'],
 ];
@@ -34,6 +40,7 @@ export function sortHighlights(groups: Highlight[]): Highlight[] {
  */
 export function featuredHighlight(groups: Highlight[]): Highlight | null {
   return groups.find(group => group.kind === 'on-this-day')
+    ?? groups.find(group => group.kind === 'trip')
     ?? groups.find(group => group.kind === 'event')
     ?? groups[0]
     ?? null;
@@ -47,20 +54,68 @@ export interface HighlightSection {
 
 const SECTION_ORDER: Array<[string, string]> = [
   ['on-this-day', 'Ещё в этот день'],
+  ['theme', 'Темы'],
+  ['trip', 'Поездки'],
   ['event', 'События'],
+  ['place', 'Места'],
   ['month', 'Месяцы'],
   ['year', 'Годы'],
 ];
 
+/** Подборка темы за один год («Котики · 2023»), а не за всё время. */
+const isYearTheme = (group: Highlight) => group.kind === 'theme' && group.key.split(':').length > 2;
+
+/**
+ * Темы и места — не по дате, а по величине: сначала темы за всё время,
+ * крупные вперёд, потом те же темы по годам.
+ */
+function sizeOrder(groups: Highlight[]): Highlight[] {
+  return [...groups].sort((a, b) =>
+    Number(isYearTheme(a)) - Number(isYearTheme(b))
+    || b.photo_count - a.photo_count
+    || b.score - a.score);
+}
+
 /** Ленты общего вида: по одной на вид подборки, пустые не показываются. */
 export function highlightSections(groups: Highlight[]): HighlightSection[] {
   const known = new Set(SECTION_ORDER.map(([kind]) => kind));
-  const sections = SECTION_ORDER.map(([kind, title]) => ({
-    kind, title, groups: groups.filter(group => group.kind === kind),
-  }));
+  const sections = SECTION_ORDER.map(([kind, title]) => {
+    const members = groups.filter(group => group.kind === kind);
+    return {kind, title, groups: kind === 'theme' || kind === 'place' ? sizeOrder(members) : members};
+  });
   const other = groups.filter(group => !known.has(group.kind));
   if (other.length) sections.push({kind: '', title: 'Другие', groups: other});
   return sections.filter(section => section.groups.length > 0);
+}
+
+/**
+ * Лента на главной: главная подборка, дальше по одной свежей поездке и теме,
+ * затем остальное по порядку — чтобы в пяти карточках было разное, а не пять
+ * месяцев подряд.
+ */
+export function stripHighlights(groups: Highlight[], count: number): Highlight[] {
+  const featured = featuredHighlight(groups);
+  if (!featured) return [];
+  const picked: Highlight[] = [featured];
+  const add = (group: Highlight | undefined) => {
+    if (group && !picked.includes(group)) picked.push(group);
+  };
+  add(groups.find(group => group.kind === 'trip'));
+  add(sizeOrder(groups.filter(group => group.kind === 'theme' && !isYearTheme(group)))[0]);
+  add(groups.find(group => group.kind === 'event'));
+  for (const group of groups) {
+    if (picked.length >= count) break;
+    if (!isYearTheme(group)) add(group);
+  }
+  return picked.slice(0, count);
+}
+
+/** Подпись над названием карточки: у поездки и места — страна, у темы — «Тема». */
+export function cardLabel(group: Highlight): string {
+  if (group.kind === 'on-this-day' || group.kind === 'trip' || group.kind === 'place') {
+    return group.subtitle || KIND_LABELS[group.kind] || '';
+  }
+  return KIND_LABELS[group.kind] ?? group.subtitle;
 }
 
 /**
