@@ -27,6 +27,8 @@ export function SourceItem({source, devices, onEdit}: SourceItemProps) {
   const host = source.type === 'device' ? devices.find(item => item.id === source.device) : null;
   // Диск устройства хаб читает через ядро или по SSH; без них — только превью.
   const reachable = source.type !== 'device' || Boolean(host?.online || host?.ssh);
+  const health = source.health;
+  const checked = health ? new Date(health.checked_at * 1000).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'}) : '';
   const address = sourceAddress(source, devices);
 
   const remove = useMutation({
@@ -81,7 +83,16 @@ export function SourceItem({source, devices, onEdit}: SourceItemProps) {
         </div>
       )}
       <div className="infra-side">
-        {!reachable && <Pill tone="error">Устройство не в сети</Pill>}
+        {/* Проверка хаба главнее: он читает источник сам. Не проверяли — по ядру. */}
+        {health ? (health.online ? (
+          <span className="infra-health" title={`Проверено в ${checked}${health.ms ? ` · ответ за ${health.ms} мс` : ''}`}>
+            <Icon name="check" size={14} />Доступен · {checked}
+          </span>
+        ) : (
+          <span title={health.error}>
+            <Pill tone="error">Недоступен · {checked}</Pill>
+          </span>
+        )) : !reachable && <Pill tone="error">Устройство не в сети</Pill>}
         {canEdit && (
           <>
             <Button small onClick={() => onEdit(source)}>

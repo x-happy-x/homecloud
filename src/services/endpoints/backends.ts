@@ -336,6 +336,19 @@ export interface Source {
   /** Ключ корня источника, с него начинается выбор папок. */
   rootKey: string;
   stats: Partial<SourceStats>;
+  /** Доступность по последней проверке хаба (раз в пять минут); null — ещё не проверяли. */
+  health: SourceHealth | null;
+}
+
+export interface SourceHealth {
+  online: boolean;
+  error: string;
+  /** Когда проверено, секунды. */
+  checked_at: number;
+  /** Сколько заняла проверка, мс; нет — отметка по неудачному чтению. */
+  ms?: number;
+  /** Отметка не проверкой, а упавшим чтением файла. */
+  passive?: boolean;
 }
 
 export interface SourcesOverview {
@@ -362,6 +375,8 @@ export interface SourcePayload {
 }
 
 export const getSources = () => api<SourcesOverview>('/api/sources');
+/** Проверить доступность всех источников сейчас, не дожидаясь фоновой проверки. */
+export const checkSources = () => post<SourcesOverview>('/api/sources/health');
 export const saveSource = (payload: SourcePayload) => post('/api/sources/save', payload);
 /** purge — заодно удалить с хаба всё, что посчитано по этому источнику. */
 export const removeSource = (id: string, purge: boolean) => post('/api/sources/remove', {id, purge});

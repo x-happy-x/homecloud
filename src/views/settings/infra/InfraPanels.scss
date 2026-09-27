@@ -220,3 +220,8 @@
   .infra-drives { grid-column: 1 / -1; }
   .infra-side { grid-row: 3; grid-column: 1 / -1; }
 }
+
+.infra-head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Доступность источника по последней проверке хаба. */
+.infra-health { display: inline-flex; align-items: center; gap: 5px; color: var(--patina); font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.infra-health svg { fill: currentColor; }
