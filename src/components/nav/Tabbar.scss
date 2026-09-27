@@ -72,7 +72,22 @@ dialog.library-sheet {
 dialog.library-sheet[open] { display: grid; gap: 6px; align-content: start; animation: sheet-up .22s ease-out; }
 dialog.library-sheet::backdrop { background: rgb(0 0 0 / 55%); }
 .library-grab { justify-self: center; width: 40px; height: 4px; margin-bottom: 8px; border-radius: 4px; background: var(--line); }
-.library-sheet h2 { margin: 0 0 6px; font-size: 1.1rem; }
+.library-home {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  padding: 2px 8px 2px 2px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--ink);
+  font: 650 1.05rem/1.15 var(--sans);
+  text-align: left;
+}
+.library-home img { width: 36px; height: 36px; border-radius: 10px; }
+.library-home small { display: block; color: var(--muted); font-size: .72rem; font-weight: 450; }
 .library-sheet h3 {
   margin: 12px 0 2px;
   padding: 0 4px;

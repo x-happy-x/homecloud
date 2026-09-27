@@ -4,6 +4,8 @@ export const JOB_LABELS: Record<string, string> = {
   idle: 'Готово к запуску',
   inventory: 'Поиск фотографий',
   thumbs: 'Превью для галереи',
+  copies: 'Поиск копий',
+  propagate: 'Перенос на копии',
   faces: 'Распознавание лиц',
   visual: 'Визуальный индекс',
   ocr: 'Распознавание текста',

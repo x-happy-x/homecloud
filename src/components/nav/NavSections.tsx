@@ -32,7 +32,7 @@ export function useNavCounts(): Partial<Record<NavId, number>> {
     photos: stats.photos + (stats.videos ?? 0),
     video: stats.videos,
     people: stats.people,
-    review: stats.review,
+    analysis: stats.review,
     hidden: stats.hidden,
   };
 }

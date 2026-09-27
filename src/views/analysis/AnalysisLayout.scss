@@ -1,2 +1,5 @@
 /* Экран внутри «Анализа»: заголовок и вкладки над ним рисует AnalysisLayout. */
 .analysis-panel { animation: rise .22s ease; }
+
+/* Как «Настройки»: страница шире обычной, разделы — колонкой слева. */
+.analysis-view { max-width: 1400px; }

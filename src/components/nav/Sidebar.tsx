@@ -1,5 +1,5 @@
 import './Sidebar.scss';
-import {activeNav, CATALOG_NAV, PRIMARY_NAV, type NavEntry} from '../../app/navItems';
+import {activeNav, CATALOG_NAV, HIDDEN_NAV, PRIMARY_NAV, type NavEntry} from '../../app/navItems';
 import type {Device} from '../../services/endpoints/backends';
 import {useStore} from '../../store';
 import {Icon} from '../../ui/Icon/Icon';
@@ -29,18 +29,22 @@ export function Sidebar({devices, onNavigate, onOpenPanel}: SidebarProps) {
   const counts = useNavCounts();
   const active = activeNav(view, {kind, hidden});
   const job = activeJob(devices);
-  const scan = CATALOG_NAV.find(entry => entry.id === 'scan') as NavEntry;
+  const scan: NavEntry = {...CATALOG_NAV[0], view: 'scan', lastTab: false};
 
   const link = (entry: NavEntry) => (
     <NavLink key={entry.id} entry={entry} active={active === entry.id} count={counts[entry.id]}
-      badge={entry.id === 'review'} onPick={onNavigate} />
+      badge={entry.id === 'analysis'} onPick={onNavigate} />
   );
 
   return (
     <aside className={`sidebar${compact ? ' compact' : ''}`}>
       <div className="sidebar-brand">
-        <span className="brand-mark" aria-hidden="true"><Icon name="brand" /></span>
-        <span className="brand-text">HomeCloud<small>семейный архив</small></span>
+        {/* Логотип с названием открывает скрытые снимки: в навигации их нет. */}
+        <button type="button" className={`sidebar-home${active === 'hidden' ? ' secret' : ''}`}
+          title="HomeCloud" onClick={() => onNavigate(active === 'hidden' ? PRIMARY_NAV[0] : HIDDEN_NAV)}>
+          <img className="brand-logo" src="/favicon.svg" alt="" />
+          <span className="brand-text">HomeCloud<small>семейный архив</small></span>
+        </button>
         <button
           type="button"
           className="sidebar-toggle"

@@ -255,6 +255,8 @@ export const startJob = (coreId: string, payload: {
   video_features?: Record<string, boolean>;
   force?: boolean;
   visual_model?: string;
+  /** Продолжение упавшего задания: источник заново не обходить. */
+  resume?: boolean;
 }) => post(core(coreId, 'job/start'), payload);
 
 export const stopJob = (coreId: string) => post(core(coreId, 'job/stop'));

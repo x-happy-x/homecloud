@@ -1,5 +1,6 @@
 import {useMutation} from '@tanstack/react-query';
 import {planSteps} from '../../hooks/useDeviceJobNotifications';
+import {useResumeJob} from '../../hooks/useResumeJob';
 import {formatNumber, roughDuration, runMoment} from '../../lib/format';
 import {lastRun, planJob, planMeta} from '../../lib/scanPlan';
 import {insidePath, shortPath} from '../../lib/sources';
@@ -146,6 +147,8 @@ function RunningJob({device, plan}: {device: Device; plan: NonNullable<ReturnTyp
 
 function LastJob({device, last}: {device: Device; last: NonNullable<ReturnType<typeof lastRun>>}) {
   const job = device.job!;
+  const canEdit = useStore(state => state.session.canEdit);
+  const {plan, mutation} = useResumeJob(device);
   const bits = [
     last.duration ? `за ${roughDuration(last.duration)}` : '',
     last.finishedAt ? runMoment(last.finishedAt * 1000) : '',
@@ -160,6 +163,15 @@ function LastJob({device, last}: {device: Device; last: NonNullable<ReturnType<t
         </div>
       </div>
       {job.error && <p className="device-error">{job.error.split('\n').filter(Boolean).pop()}</p>}
+      {canEdit && plan && (
+        <div className="run-resume">
+          <Button variant="primary" small disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+            <Icon name="play" size={16} />
+            <span>Продолжить с этапа «{plan.from}»</span>
+          </Button>
+          <small>Готовое не пересчитывается: этапы пропустят уже обработанные файлы.</small>
+        </div>
+      )}
       <Sources roots={job.roots} paths={job.paths} />
       <Pipeline phases={last.phases} compact />
     </section>

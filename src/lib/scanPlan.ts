@@ -298,3 +298,48 @@ export function lastRun(job: DeviceJob | undefined): LastRun | null {
     finishedAt,
   };
 }
+
+/** Этапы описи: упало на них — продолжать без описи нельзя. */
+const INVENTORY_PHASES = new Set(['inventory', 'thumbs']);
+/** Статусы, после которых предлагаем продолжить. */
+const RESUMABLE = new Set(['error', 'interrupted', 'stopped']);
+
+export interface ResumePlan {
+  roots: string[];
+  paths: string[];
+  features: Record<string, boolean>;
+  video_features: Record<string, boolean>;
+  /** Не обходить источник заново: опись уже прошла. */
+  resume: boolean;
+  /** С какого этапа продолжим — подпись для кнопки. */
+  from: string;
+}
+
+/**
+ * Как продолжить упавшее или прерванное задание с того же места: те же папки
+ * и возможности без этапов, дошедших до конца. Этапы сами пропускают уже
+ * посчитанные файлы, так что начатый этап продолжится, а не начнётся заново.
+ */
+export function resumePlan(job: DeviceJob | undefined): ResumePlan | null {
+  if (!job || job.active || !RESUMABLE.has(job.status ?? '')) return null;
+  const roots = job.roots ?? [];
+  const paths = job.paths ?? [];
+  if (!roots.length && !paths.length) return null;
+  const last = lastRun(job);
+  if (!last) return null;
+  const stop = last.phases.find(phase => phase.state !== 'done');
+  if (!stop) return null;
+  const done = new Set(last.phases.filter(phase => phase.state === 'done').map(phase => phase.key));
+  const features: Record<string, boolean> = {};
+  const videoFeatures: Record<string, boolean> = {};
+  for (const [name, on] of Object.entries(job.features ?? {})) {
+    if (!on || name === 'inventory' || done.has(name)) continue;
+    const kind = job.kinds?.[name] ?? 'all';
+    features[name] = kind !== 'videos';
+    videoFeatures[name] = kind !== 'photos';
+  }
+  const resume = !INVENTORY_PHASES.has(stop.key);
+  // Осталась только служебная доделка (копии, перенос) — продолжать нечего.
+  if (resume && !Object.keys(features).length) return null;
+  return {roots, paths, features, video_features: videoFeatures, resume, from: stop.title};
+}

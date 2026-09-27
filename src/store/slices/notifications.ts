@@ -34,6 +34,8 @@ export interface NotifData {
   steps?: JobStep[];
   canStop?: boolean;
   onStop?: () => void;
+  /** Действие на карточке законченной задачи: «Продолжить» после ошибки. */
+  action?: {label: string; run: () => void};
 }
 
 export interface HistoryEntry {
@@ -66,7 +68,7 @@ export interface NotificationsSlice {
   };
   toast(message: string, level?: NotifLevel): void;
   setJob(id: string, data: Omit<NotifData, 'kind'>): void;
-  finishJob(id: string, result: {title: string; level: NotifLevel; message?: string}): void;
+  finishJob(id: string, result: {title: string; level: NotifLevel; message?: string; action?: NotifData['action']}): void;
   dismissFloating(id: string): void;
   /** Новый запуск задачи вправе снова показать карточку, закрытую в прошлый раз. */
   resetFloating(id: string): void;
@@ -134,7 +136,7 @@ export const createNotificationsSlice: StateCreator<Store, [], [], Notifications
 
       // Задача кончилась, но карточка в углу остаётся: пользователь закрывает
       // её сам, когда заметил результат — это его прямая просьба.
-      finishJob: (id, {title, level, message}) => {
+      finishJob: (id, {title, level, message, action}) => {
         const current = get().notifications;
         const jobs = new Map(current.jobs);
         jobs.delete(id);
@@ -142,7 +144,7 @@ export const createNotificationsSlice: StateCreator<Store, [], [], Notifications
         expanded.delete(id);
         patch({jobs, expanded});
         pushHistory({kind: 'job', title, level, message});
-        showFloating(id, {kind: 'job', title, sub: message, level, steps: [], canStop: false});
+        showFloating(id, {kind: 'job', title, sub: message, level, steps: [], canStop: false, action});
       },
 
       dismissFloating: id => {

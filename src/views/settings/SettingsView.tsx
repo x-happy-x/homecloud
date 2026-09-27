@@ -15,6 +15,7 @@ import {EmptyState} from '../../ui/EmptyState/EmptyState';
 import {Icon} from '../../ui/Icon/Icon';
 import {InlineSearch} from '../../ui/InlineSearch/InlineSearch';
 import {Switch} from '../../ui/Switch/Switch';
+import {SectionLayout, SectionNav} from '../../ui/SectionNav/SectionNav';
 import {ViewHeader} from '../../ui/ViewHeader/ViewHeader';
 import {SettingRow, type VisualModel} from './SettingRow';
 import {StorageCard} from './StorageCard';
@@ -160,33 +161,19 @@ export function SettingsView({excluded = 0, devices}: {excluded?: number; device
         </p>
       )}
 
-      <div className="settings-layout">
-        {!searching && (
-          <nav className="settings-nav" aria-label="Разделы настроек">
-            {SETTINGS_GROUPS.map(item => {
-              const count = changedIn(item.id);
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={item.id === group ? 'active' : ''}
-                  aria-current={item.id === group ? 'page' : undefined}
-                  onClick={() => setGroup(item.id)}
-                >
-                  <Icon name={item.icon} />
-                  <span>
-                    <strong>{item.title}</strong>
-                    <small>{item.note}</small>
-                  </span>
-                  {/* Сколько правок ждёт сохранения — чтобы не потерять их в другом разделе. */}
-                  {count > 0 && <b className="settings-nav-count">{count}</b>}
-                </button>
-              );
-            })}
-          </nav>
+      <SectionLayout
+        nav={!searching && (
+          <SectionNav
+            label="Разделы настроек"
+            active={group}
+            onSelect={setGroup}
+            // Сколько правок ждёт сохранения — чтобы не потерять их в другом разделе.
+            items={SETTINGS_GROUPS.map(item => ({
+              id: item.id, icon: item.icon, title: item.title, note: item.note, count: changedIn(item.id),
+            }))}
+          />
         )}
-
-        <div className="settings-content">
+      >
           {searching && (
             <div className="settings-found">
               <span>
@@ -218,8 +205,7 @@ export function SettingsView({excluded = 0, devices}: {excluded?: number; device
               </div>
             )}
           {!searching && group === 'data' && !sections.length && <StorageCard />}
-        </div>
-      </div>
+      </SectionLayout>
 
       <FolderPickerDialog
         open={Boolean(pickKey)}

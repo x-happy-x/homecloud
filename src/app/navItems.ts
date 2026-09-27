@@ -1,10 +1,10 @@
 import type {GalleryFilters} from '../store/slices/gallery';
 import type {IconName} from '../ui/Icon/Icon';
-import type {ViewName} from './routes';
+import {ANALYSIS_VIEWS, type ViewName} from './routes';
 
 export type NavId =
   | 'photos' | 'highlights' | 'people' | 'video'
-  | 'review' | 'scan' | 'duplicates' | 'training' | 'hidden' | 'settings';
+  | 'analysis' | 'hidden' | 'settings';
 
 export interface NavEntry {
   id: NavId;
@@ -18,6 +18,8 @@ export interface NavEntry {
    * отбор снимается, иначе из видео назад в фотографии не уйти.
    */
   filters?: Partial<GalleryFilters>;
+  /** Открывать раздел, с которого ушли в прошлый раз (у «Анализа»). */
+  lastTab?: boolean;
 }
 
 /** То, что смотрят: верх боковой панели. */
@@ -29,19 +31,24 @@ export const PRIMARY_NAV: NavEntry[] = [
 ];
 
 /**
- * Обслуживание каталога: раньше пряталось за одним пунктом «Анализ» с
- * вкладками, теперь каждый экран — свой пункт в группе «Каталог».
+ * Обслуживание каталога: «Анализ» — один пункт с разделами внутри, как у
+ * «Настроек» (проверка, сканирование, дубликаты, обучение). Пункт открывает
+ * раздел, с которого ушли в прошлый раз.
  */
 export const CATALOG_NAV: NavEntry[] = [
-  {id: 'review', view: 'review', icon: 'review', label: 'Проверка', short: 'Проверка'},
-  {id: 'scan', view: 'scan', icon: 'scan', label: 'Сканирование', short: 'Скан'},
-  {id: 'duplicates', view: 'duplicates', icon: 'duplicates', label: 'Дубликаты', short: 'Дубли'},
-  {id: 'training', view: 'training', icon: 'training', label: 'Обучение', short: 'Обучение'},
-  {id: 'hidden', view: 'photos', icon: 'hide', label: 'Скрытые', short: 'Скрытые', filters: {hidden: true, kind: ''}},
+  {id: 'analysis', view: 'review', icon: 'analysis', label: 'Анализ', short: 'Анализ', lastTab: true},
   {id: 'settings', view: 'settings', icon: 'settings', label: 'Настройки', short: 'Настройки'},
 ];
 
-export const NAV_ENTRIES: NavEntry[] = [...PRIMARY_NAV, ...CATALOG_NAV];
+/**
+ * Скрытые снимки в навигации не видны: их открывает щелчок по логотипу и
+ * названию сервиса.
+ */
+export const HIDDEN_NAV: NavEntry = {
+  id: 'hidden', view: 'photos', icon: 'hide', label: 'Скрытые', short: 'Скрытые', filters: {hidden: true, kind: ''},
+};
+
+export const NAV_ENTRIES: NavEntry[] = [...PRIMARY_NAV, ...CATALOG_NAV, HIDDEN_NAV];
 
 export const navEntry = (id: NavId): NavEntry => NAV_ENTRIES.find(entry => entry.id === id) ?? PRIMARY_NAV[0];
 
@@ -51,5 +58,6 @@ export function activeNav(view: ViewName, filters: Pick<GalleryFilters, 'kind' |
     if (filters.hidden) return 'hidden';
     return filters.kind === 'video' ? 'video' : 'photos';
   }
+  if ((ANALYSIS_VIEWS as readonly string[]).includes(view)) return 'analysis';
   return NAV_ENTRIES.find(entry => entry.view === view)?.id ?? 'photos';
 }
