@@ -66,3 +66,25 @@ export const getFaceSuggestions = () => api<FaceSuggestions>('/api/suggestions')
 export const getPersonCandidates = (key: string, hideAdult: boolean) =>
   api<{key: string; faces: CandidateFace[]}>(
     `/api/person-candidates${query({key, adult: hideAdult ? 'hide' : ''})}`);
+
+/** «Это не он»: лица больше не предлагаются этому человеку. */
+export const rejectCandidates = (key: string, faceIds: number[]) =>
+  post<{ok: boolean; rejected: number}>('/api/person-candidates/reject', {key, face_ids: faceIds});
+
+/** С кем человек чаще всего в одном снимке или ролике. */
+export interface Companion {
+  key: string;
+  title: string;
+  name: string | null;
+  kind: string;
+  bigfam_id: string | null;
+  /** Общих файлов. */
+  shared: number;
+  count: number;
+  files: number;
+  avatar: string;
+}
+
+export const getPersonCompanions = (key: string, hideAdult: boolean) =>
+  api<{key: string; files: number; companions: Companion[]}>(
+    `/api/person-companions${query({key, adult: hideAdult ? 'hide' : ''})}`);
