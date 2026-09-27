@@ -45,4 +45,5 @@ export const KEYS = {
   peopleNamedOnly: 'homecloud-people-named-only',
   showSource: 'homecloud-show-source',
   videoFit: 'homecloud-video-fit',
+  mediaFocus: 'homecloud-media-focus',
 } as const;

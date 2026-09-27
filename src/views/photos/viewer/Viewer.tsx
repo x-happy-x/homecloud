@@ -7,6 +7,8 @@ import {VIEW_TITLES} from '../../../app/routes';
 import {useDragScroll} from '../../../hooks/useDragScroll';
 import {useKeyboardShortcuts} from '../../../hooks/useKeyboardShortcuts';
 import {useKin} from '../../../hooks/useKin';
+import {checkedAt, isOffline, useSourceStatus} from '../../../hooks/useSourceStatus';
+import {checkSources} from '../../../services/endpoints/backends';
 import {formatNumber, photoDate, timecode} from '../../../lib/format';
 import {getGroup, getPhoto} from '../../../services/endpoints/catalog';
 import {clearAvatar, setAvatar} from '../../../services/endpoints/people';
@@ -252,6 +254,10 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
   });
 
   const photo = open ? list[index] : undefined;
+  // Источник файла по последней проверке хаба: недоступен — объясняем, а не
+  // «не удалось загрузить».
+  const sourceStatus = useSourceStatus(photo?.source);
+  const offline = isOffline(sourceStatus);
   const many = list.length > 1;
   const movie = photo?.kind === 'video';
   const imageUrl = photo ? photoMediaUrl(photo, adultMode, viewerSize()) : '';
@@ -461,6 +467,19 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
     node.currentTime = Number(seconds) || 0;
     node.play().catch(() => {});
   }, []);
+
+  // «Проверить сейчас» из ошибки: хаб заново проверяет источники, и если
+  // источник ожил — сразу пробуем загрузить файл ещё раз.
+  const recheck = useMutation({
+    mutationFn: checkSources,
+    onSuccess: async data => {
+      await queryClient.invalidateQueries({queryKey: qk.sourceHealth()});
+      const back = photo?.source && data.sources.find(item => item.id === photo.source)?.health?.online;
+      if (back) setRetry(value => value + 1);
+      toast(back ? 'Источник снова доступен' : 'Источник всё ещё недоступен');
+    },
+    onError: error => toast(error instanceof Error ? error.message : 'Проверка не удалась'),
+  });
 
   const search = useMutation({
     mutationFn: ({path, frame_jpeg}: SearchRequest) => uploadForSearch(frame_jpeg ? {path, frame_jpeg} : path),
@@ -680,13 +699,31 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
               {mediaStatus === 'loading' && <div className="viewer-loader" aria-label="Загрузка" />}
               {mediaStatus === 'error' && (
                 <div className="viewer-error viewer-ui">
-                  <span>{movie ? 'Не удалось загрузить ролик' : 'Не удалось загрузить файл'}</span>
-                  {movie && canEdit && (
-                    <small>Возможно, браузер не умеет этот формат — его можно перекодировать</small>
+                  {offline ? (
+                    <>
+                      <span>{movie ? 'Ролик сейчас недоступен' : 'Снимок сейчас недоступен'}</span>
+                      <small>
+                        Он лежит на «{sourceStatus!.name}», а тот не в сети
+                        {checkedAt(sourceStatus) ? ` (проверено ${checkedAt(sourceStatus)})` : ''}.
+                        Включите его — сервер заметит сам в течение пяти минут.
+                      </small>
+                    </>
+                  ) : (
+                    <>
+                      <span>{movie ? 'Не удалось загрузить ролик' : 'Не удалось загрузить файл'}</span>
+                      {movie && canEdit && (
+                        <small>Возможно, браузер не умеет этот формат — его можно перекодировать</small>
+                      )}
+                    </>
                   )}
                   <div className="viewer-error-actions">
                     <button type="button" onClick={() => setRetry(value => value + 1)}>Повторить</button>
-                    {movie && canEdit && (
+                    {offline && canEdit && (
+                      <button type="button" disabled={recheck.isPending} onClick={() => recheck.mutate()}>
+                        {recheck.isPending ? 'Проверяю…' : 'Проверить сейчас'}
+                      </button>
+                    )}
+                    {movie && canEdit && !offline && (
                       <button type="button" onClick={() => setVideoTools(true)}>Перекодировать…</button>
                     )}
                   </div>
@@ -832,6 +869,11 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
                   `${index + 1} из ${formatNumber(list.length)}`,
                 ].filter(Boolean).join(' · ')}
               </span>
+              {offline && !movie && (
+                <em className="viewer-offline" title={`«${sourceStatus!.name}» не в сети${checkedAt(sourceStatus) ? `, проверено ${checkedAt(sourceStatus)}` : ''}`}>
+                  <Icon name="hide" size={12} />Оригинал недоступен — показано превью
+                </em>
+              )}
             </div>
             <div className="viewer-tools">
               <div className="viewer-menu-wrap">

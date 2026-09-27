@@ -37,6 +37,7 @@ export function SourcesPanel({devices}: {devices: Device[]}) {
     mutationFn: checkSources,
     onSuccess: data => {
       queryClient.setQueryData(qk.sources(), data);
+      void queryClient.invalidateQueries({queryKey: qk.sourceHealth()});
       void queryClient.invalidateQueries({queryKey: qk.devices()});
       void queryClient.invalidateQueries({queryKey: ['cores-overview']});
       const down = data.sources.filter(item => item.health && !item.health.online).length;
