@@ -7,7 +7,7 @@ export interface VideoProbe {
   size: number;
   bitrate: number;
   video: {codec: string; profile: string; width: number; height: number; pix_fmt: string;
-    fps: number; rotation: number} | null;
+    fps: number; rotation: number; hdr?: boolean} | null;
   audio: Array<{codec: string; channels: number; language: string}>;
   subtitles: number;
   /** Сыграет ли браузер как есть. */

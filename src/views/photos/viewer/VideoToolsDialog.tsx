@@ -206,7 +206,8 @@ export function VideoToolsDialog({photo, currentTime, onClose, onReplaced}: Vide
                 <JobRow key={job.id} job={job} onUpdate={updateJob}
                   onReplaced={next => {
                     void queryClient.invalidateQueries();
-                    toast(`Ролик перекодирован: ${fileName(next.result?.new)}`);
+                    const name = fileName(next.result?.new);
+                    toast(name ? `Ролик перекодирован: ${name}` : 'Ролик перекодирован');
                     onReplaced();
                   }} />
               ))}
@@ -227,7 +228,7 @@ function ProbeCard({probe, loading, error}: {probe?: VideoProbe; loading: boolea
   const video = probe.video;
   const parts = [
     containerName(probe.container),
-    video ? `${video.codec.toUpperCase()} ${video.width}×${video.height}` : 'без видео',
+    video ? `${video.codec.toUpperCase()} ${video.width}×${video.height}${video.hdr ? ' HDR' : ''}` : 'без видео',
     video?.fps ? `${Math.round(video.fps)} к/с` : '',
     probe.audio.length ? probe.audio.map(track => track.codec.toUpperCase()).join(', ') : 'без звука',
     probe.duration ? timecode(probe.duration) : '',

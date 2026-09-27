@@ -25,7 +25,7 @@
   font-weight: 650;
 }
 .video-tools-badge svg { width: 15px; height: 15px; fill: currentColor; }
-.video-tools-probe.ok .video-tools-badge { background: var(--patina-soft); color: var(--patina-ink); }
+.video-tools-probe.ok .video-tools-badge { background: var(--patina-soft); color: var(--patina); }
 .video-tools-probe.warn .video-tools-badge { background: var(--rose-soft); color: var(--rose); }
 
 .video-tools-section { display: grid; gap: 10px; }
@@ -98,7 +98,7 @@
   font-size: .8rem;
 }
 .video-tools-chips button:hover { border-color: var(--patina); }
-.video-tools-chips button[aria-checked="true"] { border-color: var(--patina); background: var(--patina-soft); color: var(--patina-ink); }
+.video-tools-chips button[aria-checked="true"] { border-color: var(--patina); background: var(--patina); color: var(--patina-ink); font-weight: 650; }
 
 .video-tools-jobs { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .video-tools-job {
