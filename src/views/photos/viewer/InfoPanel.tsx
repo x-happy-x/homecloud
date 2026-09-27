@@ -14,6 +14,10 @@ import {folderCrumbs} from '../gallery';
 import {FolderContextMenu, type FolderMenuState} from '../FolderContextMenu';
 import {useFolderActions} from '../useFolderActions';
 import {FacesOverlay} from './FacesOverlay';
+import {
+  AdultMarkCard, CopiesList, InfoCard, PeopleMini, SameDaySlider, SimilarSlider, WhenCard,
+} from './InfoCards';
+import {Icon, type IconName} from '../../../ui/Icon/Icon';
 import {SpeechPanel} from './SpeechPanel';
 
 /** Метку роутера показываем, если её подтвердили или модель в ней уверена. */
@@ -26,39 +30,85 @@ export interface InfoPanelProps {
   photo: PhotoCard;
   onClose(): void;
   onSeek(seconds: number | null | undefined): void;
+  /** Открыть снимок из ленты «в тот же день» или «похожие». */
+  onOpen(photo: PhotoCard): void;
 }
 
-/** Шторка подробностей снимка. */
-export function InfoPanel({photo, onClose, onSeek}: InfoPanelProps) {
+type InfoTab = 'info' | 'people' | 'analysis';
+
+const TABS: Array<{id: InfoTab; label: string; icon: IconName}> = [
+  {id: 'info', label: 'Сведения', icon: 'info'},
+  {id: 'people', label: 'Люди', icon: 'people'},
+  {id: 'analysis', label: 'Анализ', icon: 'layers'},
+];
+
+/**
+ * Панель сведений снимка: вкладки «Сведения» (карточки: когда, кто, что на
+ * снимке, папка и альбомы, 18+, ленты «в тот же день» и «похожие», файл),
+ * «Люди» (разбор лиц) и «Анализ» (категории, 18+, речь, текст, метаданные).
+ */
+export function InfoPanel({photo, onClose, onSeek, onOpen}: InfoPanelProps) {
+  const [tab, setTab] = useState<InfoTab>('info');
   return (
-    <div className="viewer-sheet-body">
+    <div className="viewer-sheet-body info-panel">
+      <div className="info-tabs" role="tablist" aria-label="Сведения о снимке">
+        {TABS.map(item => (
+          <button key={item.id} type="button" role="tab" aria-selected={tab === item.id}
+            className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)}>
+            <Icon name={item.icon} size={16} />
+            {item.label}
+            {item.id === 'people' && photo.faces.length > 0 && <small>{photo.faces.length}</small>}
+          </button>
+        ))}
+      </div>
       {/*
-        Ключей здесь быть не должно. Соседние разделы появляются и пропадают
-        (роутер, 18+, речь), и единственный ключ среди соседей без ключей сбивал
-        React: он добавлял новый блок «Кто на фото», не убрав прежний, и при
-        листании они копились. Своё состояние панели сбрасывают сами, по смене
-        пути снимка.
+        Ключей у соседних разделов быть не должно: блоки появляются и
+        пропадают (роутер, 18+, речь), и единственный ключ среди соседей без
+        ключей сбивал React — блоки «Кто на фото» копились при листании. Своё
+        состояние разделы сбрасывают сами, по смене пути снимка.
       */}
-      <PlacesPanel photo={photo} onClose={onClose} />
-      <FacesOverlay photo={photo} onClose={onClose} onSeek={onSeek} />
-      <Description photo={photo} />
-      <RouterLabels photo={photo} />
-      <AdultAnalysis photo={photo} />
-      {photo.kind === 'video' && photo.speech_text && (
-        <SpeechPanel photo={photo} onSeek={onSeek} />
+      {tab === 'info' && (
+        <>
+          <WhenCard photo={photo} />
+          <PeopleMini photo={photo} onMore={() => setTab('people')} />
+          <InfoCard className="info-about"><Description photo={photo} /></InfoCard>
+          <InfoCard className="info-places"><PlacesPanel photo={photo} onClose={onClose} /></InfoCard>
+          <AdultMarkCard photo={photo} />
+          <SameDaySlider photo={photo} onOpen={onOpen} />
+          <SimilarSlider photo={photo} onOpen={onOpen} />
+          <InfoCard
+            title="Файл"
+            action={<span className="info-card-links"><CopyPathButton photo={photo} /></span>}
+          >
+            <FileInfo photo={photo} />
+            <CopiesList photo={photo} />
+          </InfoCard>
+        </>
       )}
-      {photo.ocr_text && (
-        <details className="lightbox-ocr">
-          <summary>Распознанный текст</summary>
-          <div>{photo.ocr_text}</div>
-        </details>
+      {tab === 'people' && (
+        <>
+          <FacesOverlay photo={photo} onClose={onClose} onSeek={onSeek} />
+          {photo.kind === 'video' && photo.face_count > 0 && <VideoPeopleHint photo={photo} />}
+          <div className="info-people-tools"><ExcludeFileFacesButton photo={photo} /></div>
+        </>
       )}
-      <h3>
-        Файл
-        <CopyPathButton photo={photo} />
-        <ExcludeFileFacesButton photo={photo} />
-      </h3>
-      <FileInfo photo={photo} />
+      {tab === 'analysis' && (
+        <>
+          <RouterLabels photo={photo} />
+          <AdultAnalysis photo={photo} />
+          {photo.kind === 'video' && photo.speech_text && (
+            <SpeechPanel photo={photo} onSeek={onSeek} />
+          )}
+          {photo.ocr_text && (
+            <details className="lightbox-ocr" open>
+              <summary>Распознанный текст</summary>
+              <div>{photo.ocr_text}</div>
+            </details>
+          )}
+          <h3>Метаданные файла</h3>
+          <FileMetadata photo={photo} />
+        </>
+      )}
     </div>
   );
 }
@@ -351,8 +401,6 @@ function FileInfo({photo}: {photo: PhotoCard}) {
           <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
         ))}
       </dl>
-      {movie && photo.face_count > 0 && <VideoPeopleHint photo={photo} />}
-      <FileMetadata photo={photo} />
     </>
   );
 }

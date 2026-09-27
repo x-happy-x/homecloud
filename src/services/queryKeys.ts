@@ -21,6 +21,8 @@ export const qk = {
   speech: (path: string) => ['speech', path] as const,
   /** Метаданные файла не меняются от правок каталога — отдельный ключ, не под «photos». */
   photoMetadata: (path: string) => ['photo-metadata', path] as const,
+  similarPhotos: (path: string) => ['similar-photos', path] as const,
+  sameDay: (day: string, hideAdult: boolean) => ['photos', 'same-day', day, {hideAdult}] as const,
   videoPeopleHint: (path: string) => ['video-people', path] as const,
   /** Что внутри ролика (ffprobe на ядре) и задание обработки видео. */
   videoProbe: (path: string) => ['video-probe', path] as const,
