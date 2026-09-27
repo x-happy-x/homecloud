@@ -103,6 +103,15 @@ export interface GroupFace {
   /** id верхнего лица стопки похожих кадров; у одиночного лица — его собственный. */
   stack?: number;
   stack_size?: number;
+  /** Время съёмки файла, секунды; нет — неизвестно. */
+  taken?: number | null;
+  /** Рамка лица [left, top, right, bottom] в пикселях исходника. */
+  box?: [number, number, number, number] | null;
+  /** Превью всего файла (как у снимка галереи) и его рейтинг 18+ — для вида «Медиа». */
+  preview?: string;
+  adult_rating?: AdultRating | null;
+  /** Длина ролика, секунды. */
+  duration?: number | null;
 }
 
 /** Карточка группы приходит плоско: сама группа и её лица в одном объекте. */

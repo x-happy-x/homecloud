@@ -35,6 +35,8 @@ export const qk = {
   faceSuggestions: () => ['face-suggestions'] as const,
   /** Под «group»: любая правка имён сбрасывает их вместе с карточками групп. */
   personCandidates: (key: string, hideAdult: boolean) => ['group', 'candidates', key, {hideAdult}] as const,
+  /** Под «group», чтобы сбрасывался вместе с карточками после правок лиц. */
+  personCompanions: (key: string, hideAdult: boolean) => ['group', 'companions', key, {hideAdult}] as const,
   compare: (a: string, b: string) => ['compare', a, b] as const,
 
   /** Ядра — компьютеры, которые считают. */
