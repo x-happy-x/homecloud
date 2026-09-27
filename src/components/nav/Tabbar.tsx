@@ -13,7 +13,7 @@ export interface TabbarProps {
   onOpenPanel(tab: 'albums' | 'folders'): void;
 }
 
-/** Вкладки телефона: три раздела, «Библиотека» шторкой и поиск. */
+/** Вкладки телефона: три раздела и «Библиотека» шторкой; поиск — полем вверху экрана. */
 const TABS = ['photos', 'highlights', 'people'] as const;
 
 /** Что лежит в «Библиотеке»: видео и всё обслуживание каталога. */
@@ -38,14 +38,6 @@ export function Tabbar({devices, onNavigate, onOpenPanel}: TabbarProps) {
     onNavigate(target);
   };
 
-  const search = () => {
-    setLibrary(false);
-    if (useStore.getState().view !== 'photos' && useStore.getState().view !== 'people') onNavigate(PRIMARY_NAV[0]);
-    window.scrollTo({top: 0, behavior: 'smooth'});
-    // Поле появляется после смены экрана — фокус на следующем кадре.
-    requestAnimationFrame(() => document.getElementById('searchInput')?.focus());
-  };
-
   const tab = (entry: NavEntry) => (
     <button key={entry.id} type="button" className={`tab${active === entry.id && !library ? ' active' : ''}`}
       aria-current={active === entry.id ? 'page' : undefined} onClick={() => go(entry)}>
@@ -63,10 +55,6 @@ export function Tabbar({devices, onNavigate, onOpenPanel}: TabbarProps) {
           <Icon name="library" />
           <span>Библиотека</span>
           {(counts.analysis ?? 0) > 0 && <i className="tab-pip" aria-hidden="true" />}
-        </button>
-        <button type="button" className="tab" onClick={search}>
-          <Icon name="search" />
-          <span>Поиск</span>
         </button>
       </nav>
 

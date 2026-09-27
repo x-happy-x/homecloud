@@ -2,19 +2,16 @@ import {useMemo} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import './MemoriesStrip.scss';
 import {formatNumber, plural} from '../../lib/format';
-import {getHighlights, type Highlight} from '../../services/endpoints/highlights';
+import {getHighlights} from '../../services/endpoints/highlights';
 import {density, photoMediaUrl} from '../../services/media';
 import {qk} from '../../services/queryKeys';
 import {useStore} from '../../store';
 import {Icon} from '../../ui/Icon/Icon';
-import {featuredHighlight, KIND_LABELS, sortHighlights} from '../highlights/highlights';
+import {cardLabel, sortHighlights, stripHighlights} from '../highlights/highlights';
 
 /** Сколько карточек в ленте, считая главную. */
 const SHOWN = 5;
 
-/** Подпись над названием: «2019» у «в этот день», иначе вид подборки. */
-const kindText = (group: Highlight) =>
-  (group.kind === 'on-this-day' ? group.subtitle || KIND_LABELS[group.kind] : KIND_LABELS[group.kind] ?? group.subtitle);
 
 /**
  * Лента воспоминаний над галереей: «в этот день» или свежее событие крупно,
@@ -32,12 +29,7 @@ export function MemoriesStrip() {
     staleTime: 5 * 60_000,
   });
 
-  const cards = useMemo(() => {
-    const groups = sortHighlights(list.data?.groups ?? []);
-    const featured = featuredHighlight(groups);
-    if (!featured) return [];
-    return [featured, ...groups.filter(group => group !== featured)].slice(0, SHOWN);
-  }, [list.data]);
+  const cards = useMemo(() => stripHighlights(sortHighlights(list.data?.groups ?? []), SHOWN), [list.data]);
   const total = list.data?.groups.length ?? 0;
   if (!cards.length) return null;
 
@@ -65,7 +57,7 @@ export function MemoriesStrip() {
                   loading="lazy" decoding="async" />
               : <span className="memory-blank" aria-hidden="true"><Icon name="highlights" /></span>}
             <span className="memory-text">
-              <small>{kindText(group)}</small>
+              <small>{cardLabel(group)}</small>
               <strong>{group.title}</strong>
               <span>
                 {formatNumber(group.photo_count)} {plural(group.photo_count, 'снимок', 'снимка', 'снимков')}
