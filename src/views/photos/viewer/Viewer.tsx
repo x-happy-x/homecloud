@@ -26,6 +26,7 @@ import {bigfamPersonUrl} from '../gallery';
 import {useGallery} from '../useGallery';
 import {usePhotoActions} from '../usePhotoActions';
 import {InfoPanel} from './InfoPanel';
+import {VideoToolsDialog} from './VideoToolsDialog';
 import {
   clampTransform,
   isCurrentMediaEvent,
@@ -245,6 +246,7 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
   const [menuOpen, setMenuOpen] = useState(false);
   const [controlsHeld, setControlsHeld] = useState(false);
   const [flash, setFlash] = useState<Flash | null>(null);
+  const [videoTools, setVideoTools] = useState(false);
   const [player, setPlayer] = useState<PlayerState>({
     playing: false, duration: 0, current: 0, volume: 1, muted: false, buffering: false, seeking: false, buffered: 0, rate: 1,
   });
@@ -450,7 +452,8 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
       fullscreen();
     },
   }), [movie, go, seekBy, togglePlay, toggleMuted, fullscreen, flashIcon]);
-  useKeyboardShortcuts(shortcuts, open && (many || Boolean(movie)));
+  // Пока открыто окно обработки видео, клавиши плеера молчат: там поля ввода и кнопки.
+  useKeyboardShortcuts(shortcuts, open && !videoTools && (many || Boolean(movie)));
 
   const seek = useCallback((seconds: number | null | undefined) => {
     const node = video.current;
@@ -676,9 +679,17 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
             <div className="viewer-media-shell">
               {mediaStatus === 'loading' && <div className="viewer-loader" aria-label="Загрузка" />}
               {mediaStatus === 'error' && (
-                <div className="viewer-error">
-                  <span>Не удалось загрузить файл</span>
-                  <button type="button" onClick={() => setRetry(value => value + 1)}>Повторить</button>
+                <div className="viewer-error viewer-ui">
+                  <span>{movie ? 'Не удалось загрузить ролик' : 'Не удалось загрузить файл'}</span>
+                  {movie && canEdit && (
+                    <small>Возможно, браузер не умеет этот формат — его можно перекодировать</small>
+                  )}
+                  <div className="viewer-error-actions">
+                    <button type="button" onClick={() => setRetry(value => value + 1)}>Повторить</button>
+                    {movie && canEdit && (
+                      <button type="button" onClick={() => setVideoTools(true)}>Перекодировать…</button>
+                    )}
+                  </div>
                 </div>
               )}
               {movie
@@ -848,6 +859,11 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
                     >
                       <Icon name="searchImage" />Поиск в Яндексе
                     </button>
+                    {movie && canEdit && (
+                      <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setVideoTools(true); }}>
+                        <Icon name="video" />Обработка видео
+                      </button>
+                    )}
                     {avatarVisible && (
                       <button type="button" role="menuitem" aria-pressed={pinned} disabled={avatar.isPending}
                         onClick={() => { setMenuOpen(false); avatar.mutate(pinned); }}>
@@ -922,6 +938,18 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
             <aside className="viewer-sheet viewer-ui">
               <InfoPanel photo={photo} onClose={onClose} onSeek={seek} />
             </aside>
+          )}
+
+          {movie && canEdit && (
+            <VideoToolsDialog
+              photo={videoTools ? photo : null}
+              currentTime={() => video.current?.currentTime ?? 0}
+              onClose={() => setVideoTools(false)}
+              onReplaced={() => {
+                setVideoTools(false);
+                onClose();
+              }}
+            />
           )}
         </div>
       )}

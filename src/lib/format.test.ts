@@ -1,7 +1,7 @@
 import {describe, expect, test} from 'vitest';
 import {
   elapsedText, fileSize, initials, lifeYears, megabytes, percent, plural,
-  roughDuration, shortName, timecode, yearOf,
+  parseTimecode, roughDuration, shortName, timecode, yearOf,
 } from './format';
 
 describe('plural', () => {
@@ -69,6 +69,16 @@ describe('длительности', () => {
     expect(roughDuration(7200)).toBe('2 ч');
     expect(roughDuration(null)).toBe('');
   });
+  test('parseTimecode — обратно из метки', () => {
+    expect(parseTimecode('4:07')).toBe(247);
+    expect(parseTimecode('1:02:33')).toBe(3753);
+    expect(parseTimecode(' 90 ')).toBe(90);
+    expect(parseTimecode('1:02,5')).toBe(62.5);
+    expect(parseTimecode('')).toBeNull();
+    expect(parseTimecode('1::2')).toBeNull();
+    expect(parseTimecode('abc')).toBeNull();
+  });
+
   test('timecode — метка в ролике', () => {
     expect(timecode(247)).toBe('4:07');
     expect(timecode(3753)).toBe('1:02:33');

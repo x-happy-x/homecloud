@@ -22,6 +22,9 @@ export const qk = {
   /** Метаданные файла не меняются от правок каталога — отдельный ключ, не под «photos». */
   photoMetadata: (path: string) => ['photo-metadata', path] as const,
   videoPeopleHint: (path: string) => ['video-people', path] as const,
+  /** Что внутри ролика (ffprobe на ядре) и задание обработки видео. */
+  videoProbe: (path: string) => ['video-probe', path] as const,
+  videoJob: (id: string) => ['video-job', id] as const,
 
   folders: (path: string) => ['folders', path] as const,
   albums: () => ['albums'] as const,

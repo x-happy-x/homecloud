@@ -49,6 +49,15 @@ export function timecode(seconds: number | null | undefined): string {
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}:${ss}`;
 }
 
+/** Обратное к timecode: «1:23», «1:02:03» или просто секунды. Не разобралось — null. */
+export function parseTimecode(value: string): number | null {
+  const parts = value.trim().replace(',', '.').split(':');
+  if (parts.length > 3 || parts.some(part => part.trim() === '' || !Number.isFinite(Number(part)))) {
+    return null;
+  }
+  return parts.reduce((total, part) => total * 60 + Number(part), 0);
+}
+
 /**
  * Размер одного файла с подходящей единицей: обычное фото не должно
  * показываться как «0.1 МБ».

@@ -832,6 +832,8 @@
   color: #fff;
   backdrop-filter: blur(10px);
 }
+.viewer-error small { max-width: 280px; color: rgb(255 255 255 / 72%); font-size: .78rem; text-align: center; }
+.viewer-error-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .viewer-error button {
   min-height: 38px;
   padding: 0 14px;
