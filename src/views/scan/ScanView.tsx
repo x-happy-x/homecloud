@@ -1,4 +1,5 @@
 import {useQuery} from '@tanstack/react-query';
+import {useState} from 'react';
 import './ScanView.scss';
 import {formatNumber} from '../../lib/format';
 import {pickCore} from '../../lib/sources';
@@ -12,6 +13,8 @@ import {CoreActivity} from './CoreActivity';
 import {ParallelStatus} from './ParallelStatus';
 import {RecentRuns} from './RecentRuns';
 import {ScanJobDialog} from './ScanJobDialog';
+import {ScanMap} from './ScanMap';
+import {defaultNode, isWorking, type MapNode} from './mapModel';
 import {SourceSummary} from './SourceSummary';
 
 export interface ScanViewProps {
@@ -20,9 +23,10 @@ export interface ScanViewProps {
 }
 
 /**
- * «Сканирование» — только работа: что считается сейчас, что есть по
- * источникам, недавние задания и запуск нового. Подключение источников и
- * ядер, установка и модели — в «Настройки → Источники / Ядра».
+ * «Сканирование» — только работа: схема источников, хаба и ядер с идущими
+ * заданиями, подробности выбранного на ней, недавние задания и запуск нового.
+ * Подключение источников и ядер, установка и модели — в «Настройки →
+ * Источники / Ядра».
  */
 export function ScanView({devices}: ScanViewProps) {
   const canEdit = useStore(state => state.session.canEdit);
@@ -33,7 +37,12 @@ export function ScanView({devices}: ScanViewProps) {
 
   const sources = useQuery({queryKey: qk.sources(), queryFn: getSources, refetchInterval: 15_000});
   const sourceList = sources.data?.sources ?? [];
-  const busy = list.filter(device => device.job?.active).length;
+  const busy = list.filter(isWorking).length;
+  const [picked, setPicked] = useState<MapNode | null>(null);
+  // Выбранный узел пропал (ядро или источник удалили) — показываем то, что считает.
+  const exists = (node: MapNode | null): node is MapNode => Boolean(node && (node.kind === 'hub'
+    || (node.kind === 'core' ? list.some(item => item.id === node.id) : sourceList.some(item => item.id === node.id))));
+  const selected = exists(picked) ? picked : defaultNode(list);
 
   const scanWith = (device: Device | null, source: Source | null, roots?: string[]) => {
     if (!device) {
@@ -75,35 +84,23 @@ export function ScanView({devices}: ScanViewProps) {
 
       <section className="scan-block" aria-labelledby="scan-now">
         <div className="scan-block-head">
-          <h3 id="scan-now">Сейчас</h3>
+          <h3 id="scan-now">Схема</h3>
           <span>{busy ? `считают ${formatNumber(busy)} из ${formatNumber(list.length)}` : 'ядра свободны'}</span>
         </div>
         <ParallelStatus />
-        {list.length > 0
+        {list.length > 0 || sourceList.length > 0
           ? (
-            <div className="activity-grid">
-              {list.map(device => (
-                <CoreActivity key={device.id} device={device} onScan={item => scanWith(item, null)} />
-              ))}
-            </div>
+            <>
+              <ScanMap sources={sourceList} devices={list} selected={selected} onSelect={setPicked} />
+              <div className="map-detail">
+                <Detail node={selected} devices={list} sources={sourceList} onScanCore={item => scanWith(item, null)}
+                  onScanSource={item => scanWith(pickCore(list, item), item)} />
+              </div>
+            </>
           )
-          : devices && (
-            <EmptyState mark="⌁" title="Нет ядер">
-              Подключите компьютер с видеокартой в «Настройки → Ядра».
-            </EmptyState>
-          )}
-      </section>
-
-      <section className="scan-block" aria-labelledby="scan-sources">
-        <div className="scan-block-head">
-          <h3 id="scan-sources">Источники</h3>
-          <span>что уже посчитано по каждому</span>
-        </div>
-        {sourceList.length > 0
-          ? <SourceSummary sources={sourceList} devices={list} onScan={item => scanWith(pickCore(list, item), item)} />
-          : sources.data && (
-            <EmptyState mark="⌁" title="Нет источников">
-              Добавьте диск компьютера или сетевую папку в «Настройки → Источники».
+          : devices && sources.data && (
+            <EmptyState mark="⌁" title="Нет ядер и источников">
+              Подключите компьютер с видеокартой в «Настройки → Ядра» и добавьте источник в «Настройки → Источники».
             </EmptyState>
           )}
       </section>
@@ -119,4 +116,18 @@ export function ScanView({devices}: ScanViewProps) {
       <ScanJobDialog devices={devices} sources={sourceList} />
     </section>
   );
+}
+
+/** Под схемой — подробности выбранного узла: ход задания ядра или сводка источников. */
+function Detail({node, devices, sources, onScanCore, onScanSource}: {
+  node: MapNode; devices: Device[]; sources: Source[];
+  onScanCore(device: Device): void; onScanSource(source: Source): void;
+}) {
+  if (node.kind === 'core') {
+    const device = devices.find(item => item.id === node.id);
+    return device ? <CoreActivity device={device} onScan={onScanCore} /> : null;
+  }
+  const shown = node.kind === 'source' ? sources.filter(item => item.id === node.id) : sources;
+  if (!shown.length) return null;
+  return <SourceSummary sources={shown} devices={devices} onScan={onScanSource} />;
 }
