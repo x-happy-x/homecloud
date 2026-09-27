@@ -53,6 +53,9 @@ export const ICON_PATHS = {
   album: 'M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM6 4h5v8l-2.5-1.5L6 12V4Z',
   library: 'M22 16V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2Zm-11-4 2.03 2.71L16 11l4 5H8l3-4ZM2 6v14a2 2 0 0 0 2 2h14v-2H4V6H2Z',
   sidebar: 'M3 18h13v-2H3v2Zm0-5h10v-2H3v2Zm0-7v2h13V6H3Zm18 9.59L17.42 12 21 8.41 19.59 7l-5 5 5 5L21 15.59Z',
+  download: 'M5 20h14v-2H5v2ZM19 9h-4V3H9v6H5l7 7 7-7Z',
+  panel: 'M16 20H2V4h14v16Zm2-12h4V4h-4v4Zm0 12h4v-4h-4v4Zm0-6h4v-4h-4v4Z',
+  minus: 'M19 13H5v-2h14v2Z',
 } as const;
 
 // Ступени размера плитки рисуются не контуром, а сеткой прямоугольников:

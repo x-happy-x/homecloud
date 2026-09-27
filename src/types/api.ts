@@ -258,6 +258,10 @@ export interface PhotoCard extends PhotoSummary {
   albums: AlbumStamp[];
   speech_text: string;
   hidden_owner: string;
+  /** Отметка 18+ человеком: safe — «не 18+», explicit — «18+»; нет — оценка автоматическая. */
+  adult_manual?: 'safe' | 'explicit' | null;
+  /** Копии того же файла в других местах — только в карточке одного снимка. */
+  copies?: Array<{path: string; source: string; source_name: string}>;
 }
 
 export interface PhotosPage {

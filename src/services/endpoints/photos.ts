@@ -1,4 +1,5 @@
-import {post} from '../api';
+import {api, post} from '../api';
+import type {PhotoCard} from '../../types/api';
 
 /** Пакетные действия со снимками: что получилось и что нет, по путям. */
 export interface BatchErrors {
@@ -52,3 +53,12 @@ export interface SearchUploadPayload {
 export const uploadForSearch = (payload: string | SearchUploadPayload) =>
   post<{url: string}>('/api/photos/search-upload',
     typeof payload === 'string' ? {path: payload} : payload);
+
+/** Ручная отметка 18+ для снимков и всех их копий; null — вернуть автоматическую оценку. */
+export const markAdult = (paths: string[], rating: 'safe' | 'explicit' | null) =>
+  post<{changed: number}>('/api/photos/adult', {paths, rating});
+
+/** Похожие снимки по визуальному индексу; ready=false — у снимка ещё нет вектора. */
+export const getSimilarPhotos = (path: string, limit = 24) =>
+  api<{photos: PhotoCard[]; ready: boolean}>(
+    `/api/photos/similar?path=${encodeURIComponent(path)}&limit=${limit}`);

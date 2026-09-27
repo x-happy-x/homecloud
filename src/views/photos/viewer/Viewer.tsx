@@ -1,8 +1,9 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {Fragment, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {CSSProperties, PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent} from 'react';
 import {createPortal} from 'react-dom';
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query';
 import './Viewer.scss';
+import './ViewerInfo.scss';
 import {VIEW_TITLES} from '../../../app/routes';
 import {useDragScroll} from '../../../hooks/useDragScroll';
 import {useKeyboardShortcuts} from '../../../hooks/useKeyboardShortcuts';
@@ -28,6 +29,7 @@ import {videoStart} from '../../people/stacks';
 import {bigfamPersonUrl} from '../gallery';
 import {useGallery} from '../useGallery';
 import {usePhotoActions} from '../usePhotoActions';
+import {dayKey} from './InfoCards';
 import {InfoPanel} from './InfoPanel';
 import {VideoToolsDialog} from './VideoToolsDialog';
 import {
@@ -457,14 +459,18 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
       event.preventDefault();
       toggleMuted(true);
     },
+    i: (event: KeyboardEvent) => {
+      event.preventDefault();
+      toggleInfo();
+    },
     f: (event: KeyboardEvent) => {
       if (!movie) return;
       event.preventDefault();
       fullscreen();
     },
-  }), [movie, go, seekBy, togglePlay, toggleMuted, fullscreen, flashIcon]);
+  }), [movie, go, seekBy, togglePlay, toggleMuted, fullscreen, flashIcon, toggleInfo]);
   // Пока открыто окно обработки видео, клавиши плеера молчат: там поля ввода и кнопки.
-  useKeyboardShortcuts(shortcuts, open && !videoTools && (many || Boolean(movie)));
+  useKeyboardShortcuts(shortcuts, open && !videoTools);
 
   const seek = useCallback((seconds: number | null | undefined) => {
     const node = video.current;
@@ -637,6 +643,24 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
       : zoomTransform(current, 2, origin, stageBounds(stage.current)));
   };
 
+  // Снимок из лент панели: свой — листаем к нему, чужой — открываем отдельно.
+  const openRelated = useCallback((item: PhotoCard) => {
+    const at = list.findIndex(entry => entry.path === item.path);
+    if (at >= 0) {
+      onGo(at);
+      return;
+    }
+    const state = useStore.getState();
+    if (faces) state.closeFaces();
+    state.setRoutePhoto(item.path);
+  }, [list, onGo, faces]);
+
+  const zoomBy = (factor: number) => {
+    const rect = stage.current?.getBoundingClientRect();
+    const origin = {x: (rect?.width ?? 0) / 2, y: (rect?.height ?? 0) / 2};
+    setTransform(current => zoomTransform(current, current.scale * factor, origin, stageBounds(stage.current)));
+  };
+
   const markReady = (token: string) => {
     if (isCurrentMediaEvent(token, mediaToken.current)) setMediaStatus('ready');
   };
@@ -655,12 +679,15 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
         chromeHidden ? 'bare' : '',
         info ? 'with-info' : '',
         movie ? 'is-video' : '',
+        many ? 'has-strip' : '',
         transform.scale > 1.02 ? 'is-zoomed' : '',
         movie && videoFit !== 'contain' ? `fit-${videoFit}` : '',
       ].filter(Boolean).join(' ')}
     >
       {photo && (
         <div ref={frame} className="viewer-frame">
+          {/* Фон — тот же снимок, сильно размытый: без чёрной рамки вокруг кадра. */}
+          <img className="viewer-backdrop" src={photoMediaUrl(photo, adultMode, 64)} alt="" aria-hidden="true" />
           <div
             ref={stage}
             className="viewer-stage"
@@ -859,6 +886,15 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
                 </button>
               </>
             )}
+            {!movie && mediaStatus === 'ready' && (
+              <div className="viewer-zoom viewer-ui" role="group" aria-label="Масштаб">
+                <button type="button" aria-label="Уменьшить" onClick={() => zoomBy(1 / 1.4)}><Icon name="minus" /></button>
+                <span>{Math.round(transform.scale * 100)}%</span>
+                <button type="button" aria-label="Увеличить" onClick={() => zoomBy(1.4)}><Icon name="plus" /></button>
+                <button type="button" aria-label="Вписать" disabled={transform.scale <= 1.02}
+                  onClick={() => setTransform(resetTransform())}><Icon name="fullscreenExit" /></button>
+              </div>
+            )}
           </div>
 
           <header className="viewer-bar top viewer-ui">
@@ -871,7 +907,7 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
                 {[
                   photo.filename,
                   movie && (player.duration || photo.duration) ? `видео ${timecode(player.duration || photo.duration)}` : '',
-                  `${index + 1} из ${formatNumber(list.length)}`,
+                  photo.source_name,
                 ].filter(Boolean).join(' · ')}
               </span>
               {offline && !movie && (
@@ -881,6 +917,15 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
               )}
             </div>
             <div className="viewer-tools">
+              {many && <span className="viewer-counter">{formatNumber(index + 1)} из {formatNumber(list.length)}</span>}
+              <a className="viewer-icon hide-phone" href={movie ? photo.video : photo.preview} download={photo.filename}
+                aria-label="Скачать" title="Скачать">
+                <Icon name="download" />
+              </a>
+              <button className={`viewer-icon${info ? ' on' : ''}`} type="button" aria-label="Сведения" title="Сведения (i)"
+                aria-pressed={info} onClick={() => toggleInfo()}>
+                <Icon name="panel" />
+              </button>
               <div className="viewer-menu-wrap">
                 <button className="viewer-icon" type="button" aria-label="Действия" aria-expanded={menuOpen}
                   onClick={() => setMenuOpen(opened => !opened)}>
@@ -981,9 +1026,35 @@ function ViewerDialog({list, index, open, faces, startAt, closeThroughHistory, o
             </footer>
           )}
 
+          {/* Телефон: крупные действия внизу, как в галерее телефона. */}
+          {!info && (
+            <nav className="viewer-actions viewer-ui" aria-label="Действия со снимком">
+              <a href={movie ? photo.video : photo.preview} download={photo.filename}>
+                <Icon name="download" /><span>Скачать</span>
+              </a>
+              {canEdit && (
+                <button type="button" onClick={() => useStore.getState().openAlbumPick({kind: 'photos', paths: [photo.path]})}>
+                  <Icon name="album" /><span>В альбом</span>
+                </button>
+              )}
+              <button type="button" onClick={() => toggleInfo(true)}>
+                <Icon name="info" /><span>Сведения</span>
+              </button>
+              {canEdit && (
+                <button type="button" onClick={() => openProcess([photo.path])}>
+                  <Icon name="process" /><span>Обработать</span>
+                </button>
+              )}
+              <button type="button" onClick={() => (hiddenAlbum
+                ? actions.reveal([photo.path], onClose) : actions.hide([photo.path], onClose))}>
+                <Icon name="hide" /><span>{hiddenAlbum ? 'Вернуть' : 'Скрыть'}</span>
+              </button>
+            </nav>
+          )}
+
           {info && (
             <aside className="viewer-sheet viewer-ui">
-              <InfoPanel photo={photo} onClose={onClose} onSeek={seek} />
+              <InfoPanel photo={photo} onClose={onClose} onSeek={seek} onOpen={openRelated} />
             </aside>
           )}
 
@@ -1296,6 +1367,14 @@ interface ViewerStripProps {
   onGo(index: number): void;
 }
 
+/** «14 июля» — подпись дня над лентой. */
+const dayLabel = (taken: PhotoCard['taken']) =>
+  (taken ? new Date(taken).toLocaleDateString('ru-RU', {day: 'numeric', month: 'long'}) : '');
+
+/**
+ * Лента кадров: дни разделены чёрточкой, над лентой — день открытого снимка,
+ * под ней ползунок по всей подборке (листать сотни кадров стрелками долго).
+ */
 function ViewerStrip({list, index, adultMode, onGo}: ViewerStripProps) {
   const strip = useRef<HTMLDivElement>(null);
   const active = useRef<HTMLButtonElement>(null);
@@ -1308,39 +1387,64 @@ function ViewerStrip({list, index, adultMode, onGo}: ViewerStripProps) {
   const from = Math.max(0, index - STRIP_RADIUS);
   const to = Math.min(list.length, index + STRIP_RADIUS + 1);
   const size = Math.round(120 * density());
+  const current = list[index];
 
   return (
-    <div ref={strip} className="viewer-strip">
-      {list.slice(from, to).map((item, offset) => {
-        const position = from + offset;
-        return (
-          <button
-            key={`${item.path}-${position}`}
-            ref={position === index ? active : undefined}
-            type="button"
-            className={[
-              'strip-item',
-              position === index ? 'active' : '',
-              item.kind === 'video' ? 'is-video' : '',
-            ].filter(Boolean).join(' ')}
-            aria-label={item.filename}
-            onClick={() => {
-              if (dragged.current) {
-                dragged.current = false;
-                return;
-              }
-              onGo(position);
-            }}
-          >
-            <img src={photoMediaUrl(item, adultMode, size)} alt="" loading="lazy" decoding="async" />
-            {item.kind === 'video' && (
-              <span className="strip-video-mark" aria-hidden="true">
-                <Icon name="play" />
-              </span>
-            )}
-          </button>
-        );
-      })}
+    <div className="viewer-strip-wrap">
+      {current?.taken && (
+        <div className="viewer-strip-day" aria-hidden="true">
+          <b>{dayLabel(current.taken)}</b>
+          <span>{new Date(current.taken).getFullYear()}</span>
+        </div>
+      )}
+      <div ref={strip} className="viewer-strip">
+        {list.slice(from, to).map((item, offset) => {
+          const position = from + offset;
+          const previous = position > from ? list[position - 1] : null;
+          const newDay = Boolean(previous && dayKey(previous.taken) !== dayKey(item.taken));
+          return (
+            <Fragment key={`${item.path}-${position}`}>
+              {newDay && <span className="strip-gap" aria-hidden="true" title={dayLabel(item.taken)} />}
+              <button
+                ref={position === index ? active : undefined}
+                type="button"
+                className={[
+                  'strip-item',
+                  position === index ? 'active' : '',
+                  item.kind === 'video' ? 'is-video' : '',
+                ].filter(Boolean).join(' ')}
+                aria-label={item.filename}
+                onClick={() => {
+                  if (dragged.current) {
+                    dragged.current = false;
+                    return;
+                  }
+                  onGo(position);
+                }}
+              >
+                <img src={photoMediaUrl(item, adultMode, size)} alt="" loading="lazy" decoding="async" />
+                {item.kind === 'video' && (
+                  <span className="strip-video-mark" aria-hidden="true">
+                    <Icon name="play" />
+                  </span>
+                )}
+              </button>
+            </Fragment>
+          );
+        })}
+      </div>
+      {list.length > 12 && (
+        <input
+          className="viewer-scrub"
+          type="range"
+          min={0}
+          max={list.length - 1}
+          value={index}
+          aria-label="Перемотка по подборке"
+          style={{'--at': `${(index / Math.max(1, list.length - 1)) * 100}%`} as CSSProperties}
+          onChange={event => onGo(Number(event.target.value))}
+        />
+      )}
     </div>
   );
 }
